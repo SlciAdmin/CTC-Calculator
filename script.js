@@ -215,6 +215,7 @@ async function handleLogin(e) {
 }
 
 // 🔐 ADMIN REGISTER (First Time Setup)
+// 🔐 ADMIN REGISTER - FIXED VERSION (No collection query!)
 async function handleAdminRegister(e) {
   e.preventDefault();
   
@@ -244,47 +245,52 @@ async function handleAdminRegister(e) {
   }
   
   try {
-    // Check if any admin already exists
-    const adminQuery = await db.collection('users')
-      .where('role', '==', 'admin')
-      .limit(1)
-      .get();
-    
-    if (!adminQuery.empty) {
-      showError(errorEl, 'Admin account already exists. Please login.');
-      return;
-    }
-    
-    // Create Firebase Auth user
+    // ✅ STEP 1: Create Firebase Auth user
     const userCredential = await auth.createUserWithEmailAndPassword(email, password);
     const uid = userCredential.user.uid;
     
-    // Save profile to Firestore
+    // ✅ STEP 2: Save to Firestore (rules allow create for own UID)
     await db.collection('users').doc(uid).set({
-      uid,
-      name,
-      companyName,
-      email,
-      role: 'admin',
+      uid: uid,
+      name: name,
+      companyName: companyName,
+      email: email,
+      role: 'admin',  // ✅ First registrant becomes admin
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       lastLogin: firebase.firestore.FieldValue.serverTimestamp()
     });
     
+    // ✅ Success
     if (successEl) {
       successEl.classList.remove('hidden');
       successEl.textContent = '✓ Admin account created! Redirecting to login...';
     }
     
-    // Sign out and redirect
+    // ✅ Sign out & redirect
     await auth.signOut();
-    setTimeout(() => showLoginPage(), 2000);
+    setTimeout(() => {
+      showLoginPage();
+      showToast('✓ Admin registered! Please login now.');
+    }, 2000);
     
   } catch (error) {
     console.error('Admin register error:', error);
+    
+    // ✅ Better error messages
     let msg = 'Registration failed';
     if (error.code === 'auth/email-already-in-use') msg = 'Email already registered';
-    if (error.code === 'auth/weak-password') msg = 'Password too weak';
+    else if (error.code === 'auth/weak-password') msg = 'Password too weak (min 6 chars)';
+    else if (error.code === 'auth/invalid-email') msg = 'Invalid email format';
+    else if (error.code === 'permission-denied') msg = 'Permission error - Hard refresh & try again';
+    else msg = `Error: ${error.message || error.code}`;
+    
     showError(errorEl, msg);
+    showToast('⚠️ ' + msg);
+    
+    // ✅ If permission error, suggest manual setup
+    if (error.code === 'permission-denied') {
+      showToast('💡 Try: Hard refresh (Ctrl+Shift+R) or create admin manually in Firebase Console');
+    }
   }
 }
 
