@@ -4,6 +4,7 @@
    ============================================ */
 
 // 🔥 FIREBASE CONFIG - Your config here
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyBYmsh-IgGPtx804pIWnc7UJ_AvlR51CIo",
   authDomain: "ctc-calculator-51f6d.firebaseapp.com",
