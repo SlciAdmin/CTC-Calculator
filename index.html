@@ -1,350 +1,538 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CTC Calculator | New Labour Law</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CTC Calculator | Secure Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="bg-grid"></div>
+  <div class="bg-grid"></div>
 
-<div class="app-shell">
+  <!-- =================== LOGIN PAGE =================== -->
+  <div id="loginPage" class="auth-page">
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="auth-header">
+          <div class="brand-icon auth-logo">
+            <img src="logo.png" alt="SLCI Logo" class="brand-logo" onerror="this.style.display='none'; this.parentElement.innerHTML='🔐'">
+          </div>
+          <h1>CTC Calculator</h1>
+          <p class="auth-subtitle">New Labour Code Compliance • Secure Access</p>
+        </div>
 
-  <!-- SIDEBAR -->
-  <!-- SIDEBAR -->
-<aside class="sidebar">
-  <div class="sidebar-brand">
-    <div class="brand-icon">
-      <img src="logo.png" alt="SLCI Logo" class="brand-logo" />
-    </div>
-    <div>
-      <div class="brand-name">SLCI</div>
-      <div class="brand-sub">CTC Calculator as Per New Labour code</div>
+        <form id="loginForm" class="auth-form">
+          <div class="field-group">
+            <label for="loginEmail">Email Address <span class="req">*</span></label>
+            <input type="email" id="loginEmail" placeholder="your@email.com" required autocomplete="email">
+          </div>
+
+          <div class="field-group">
+            <label for="loginPassword">Password <span class="req">*</span></label>
+            <div class="password-wrapper">
+              <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
+              <button type="button" class="toggle-password" onclick="togglePassword('loginPassword')">👁️</button>
+            </div>
+          </div>
+
+          <div class="auth-options">
+            <label class="remember-me">
+              <input type="checkbox" id="rememberMe">
+              <span>Remember me</span>
+            </label>
+            <a href="#" id="showAdminRegister" class="auth-link">Admin Register</a>
+          </div>
+
+          <button type="submit" class="btn-auth-primary">
+            🔐 Sign In to Calculator
+          </button>
+
+          <div id="loginError" class="auth-error hidden"></div>
+        </form>
+
+        <div class="auth-footer">
+          <p>Protected by SLCI Security • <span id="appVersion">v2.1</span></p>
+          <p class="default-creds">💡 Default Admin: <code>admin@slci.com</code> / <code>Admin@123</code></p>
+        </div>
+      </div>
     </div>
   </div>
 
-  <nav class="sidebar-nav">
-    <button class="nav-item active" data-tab="calculator">
-      <span class="nav-icon">⊞</span> Calculator
-    </button>
-    <button class="nav-item" data-tab="breakdown">
-      <span class="nav-icon">◫</span> Breakdown
-    </button>
-    <button class="nav-item" data-tab="export">
-      <span class="nav-icon">↑</span> Export
-    </button>
-  </nav>
-</aside>
+  <!-- =================== ADMIN REGISTER PAGE =================== -->
+  <div id="adminRegisterPage" class="auth-page hidden">
+    <div class="auth-container">
+      <div class="auth-card admin-card">
+        <div class="auth-header">
+          <div class="brand-icon auth-logo">⚙️</div>
+          <h1>Admin Registration</h1>
+          <p class="auth-subtitle">Create your admin account to manage users</p>
+        </div>
 
-  <!-- MAIN CONTENT -->
-  <main class="main-content">
-
-    <!-- HEADER BAR -->
-    <header class="topbar">
-      <div class="topbar-title">
-        <h1>CTC Automation Calculator</h1>
-        <span class="topbar-tag">As per New Labour Codes — Gross Based</span>
-      </div>
-      <div class="topbar-actions">
-        <button class="btn-reset" onclick="resetAll()">↺ Reset</button>
-        <button class="btn-calc" onclick="calculate()">Calculate →</button>
-      </div>
-    </header>
-
-    <!-- TAB: CALCULATOR -->
-    <div class="tab-panel active" id="tab-calculator">
-
-      <div class="input-grid">
-
-        <!-- LEFT: INPUTS -->
-        <section class="card input-card">
-          <div class="card-header">
-            <span class="card-icon">✎</span>
-            <h2>Employee Inputs</h2>
+        <form id="adminRegisterForm" class="auth-form">
+          <div class="field-group">
+            <label for="adminName">Admin Name <span class="req">*</span></label>
+            <input type="text" id="adminName" placeholder="e.g. Rajesh Kumar" required>
           </div>
 
           <div class="field-group">
-            <label>Employee Name <span class="opt">(optional)</span></label>
-            <input type="text" id="empName" placeholder="e.g. Rahul Sharma" />
+            <label for="adminCompanyName">Company/Organization Name <span class="req">*</span></label>
+            <input type="text" id="adminCompanyName" placeholder="e.g. SLCI Solutions" required>
           </div>
 
           <div class="field-group">
-            <label>Monthly Gross Salary <span class="req">*</span></label>
-            <div class="input-prefix">
-              <span>₹</span>
-              <input type="number" id="grossSalary" placeholder="e.g. 30000" min="0" oninput="liveCalc()" />
-            </div>
+            <label for="adminEmail">Admin Email <span class="req">*</span></label>
+            <input type="email" id="adminEmail" placeholder="admin@company.com" required>
           </div>
 
           <div class="field-group">
-            <label>State Minimum Wage <span class="req">*</span></label>
-            <div class="input-prefix">
-              <span>₹</span>
-              <input type="number" id="minWage" placeholder="e.g. 16868" min="0" oninput="liveCalc()" />
+            <label for="adminPassword">Password <span class="req">*</span></label>
+            <div class="password-wrapper">
+              <input type="password" id="adminPassword" placeholder="Min. 8 characters" minlength="8" required>
+              <button type="button" class="toggle-password" onclick="togglePassword('adminPassword')">👁️</button>
             </div>
-            <div class="field-hint">Enter state-wise minimum wage (e.g. Delhi: ₹16,868)</div>
+            <div class="field-hint">Use strong password: 8+ chars, mix of letters & numbers</div>
           </div>
 
           <div class="field-group">
-            <label>PF Applicability</label>
-            <div class="toggle-group">
-              <button class="toggle-btn active" id="pfYes" onclick="setPF('Y')">Yes (PF Applicable)</button>
-              <button class="toggle-btn" id="pfNo" onclick="setPF('N')">No PF</button>
-            </div>
-            <div class="field-hint" id="pfHint">55% of Gross or Min Wage (whichever is higher) → Basic</div>
-          </div>
-
-          <div class="field-group">
-            <label>Professional Tax (Monthly)</label>
-            <div class="input-prefix">
-              <span>₹</span>
-              <input type="number" id="ptAmount" placeholder="e.g. 200" min="0" value="0" oninput="liveCalc()" />
+            <label for="confirmPassword">Confirm Password <span class="req">*</span></label>
+            <div class="password-wrapper">
+              <input type="password" id="confirmPassword" placeholder="Re-enter password" required>
+              <button type="button" class="toggle-password" onclick="togglePassword('confirmPassword')">👁️</button>
             </div>
           </div>
 
-          <div class="field-group">
-            <label>LWF (Labour Welfare Fund)</label>
-            <div class="input-prefix">
-              <span>₹</span>
-              <input type="number" id="lwfAmount" placeholder="e.g. 0" min="0" value="0" oninput="liveCalc()" />
-            </div>
-          </div>
-
-          <!-- ─── GRATUITY FIELD ─── -->
-          <div class="field-group special-field">
-            <label>
-              Gratuity (Monthly Provision)
-              <span class="formula-badge">Basic ÷ 26 × 15 ÷ 12</span>
-            </label>
-            <div class="toggle-group">
-              <button class="toggle-btn active" id="gratuityAuto" onclick="setGratuityMode('auto')">Auto (Formula)</button>
-              <button class="toggle-btn" id="gratuityManual" onclick="setGratuityMode('manual')">Manual Override</button>
-            </div>
-            <div id="gratuityManualWrapper" class="hidden" style="margin-top:8px;">
-              <div class="input-prefix">
-                <span>₹</span>
-                <input type="number" id="gratuityCustom" placeholder="e.g. 500" min="0" oninput="liveCalc()" />
-              </div>
-            </div>
-            <div class="field-hint" id="gratuityHint">Formula: Basic ÷ 26 × 15 ÷ 12 (monthly provision)</div>
-          </div>
-
-          <!-- ─── LEAVE COMPONENT FIELD ─── -->
-          <div class="field-group special-field">
-            <label>
-              Leave Encashment (Monthly Provision)
-              <span class="formula-badge">Basic ÷ 26 × 1.25</span>
-            </label>
-            <div class="toggle-group">
-              <button class="toggle-btn active" id="leaveAuto" onclick="setLeaveMode('auto')">Auto (Formula)</button>
-              <button class="toggle-btn" id="leaveManual" onclick="setLeaveMode('manual')">Manual Override</button>
-            </div>
-            <div id="leaveManualWrapper" class="hidden" style="margin-top:8px;">
-              <div class="input-prefix">
-                <span>₹</span>
-                <input type="number" id="leaveCustom" placeholder="e.g. 200" min="0" oninput="liveCalc()" />
-              </div>
-            </div>
-            <div class="field-hint" id="leaveHint">Formula: Basic ÷ 26 × 1.25 (monthly provision for 15 leaves/yr)</div>
-          </div>
-
-          <button class="btn-calc-main" onclick="calculate()">
-            Calculate CTC
+          <button type="submit" class="btn-auth-primary btn-admin">
+            ✨ Create Admin Account
           </button>
-        </section>
 
-        <!-- RIGHT: QUICK RESULTS -->
-        <section class="card result-summary-card" id="resultSummary">
-          <div class="card-header">
-            <span class="card-icon">◈</span>
-            <h2>Quick Summary</h2>
+          <div id="adminError" class="auth-error hidden"></div>
+          <div id="adminSuccess" class="auth-success hidden">
+            ✓ Admin account created! You can now login.
           </div>
+        </form>
 
-          <div class="summary-empty" id="summaryEmpty">
-            <div class="empty-icon">⊡</div>
-            <p>Enter gross salary &amp; minimum wage to see results</p>
-          </div>
-
-          <div class="summary-results hidden" id="summaryResults">
-            
-
-            <div class="result-hero">
-              <div class="hero-label">Final CTC (Annual)</div>
-              <div class="hero-value" id="annualCTC">—</div>
-            </div>
-
-            <div class="result-hero secondary">
-              <div class="hero-label">Final CTC (Monthly)</div>
-              <div class="hero-value" id="monthlyCTC">—</div>
-            </div>
-
-            <!-- ADD THIS INSIDE #summaryResults, AFTER hero-value blocks -->
-<div class="result-hero initial-ctc-card">
-  <div class="hero-label">Initial CTC (Monthly)</div>
-  <div class="hero-value" id="r_initialCTC">—</div>
-</div>
-
-            <div class="mini-grid">
-              <div class="mini-item">
-                <span class="mini-label">Basic</span>
-                <span class="mini-val" id="r_basic">—</span>
-              </div>
-              <div class="mini-item">
-                <span class="mini-label">HRA</span>
-                <span class="mini-val" id="r_hra">—</span>
-              </div>
-              <div class="mini-item">
-                <span class="mini-label">Conveyance</span>
-                <span class="mini-val" id="r_conv">—</span>
-              </div>
-              <div class="mini-item">
-                <span class="mini-label">Gross</span>
-                <span class="mini-val" id="r_gross">—</span>
-              </div>
-              <div class="mini-item">
-                <span class="mini-label">Cash in Hand</span>
-                <span class="mini-val accent" id="r_cash">—</span>
-              </div>
-              <div class="mini-item">
-                <span class="mini-label">Bonus</span>
-                <span class="mini-val" id="r_bonus">—</span>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-
-    </div>
-
-    <!-- TAB: BREAKDOWN -->
-    <div class="tab-panel" id="tab-breakdown">
-      <div class="breakdown-empty" id="breakdownEmpty">
-        <div class="empty-icon large">⊞</div>
-        <p>Please calculate first from the Calculator tab</p>
-        <button class="btn-go" onclick="switchTab('calculator')">Go to Calculator</button>
-      </div>
-
-      <div class="breakdown-content hidden" id="breakdownContent">
-
-        <div class="breakdown-grid">
-
-          <!-- SALARY STRUCTURE -->
-          <div class="card breakdown-card">
-            <div class="card-header">
-              <span class="card-icon">₹</span>
-              <h2>Salary Structure (Monthly)</h2>
-            </div>
-            <table class="breakdown-table">
-              <thead>
-                <tr><th>Component</th><th>Amount</th><th>% of Gross</th></tr>
-              </thead>
-              <tbody id="salaryTable"></tbody>
-              <tfoot>
-                <tr class="total-row">
-                  <td>Total Gross</td>
-                  <td id="tfoot_gross">—</td>
-                  <td>100%</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          <!-- EMPLOYER CONTRIBUTIONS -->
-          <div class="card breakdown-card">
-            <div class="card-header">
-              <span class="card-icon">⊕</span>
-              <h2>Employer Contributions</h2>
-            </div>
-            <table class="breakdown-table">
-              <thead>
-                <tr><th>Component</th><th>Rate</th><th>Amount</th></tr>
-              </thead>
-              <tbody id="employerTable"></tbody>
-              <tfoot>
-                <tr class="total-row">
-                  <td colspan="2">Initial CTC</td>
-                  <td id="tfoot_initialCTC">—</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          <!-- EMPLOYEE DEDUCTIONS -->
-          <div class="card breakdown-card">
-            <div class="card-header">
-              <span class="card-icon">⊖</span>
-              <h2>Employee Deductions</h2>
-            </div>
-            <table class="breakdown-table">
-              <thead>
-                <tr><th>Deduction</th><th>Rate</th><th>Amount</th></tr>
-              </thead>
-              <tbody id="deductionTable"></tbody>
-              <tfoot>
-                <tr class="total-row">
-                  <td colspan="2">Cash in Hand</td>
-                  <td id="tfoot_cash">—</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          <!-- FINAL COST CARD -->
-          <div class="card breakdown-card final-card">
-            <div class="card-header">
-              <span class="card-icon">★</span>
-              <h2>Final Cost to Company</h2>
-            </div>
-            <div class="final-items" id="finalItems"></div>
-          </div>
-
+        <div class="auth-footer">
+          <p>Already have an account? <a href="#" id="backToLogin" class="auth-link">Sign In</a></p>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- TAB: EXPORT -->
-    <div class="tab-panel" id="tab-export">
-      <div class="export-wrapper">
-        <div class="card export-card">
-          <div class="card-header">
-            <span class="card-icon">↑</span>
-            <h2>Export Options</h2>
-          </div>
-          <div class="export-options">
-            <button class="export-btn" onclick="exportPDF()">
-              <span class="export-icon">📄</span>
-              <span class="export-label">Download PDF</span>
-              <span class="export-sub">Full CTC Breakdown</span>
-            </button>
-            <button class="export-btn" onclick="exportCSV()">
-              <span class="export-icon">📊</span>
-              <span class="export-label">Download CSV</span>
-              <span class="export-sub">Spreadsheet Format</span>
-            </button>
-            <button class="export-btn" onclick="copyToClipboard()">
-              <span class="export-icon">⎘</span>
-              <span class="export-label">Copy to Clipboard</span>
-              <span class="export-sub">Tab-separated values</span>
-            </button>
-          </div>
+  <!-- =================== MAIN APP (Protected) =================== -->
+  <div id="mainApp" class="app-shell hidden">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <img src="logo.png" alt="SLCI Logo" class="brand-logo" onerror="this.style.display='none'; this.parentElement.innerHTML='📊'">
+        </div>
+        <div>
+          <div class="brand-name">SLCI</div>
+          <div class="brand-sub">CTC Calculator • New Labour Code</div>
+        </div>
+      </div>
 
-          <div class="preview-area" id="exportPreview">
-            <div class="preview-empty">Calculate first to see export preview</div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="calculator">
+          <span class="nav-icon">⊞</span> Calculator
+        </button>
+        <button class="nav-item" data-tab="breakdown">
+          <span class="nav-icon">◫</span> Breakdown
+        </button>
+        <button class="nav-item" data-tab="export">
+          <span class="nav-icon">↑</span> Export
+        </button>
+        <button class="nav-item" id="adminPanelBtn" data-tab="admin" style="display:none;">
+          <span class="nav-icon">⚙️</span> Admin Panel
+        </button>
+      </nav>
+
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">👤</div>
+        <div class="user-info">
+          <div id="userName">User</div>
+          <div id="userEmail" class="user-email">user@email.com</div>
+        </div>
+        <button class="btn-logout" onclick="logout()">↪️ Logout</button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+      <!-- HEADER BAR -->
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1>CTC Automation Calculator</h1>
+          <span class="topbar-tag">As per New Labour Codes — Gross Based</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn-reset" onclick="resetAll()">↺ Reset</button>
+          <button class="btn-calc" onclick="calculate()">Calculate →</button>
+        </div>
+      </header>
+
+      <!-- TAB: CALCULATOR -->
+      <div class="tab-panel active" id="tab-calculator">
+        <div class="input-grid">
+          <!-- LEFT: INPUTS -->
+          <section class="card input-card">
+            <div class="card-header">
+              <span class="card-icon">✎</span>
+              <h2>Employee Inputs</h2>
+            </div>
+
+            <div class="field-group">
+              <label>Employee Name <span class="opt">(optional)</span></label>
+              <input type="text" id="empName" placeholder="e.g. Rahul Sharma" />
+            </div>
+
+            <div class="field-group">
+              <label>Monthly Gross Salary <span class="req">*</span></label>
+              <div class="input-prefix">
+                <span>₹</span>
+                <input type="number" id="grossSalary" placeholder="e.g. 30000" min="0" oninput="liveCalc()" />
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label>State Minimum Wage <span class="req">*</span></label>
+              <div class="input-prefix">
+                <span>₹</span>
+                <input type="number" id="minWage" placeholder="e.g. 16868" min="0" oninput="liveCalc()" />
+              </div>
+              <div class="field-hint">Enter state-wise minimum wage (e.g. Delhi: ₹16,868)</div>
+            </div>
+
+            <div class="field-group">
+              <label>PF Applicability</label>
+              <div class="toggle-group">
+                <button class="toggle-btn active" id="pfYes" onclick="setPF('Y')">Yes (PF Applicable)</button>
+                <button class="toggle-btn" id="pfNo" onclick="setPF('N')">No PF</button>
+              </div>
+              <div class="field-hint" id="pfHint">55% of Gross or Min Wage (whichever is higher) → Basic</div>
+            </div>
+
+            <div class="field-group">
+              <label>Professional Tax (Monthly)</label>
+              <div class="input-prefix">
+                <span>₹</span>
+                <input type="number" id="ptAmount" placeholder="e.g. 200" min="0" value="0" oninput="liveCalc()" />
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label>LWF (Labour Welfare Fund)</label>
+              <div class="input-prefix">
+                <span>₹</span>
+                <input type="number" id="lwfAmount" placeholder="e.g. 0" min="0" value="0" oninput="liveCalc()" />
+              </div>
+            </div>
+
+            <!-- GRATUITY FIELD -->
+            <div class="field-group special-field">
+              <label>
+                Gratuity (Monthly Provision)
+                <span class="formula-badge">Basic ÷ 26 × 15 ÷ 12</span>
+              </label>
+              <div class="toggle-group">
+                <button class="toggle-btn active" id="gratuityAuto" onclick="setGratuityMode('auto')">Auto (Formula)</button>
+                <button class="toggle-btn" id="gratuityManual" onclick="setGratuityMode('manual')">Manual Override</button>
+              </div>
+              <div id="gratuityManualWrapper" class="hidden" style="margin-top:8px;">
+                <div class="input-prefix">
+                  <span>₹</span>
+                  <input type="number" id="gratuityCustom" placeholder="e.g. 500" min="0" oninput="liveCalc()" />
+                </div>
+              </div>
+              <div class="field-hint" id="gratuityHint">Formula: Basic ÷ 26 × 15 ÷ 12 (monthly provision)</div>
+            </div>
+
+            <!-- LEAVE COMPONENT FIELD -->
+            <div class="field-group special-field">
+              <label>
+                Leave Encashment (Monthly Provision)
+                <span class="formula-badge">Basic ÷ 26 × 1.25</span>
+              </label>
+              <div class="toggle-group">
+                <button class="toggle-btn active" id="leaveAuto" onclick="setLeaveMode('auto')">Auto (Formula)</button>
+                <button class="toggle-btn" id="leaveManual" onclick="setLeaveMode('manual')">Manual Override</button>
+              </div>
+              <div id="leaveManualWrapper" class="hidden" style="margin-top:8px;">
+                <div class="input-prefix">
+                  <span>₹</span>
+                  <input type="number" id="leaveCustom" placeholder="e.g. 200" min="0" oninput="liveCalc()" />
+                </div>
+              </div>
+              <div class="field-hint" id="leaveHint">Formula: Basic ÷ 26 × 1.25 (monthly provision for 15 leaves/yr)</div>
+            </div>
+
+            <button class="btn-calc-main" onclick="calculate()">
+              Calculate CTC
+            </button>
+          </section>
+
+          <!-- RIGHT: QUICK RESULTS -->
+          <section class="card result-summary-card" id="resultSummary">
+            <div class="card-header">
+              <span class="card-icon">◈</span>
+              <h2>Quick Summary</h2>
+            </div>
+
+            <div class="summary-empty" id="summaryEmpty">
+              <div class="empty-icon">⊡</div>
+              <p>Enter gross salary &amp; minimum wage to see results</p>
+            </div>
+
+            <div class="summary-results hidden" id="summaryResults">
+              <div class="result-hero">
+                <div class="hero-label">Final CTC (Annual)</div>
+                <div class="hero-value" id="annualCTC">—</div>
+              </div>
+
+              <div class="result-hero secondary">
+                <div class="hero-label">Final CTC (Monthly)</div>
+                <div class="hero-value" id="monthlyCTC">—</div>
+              </div>
+
+              <div class="result-hero initial-ctc-card">
+                <div class="hero-label">Initial CTC (Monthly)</div>
+                <div class="hero-value" id="r_initialCTC">—</div>
+              </div>
+
+              <div class="mini-grid">
+                <div class="mini-item">
+                  <span class="mini-label">Basic</span>
+                  <span class="mini-val" id="r_basic">—</span>
+                </div>
+                <div class="mini-item">
+                  <span class="mini-label">HRA</span>
+                  <span class="mini-val" id="r_hra">—</span>
+                </div>
+                <div class="mini-item">
+                  <span class="mini-label">Conveyance</span>
+                  <span class="mini-val" id="r_conv">—</span>
+                </div>
+                <div class="mini-item">
+                  <span class="mini-label">Gross</span>
+                  <span class="mini-val" id="r_gross">—</span>
+                </div>
+                <div class="mini-item">
+                  <span class="mini-label">Cash in Hand</span>
+                  <span class="mini-val accent" id="r_cash">—</span>
+                </div>
+                <div class="mini-item">
+                  <span class="mini-label">Bonus</span>
+                  <span class="mini-val" id="r_bonus">—</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- TAB: BREAKDOWN -->
+      <div class="tab-panel" id="tab-breakdown">
+        <div class="breakdown-empty" id="breakdownEmpty">
+          <div class="empty-icon large">⊞</div>
+          <p>Please calculate first from the Calculator tab</p>
+          <button class="btn-go" onclick="switchTab('calculator')">Go to Calculator</button>
+        </div>
+
+        <div class="breakdown-content hidden" id="breakdownContent">
+          <div class="breakdown-grid">
+            <!-- SALARY STRUCTURE -->
+            <div class="card breakdown-card">
+              <div class="card-header">
+                <span class="card-icon">₹</span>
+                <h2>Salary Structure (Monthly)</h2>
+              </div>
+              <table class="breakdown-table">
+                <thead>
+                  <tr><th>Component</th><th>Amount</th><th>% of Gross</th></tr>
+                </thead>
+                <tbody id="salaryTable"></tbody>
+                <tfoot>
+                  <tr class="total-row">
+                    <td>Total Gross</td>
+                    <td id="tfoot_gross">—</td>
+                    <td>100%</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <!-- EMPLOYER CONTRIBUTIONS -->
+            <div class="card breakdown-card">
+              <div class="card-header">
+                <span class="card-icon">⊕</span>
+                <h2>Employer Contributions</h2>
+              </div>
+              <table class="breakdown-table">
+                <thead>
+                  <tr><th>Component</th><th>Rate</th><th>Amount</th></tr>
+                </thead>
+                <tbody id="employerTable"></tbody>
+                <tfoot>
+                  <tr class="total-row">
+                    <td colspan="2">Initial CTC</td>
+                    <td id="tfoot_initialCTC">—</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <!-- EMPLOYEE DEDUCTIONS -->
+            <div class="card breakdown-card">
+              <div class="card-header">
+                <span class="card-icon">⊖</span>
+                <h2>Employee Deductions</h2>
+              </div>
+              <table class="breakdown-table">
+                <thead>
+                  <tr><th>Deduction</th><th>Rate</th><th>Amount</th></tr>
+                </thead>
+                <tbody id="deductionTable"></tbody>
+                <tfoot>
+                  <tr class="total-row">
+                    <td colspan="2">Cash in Hand</td>
+                    <td id="tfoot_cash">—</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <!-- FINAL COST CARD -->
+            <div class="card breakdown-card final-card">
+              <div class="card-header">
+                <span class="card-icon">★</span>
+                <h2>Final Cost to Company</h2>
+              </div>
+              <div class="final-items" id="finalItems"></div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-  </main>
-</div>
+      <!-- TAB: EXPORT -->
+      <div class="tab-panel" id="tab-export">
+        <div class="export-wrapper">
+          <div class="card export-card">
+            <div class="card-header">
+              <span class="card-icon">↑</span>
+              <h2>Export Options</h2>
+            </div>
+            <div class="export-options">
+              <button class="export-btn" onclick="exportPDF()">
+                <span class="export-icon">📄</span>
+                <span class="export-label">Download PDF</span>
+                <span class="export-sub">Full CTC Breakdown</span>
+              </button>
+              <button class="export-btn" onclick="exportCSV()">
+                <span class="export-icon">📊</span>
+                <span class="export-label">Download CSV</span>
+                <span class="export-sub">Spreadsheet Format</span>
+              </button>
+              <button class="export-btn" onclick="copyToClipboard()">
+                <span class="export-icon">⎘</span>
+                <span class="export-label">Copy to Clipboard</span>
+                <span class="export-sub">Tab-separated values</span>
+              </button>
+            </div>
 
-<!-- TOAST -->
-<div class="toast" id="toast"></div>
+            <div class="preview-area" id="exportPreview">
+              <div class="preview-empty">Calculate first to see export preview</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-<script src="script.js"></script>
+      <!-- TAB: ADMIN PANEL (Hidden by default) -->
+      <div class="tab-panel" id="tab-admin">
+        <div class="admin-wrapper">
+          <div class="card admin-card-large">
+            <div class="card-header">
+              <span class="card-icon">⚙️</span>
+              <h2>Admin Panel • User Management</h2>
+            </div>
+
+            <div class="admin-section">
+              <h3>➕ Create New User</h3>
+              <form id="createUserForm" class="admin-form">
+                <div class="admin-form-grid">
+                  <div class="field-group">
+                    <label>User Name <span class="req">*</span></label>
+                    <input type="text" id="newUserName" placeholder="e.g. Priya Singh" required>
+                  </div>
+                  <div class="field-group">
+                    <label>Email <span class="req">*</span></label>
+                    <input type="email" id="newUserEmail" placeholder="user@company.com" required>
+                  </div>
+                  <div class="field-group">
+                    <label>Password <span class="req">*</span></label>
+                    <div class="password-wrapper">
+                      <input type="password" id="newUserPassword" placeholder="Min. 8 characters" minlength="8" required>
+                      <button type="button" class="toggle-password" onclick="togglePassword('newUserPassword')">👁️</button>
+                    </div>
+                  </div>
+                  <div class="field-group">
+                    <label>Confirm Password <span class="req">*</span></label>
+                    <div class="password-wrapper">
+                      <input type="password" id="confirmNewPassword" placeholder="Re-enter password" required>
+                      <button type="button" class="toggle-password" onclick="togglePassword('confirmNewPassword')">👁️</button>
+                    </div>
+                  </div>
+                </div>
+                <button type="submit" class="btn-admin-action">✨ Create User Account</button>
+                <div id="createUserMsg" class="admin-msg hidden"></div>
+              </form>
+            </div>
+
+            <div class="admin-section">
+              <h3>👥 Registered Users</h3>
+              <div class="users-table-wrapper">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Created</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usersTableBody">
+                    <!-- Users will be populated here -->
+                  </tbody>
+                </table>
+              </div>
+              <div id="noUsersMsg" class="admin-empty">No users registered yet.</div>
+            </div>
+
+            <div class="admin-section">
+              <h3>🔐 Admin Settings</h3>
+              <div class="admin-settings-grid">
+                <div class="setting-item">
+                  <label>Current Admin</label>
+                  <div id="currentAdminInfo" class="setting-value">Loading...</div>
+                </div>
+                <div class="setting-item">
+                  <label>Total Users</label>
+                  <div id="totalUsersCount" class="setting-value">0</div>
+                </div>
+              </div>
+              <button class="btn-admin-danger" onclick="clearAllData()">⚠️ Clear All Data (Reset)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- TOAST NOTIFICATIONS -->
+  <div class="toast" id="toast"></div>
+
+  <script src="script.js" defer></script>
 </body>
 </html>
