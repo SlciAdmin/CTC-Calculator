@@ -7,10 +7,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
-  <!-- Add BEFORE your script.js -->
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -38,7 +40,7 @@
             <label for="loginPassword">Password <span class="req">*</span></label>
             <div class="password-wrapper">
               <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
-              <button type="button" class="toggle-password" onclick="togglePassword('loginPassword')">👁️</button>
+              <button type="button" class="toggle-password" onclick="togglePassword('loginPassword')" aria-label="Toggle password visibility">👁️</button>
             </div>
           </div>
 
@@ -54,7 +56,7 @@
             🔐 Sign In to Calculator
           </button>
 
-          <div id="loginError" class="auth-error hidden"></div>
+          <div id="loginError" class="auth-error hidden" role="alert"></div>
         </form>
 
         <div class="auth-footer">
@@ -66,7 +68,7 @@
   </div>
 
   <!-- =================== ADMIN REGISTER PAGE =================== -->
-  <div id="adminRegisterPage" class="auth-page hidden">
+   <div id="adminRegisterPage" class="auth-page hidden">
     <div class="auth-container">
       <div class="auth-card admin-card">
         <div class="auth-header">
@@ -75,6 +77,7 @@
           <p class="auth-subtitle">Create your admin account to manage users</p>
         </div>
 
+        
         <form id="adminRegisterForm" class="auth-form">
           <div class="field-group">
             <label for="adminName">Admin Name <span class="req">*</span></label>
@@ -95,7 +98,7 @@
             <label for="adminPassword">Password <span class="req">*</span></label>
             <div class="password-wrapper">
               <input type="password" id="adminPassword" placeholder="Min. 8 characters" minlength="8" required>
-              <button type="button" class="toggle-password" onclick="togglePassword('adminPassword')">👁️</button>
+              <button type="button" class="toggle-password" onclick="togglePassword('adminPassword')" aria-label="Toggle password visibility">👁️</button>
             </div>
             <div class="field-hint">Use strong password: 8+ chars, mix of letters & numbers</div>
           </div>
@@ -104,7 +107,7 @@
             <label for="confirmPassword">Confirm Password <span class="req">*</span></label>
             <div class="password-wrapper">
               <input type="password" id="confirmPassword" placeholder="Re-enter password" required>
-              <button type="button" class="toggle-password" onclick="togglePassword('confirmPassword')">👁️</button>
+              <button type="button" class="toggle-password" onclick="togglePassword('confirmPassword')" aria-label="Toggle password visibility">👁️</button>
             </div>
           </div>
 
@@ -112,8 +115,8 @@
             ✨ Create Admin Account
           </button>
 
-          <div id="adminError" class="auth-error hidden"></div>
-          <div id="adminSuccess" class="auth-success hidden">
+          <div id="adminError" class="auth-error hidden" role="alert"></div>
+          <div id="adminSuccess" class="auth-success hidden" role="status">
             ✓ Admin account created! You can now login.
           </div>
         </form>
@@ -130,8 +133,12 @@
     <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="sidebar-brand">
+        <!-- 🔗 Sidebar Logo with Placehold.co Fallback -->
         <div class="brand-icon">
-          <img src="logo.png" alt="SLCI Logo" class="brand-logo" onerror="this.style.display='none'; this.parentElement.innerHTML='📊'">
+          <img src="https://placehold.co/48x48/1a1e2e/63b3ed?text=📊&font=roboto" 
+               alt="SLCI Logo" 
+               class="brand-logo" 
+               onerror="this.style.display='none'; this.parentElement.innerHTML='📊'">
         </div>
         <div>
           <div class="brand-name">SLCI</div>
@@ -140,27 +147,27 @@
       </div>
 
       <nav class="sidebar-nav">
-        <button class="nav-item active" data-tab="calculator">
+        <button class="nav-item active" data-tab="calculator" aria-label="Open Calculator tab">
           <span class="nav-icon">⊞</span> Calculator
         </button>
-        <button class="nav-item" data-tab="breakdown">
+        <button class="nav-item" data-tab="breakdown" aria-label="Open Breakdown tab">
           <span class="nav-icon">◫</span> Breakdown
         </button>
-        <button class="nav-item" data-tab="export">
+        <button class="nav-item" data-tab="export" aria-label="Open Export tab">
           <span class="nav-icon">↑</span> Export
         </button>
-        <button class="nav-item" id="adminPanelBtn" data-tab="admin" style="display:none;">
+        <button class="nav-item" id="adminPanelBtn" data-tab="admin" style="display:none;" aria-label="Open Admin Panel">
           <span class="nav-icon">⚙️</span> Admin Panel
         </button>
       </nav>
 
       <div class="sidebar-user">
-        <div class="user-avatar" id="userAvatar">👤</div>
+        <div class="user-avatar" id="userAvatar" aria-hidden="true">👤</div>
         <div class="user-info">
           <div id="userName">User</div>
           <div id="userEmail" class="user-email">user@email.com</div>
         </div>
-        <button class="btn-logout" onclick="logout()">↪️ Logout</button>
+        <button class="btn-logout" onclick="logout()" aria-label="Logout">↪️ Logout</button>
       </div>
     </aside>
 
@@ -173,13 +180,13 @@
           <span class="topbar-tag">As per New Labour Codes — Gross Based</span>
         </div>
         <div class="topbar-actions">
-          <button class="btn-reset" onclick="resetAll()">↺ Reset</button>
+          <button class="btn-reset" onclick="resetAll()" aria-label="Reset all fields">↺ Reset</button>
           <button class="btn-calc" onclick="calculate()">Calculate →</button>
         </div>
       </header>
 
       <!-- TAB: CALCULATOR -->
-      <div class="tab-panel active" id="tab-calculator">
+      <div class="tab-panel active" id="tab-calculator" role="tabpanel">
         <div class="input-grid">
           <!-- LEFT: INPUTS -->
           <section class="card input-card">
@@ -189,12 +196,12 @@
             </div>
 
             <div class="field-group">
-              <label>Employee Name <span class="opt">(optional)</span></label>
+              <label for="empName">Employee Name <span class="opt">(optional)</span></label>
               <input type="text" id="empName" placeholder="e.g. Rahul Sharma" />
             </div>
 
             <div class="field-group">
-              <label>Monthly Gross Salary <span class="req">*</span></label>
+              <label for="grossSalary">Monthly Gross Salary <span class="req">*</span></label>
               <div class="input-prefix">
                 <span>₹</span>
                 <input type="number" id="grossSalary" placeholder="e.g. 30000" min="0" oninput="liveCalc()" />
@@ -202,7 +209,7 @@
             </div>
 
             <div class="field-group">
-              <label>State Minimum Wage <span class="req">*</span></label>
+              <label for="minWage">State Minimum Wage <span class="req">*</span></label>
               <div class="input-prefix">
                 <span>₹</span>
                 <input type="number" id="minWage" placeholder="e.g. 16868" min="0" oninput="liveCalc()" />
@@ -212,15 +219,15 @@
 
             <div class="field-group">
               <label>PF Applicability</label>
-              <div class="toggle-group">
-                <button class="toggle-btn active" id="pfYes" onclick="setPF('Y')">Yes (PF Applicable)</button>
-                <button class="toggle-btn" id="pfNo" onclick="setPF('N')">No PF</button>
+              <div class="toggle-group" role="radiogroup" aria-label="PF Applicability">
+                <button class="toggle-btn active" id="pfYes" onclick="setPF('Y')" role="radio" aria-checked="true">Yes (PF Applicable)</button>
+                <button class="toggle-btn" id="pfNo" onclick="setPF('N')" role="radio" aria-checked="false">No PF</button>
               </div>
               <div class="field-hint" id="pfHint">55% of Gross or Min Wage (whichever is higher) → Basic</div>
             </div>
 
             <div class="field-group">
-              <label>Professional Tax (Monthly)</label>
+              <label for="ptAmount">Professional Tax (Monthly)</label>
               <div class="input-prefix">
                 <span>₹</span>
                 <input type="number" id="ptAmount" placeholder="e.g. 200" min="0" value="0" oninput="liveCalc()" />
@@ -228,7 +235,7 @@
             </div>
 
             <div class="field-group">
-              <label>LWF (Labour Welfare Fund)</label>
+              <label for="lwfAmount">LWF (Labour Welfare Fund)</label>
               <div class="input-prefix">
                 <span>₹</span>
                 <input type="number" id="lwfAmount" placeholder="e.g. 0" min="0" value="0" oninput="liveCalc()" />
@@ -241,9 +248,9 @@
                 Gratuity (Monthly Provision)
                 <span class="formula-badge">Basic ÷ 26 × 15 ÷ 12</span>
               </label>
-              <div class="toggle-group">
-                <button class="toggle-btn active" id="gratuityAuto" onclick="setGratuityMode('auto')">Auto (Formula)</button>
-                <button class="toggle-btn" id="gratuityManual" onclick="setGratuityMode('manual')">Manual Override</button>
+              <div class="toggle-group" role="radiogroup" aria-label="Gratuity Calculation Mode">
+                <button class="toggle-btn active" id="gratuityAuto" onclick="setGratuityMode('auto')" role="radio" aria-checked="true">Auto (Formula)</button>
+                <button class="toggle-btn" id="gratuityManual" onclick="setGratuityMode('manual')" role="radio" aria-checked="false">Manual Override</button>
               </div>
               <div id="gratuityManualWrapper" class="hidden" style="margin-top:8px;">
                 <div class="input-prefix">
@@ -260,9 +267,9 @@
                 Leave Encashment (Monthly Provision)
                 <span class="formula-badge">Basic ÷ 26 × 1.25</span>
               </label>
-              <div class="toggle-group">
-                <button class="toggle-btn active" id="leaveAuto" onclick="setLeaveMode('auto')">Auto (Formula)</button>
-                <button class="toggle-btn" id="leaveManual" onclick="setLeaveMode('manual')">Manual Override</button>
+              <div class="toggle-group" role="radiogroup" aria-label="Leave Encashment Mode">
+                <button class="toggle-btn active" id="leaveAuto" onclick="setLeaveMode('auto')" role="radio" aria-checked="true">Auto (Formula)</button>
+                <button class="toggle-btn" id="leaveManual" onclick="setLeaveMode('manual')" role="radio" aria-checked="false">Manual Override</button>
               </div>
               <div id="leaveManualWrapper" class="hidden" style="margin-top:8px;">
                 <div class="input-prefix">
@@ -338,7 +345,7 @@
       </div>
 
       <!-- TAB: BREAKDOWN -->
-      <div class="tab-panel" id="tab-breakdown">
+      <div class="tab-panel" id="tab-breakdown" role="tabpanel">
         <div class="breakdown-empty" id="breakdownEmpty">
           <div class="empty-icon large">⊞</div>
           <p>Please calculate first from the Calculator tab</p>
@@ -355,7 +362,7 @@
               </div>
               <table class="breakdown-table">
                 <thead>
-                  <tr><th>Component</th><th>Amount</th><th>% of Gross</th></tr>
+                  <tr><th scope="col">Component</th><th scope="col">Amount</th><th scope="col">% of Gross</th></tr>
                 </thead>
                 <tbody id="salaryTable"></tbody>
                 <tfoot>
@@ -376,7 +383,7 @@
               </div>
               <table class="breakdown-table">
                 <thead>
-                  <tr><th>Component</th><th>Rate</th><th>Amount</th></tr>
+                  <tr><th scope="col">Component</th><th scope="col">Rate</th><th scope="col">Amount</th></tr>
                 </thead>
                 <tbody id="employerTable"></tbody>
                 <tfoot>
@@ -396,7 +403,7 @@
               </div>
               <table class="breakdown-table">
                 <thead>
-                  <tr><th>Deduction</th><th>Rate</th><th>Amount</th></tr>
+                  <tr><th scope="col">Deduction</th><th scope="col">Rate</th><th scope="col">Amount</th></tr>
                 </thead>
                 <tbody id="deductionTable"></tbody>
                 <tfoot>
@@ -421,7 +428,7 @@
       </div>
 
       <!-- TAB: EXPORT -->
-      <div class="tab-panel" id="tab-export">
+      <div class="tab-panel" id="tab-export" role="tabpanel">
         <div class="export-wrapper">
           <div class="card export-card">
             <div class="card-header">
@@ -454,7 +461,7 @@
       </div>
 
       <!-- TAB: ADMIN PANEL (Hidden by default) -->
-      <div class="tab-panel" id="tab-admin">
+      <div class="tab-panel" id="tab-admin" role="tabpanel">
         <div class="admin-wrapper">
           <div class="card admin-card-large">
             <div class="card-header">
@@ -467,30 +474,30 @@
               <form id="createUserForm" class="admin-form">
                 <div class="admin-form-grid">
                   <div class="field-group">
-                    <label>User Name <span class="req">*</span></label>
+                    <label for="newUserName">User Name <span class="req">*</span></label>
                     <input type="text" id="newUserName" placeholder="e.g. Priya Singh" required>
                   </div>
                   <div class="field-group">
-                    <label>Email <span class="req">*</span></label>
+                    <label for="newUserEmail">Email <span class="req">*</span></label>
                     <input type="email" id="newUserEmail" placeholder="user@company.com" required>
                   </div>
                   <div class="field-group">
-                    <label>Password <span class="req">*</span></label>
+                    <label for="newUserPassword">Password <span class="req">*</span></label>
                     <div class="password-wrapper">
                       <input type="password" id="newUserPassword" placeholder="Min. 8 characters" minlength="8" required>
-                      <button type="button" class="toggle-password" onclick="togglePassword('newUserPassword')">👁️</button>
+                      <button type="button" class="toggle-password" onclick="togglePassword('newUserPassword')" aria-label="Toggle password visibility">👁️</button>
                     </div>
                   </div>
                   <div class="field-group">
-                    <label>Confirm Password <span class="req">*</span></label>
+                    <label for="confirmNewPassword">Confirm Password <span class="req">*</span></label>
                     <div class="password-wrapper">
                       <input type="password" id="confirmNewPassword" placeholder="Re-enter password" required>
-                      <button type="button" class="toggle-password" onclick="togglePassword('confirmNewPassword')">👁️</button>
+                      <button type="button" class="toggle-password" onclick="togglePassword('confirmNewPassword')" aria-label="Toggle password visibility">👁️</button>
                     </div>
                   </div>
                 </div>
                 <button type="submit" class="btn-admin-action">✨ Create User Account</button>
-                <div id="createUserMsg" class="admin-msg hidden"></div>
+                <div id="createUserMsg" class="admin-msg hidden" role="alert"></div>
               </form>
             </div>
 
@@ -500,10 +507,10 @@
                 <table class="admin-table">
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Created</th>
-                      <th>Actions</th>
+                      <th scope="col">Name</th>
+                      <th scope="col">Email</th>
+                      <th scope="col">Created</th>
+                      <th scope="col">Actions</th>
                     </tr>
                   </thead>
                   <tbody id="usersTableBody">
@@ -535,7 +542,7 @@
   </div>
 
   <!-- TOAST NOTIFICATIONS -->
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="script.js" defer></script>
 </body>
