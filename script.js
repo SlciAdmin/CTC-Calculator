@@ -1,37 +1,36 @@
 /* ============================================
-   CTC CALCULATOR — COMPLETE AUTH + LOGIC
+   CTC CALCULATOR — FIREBASE AUTH + LOGIC
    New Labour Code | Cross-Device Login System
    ============================================ */
 
-/* ============== CONFIGURATION ============== */
-const CONFIG = {
-  // Default admin credentials (change these for production!)
-  DEFAULT_ADMIN: {
-    email: 'admin@slci.com',
-    password: 'Admin@123',
-    name: 'System Admin',
-    companyName: 'SLCI Solutions',
-    createdAt: new Date().toISOString()
-  },
-  
-  // Optional: Sync endpoint for cross-device support
-  // Set this to your backend URL if you have one
-  SYNC_ENDPOINT: null, // e.g., 'https://your-server.com/api/ctc-sync'
-  
-  // Storage keys
-  STORAGE_KEYS: {
-    ADMIN: 'ctc_admin_data',
-    USERS: 'ctc_users',
-    SESSION: 'ctc_session'
-  }
+// 🔥 FIREBASE CONFIG - Your config here
+const firebaseConfig = {
+  apiKey: "AIzaSyBYmsh-IgGPtx804pIWnc7UJ_AvlR51CIo",
+  authDomain: "ctc-calculator-51f6d.firebaseapp.com",
+  projectId: "ctc-calculator-51f6d",
+  storageBucket: "ctc-calculator-51f6d.firebasestorage.app",
+  messagingSenderId: "774507368996",
+  appId: "1:774507368996:web:fb59fa486bece0bf4c3eb1",
+  measurementId: "G-DBRLCZ7VL4"
 };
 
-/* ============== GLOBAL STATE ============== */
+// Initialize Firebase (SDKs already loaded in HTML head)
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ============== GLOBAL STATE ==============
 let currentUser = null;
 let isAdmin = false;
+let currentUserId = null;
 
-/* ============== INITIALIZATION ============== */
-// Safe DOM ready handler
+// Calculator state
+let pfApplicable = 'Y';
+let calcResult = null;
+let gratuityMode = 'auto';
+let leaveMode = 'auto';
+
+// ============== INITIALIZATION ==============
 function onReady(callback) {
   if (document.readyState !== 'loading') {
     callback();
@@ -41,101 +40,68 @@ function onReady(callback) {
 }
 
 onReady(() => {
-  initAuth();
+  setupAuthListener();
   setupEventListeners();
+  initializeCalculator();
 });
 
-/* ============== AUTHENTICATION SYSTEM ============== */
-
-function initAuth() {
-  // First, ensure default admin exists in localStorage
-  ensureDefaultAdmin();
-  
-  // Check for existing session
-  const session = sessionStorage.getItem(CONFIG.STORAGE_KEYS.SESSION);
-  if (session) {
-    try {
-      currentUser = JSON.parse(session);
-      if (currentUser && currentUser.email) {
-        // Check if admin
-        const adminData = getAdminData();
-        isAdmin = adminData && adminData.email === currentUser.email;
-        
-        showMainApp();
-        updateUserInfo();
-        if (isAdmin) {
-          document.getElementById('adminPanelBtn').style.display = 'flex';
-          loadUsersTable();
-          updateAdminInfo();
+// ============== AUTH LISTENER (Cross-Device Sync) ==============
+function setupAuthListener() {
+  auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      try {
+        const userDoc = await db.collection('users').doc(user.uid).get();
+        if (userDoc.exists) {
+          currentUser = userDoc.data();
+          currentUserId = user.uid;
+          isAdmin = currentUser.role === 'admin';
+          
+          updateUserInfo();
+          showMainApp();
+          updateLastLogin();
+          
+          if (isAdmin) {
+            document.getElementById('adminPanelBtn').style.display = 'flex';
+            loadUsersTable();
+            updateAdminInfo();
+          }
+          showToast(`✓ Welcome, ${currentUser.name.split(' ')[0]}!`);
+        } else {
+          // User exists in Auth but not in Firestore - sign out
+          await auth.signOut();
+          showLoginPage();
         }
-        return;
+      } catch (error) {
+        console.error('Auth state error:', error);
+        showToast('⚠️ Session error. Please login again.');
+        await auth.signOut();
+        showLoginPage();
       }
-    } catch (e) {
-      console.error('Session parse error:', e);
-      clearSession();
+    } else {
+      // No user logged in
+      currentUser = null;
+      isAdmin = false;
+      currentUserId = null;
+      showLoginPage();
     }
-  }
-  
-  // Show login page
-  showLoginPage();
+  });
 }
 
-function ensureDefaultAdmin() {
-  // Check if admin already exists
-  const existingAdmin = localStorage.getItem(CONFIG.STORAGE_KEYS.ADMIN);
-  if (!existingAdmin) {
-    // Create default admin
-    localStorage.setItem(CONFIG.STORAGE_KEYS.ADMIN, JSON.stringify(CONFIG.DEFAULT_ADMIN));
-    console.log('✓ Default admin account created');
-  }
-}
-
-function getAdminData() {
-  try {
-    return JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.ADMIN) || 'null');
-  } catch {
-    return null;
-  }
-}
-
-function getUsersData() {
-  try {
-    return JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.USERS) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-function saveUsersData(users) {
-  localStorage.setItem(CONFIG.STORAGE_KEYS.USERS, JSON.stringify(users));
-  // Optional: Sync to server if endpoint configured
-  if (CONFIG.SYNC_ENDPOINT) {
-    syncToServer('users', users);
-  }
-}
-
-/* ============== EVENT LISTENERS ============== */
-
+// ============== EVENT LISTENERS ==============
 function setupEventListeners() {
   // Login form
   const loginForm = document.getElementById('loginForm');
-  if (loginForm) {
-    loginForm.addEventListener('submit', handleLogin);
-  }
+  if (loginForm) loginForm.addEventListener('submit', handleLogin);
   
   // Admin register form
   const adminRegisterForm = document.getElementById('adminRegisterForm');
-  if (adminRegisterForm) {
-    adminRegisterForm.addEventListener('submit', handleAdminRegister);
-  }
+  if (adminRegisterForm) adminRegisterForm.addEventListener('submit', handleAdminRegister);
   
   // Create user form (admin panel)
   const createUserForm = document.getElementById('createUserForm');
-  if (createUserForm) {
-    createUserForm.addEventListener('submit', handleCreateUser);
-  }
+  if (createUserForm) createUserForm.addEventListener('submit', handleCreateUser);
   
-  // Navigation links - using direct onclick in HTML as fallback
+  // Navigation links
   const showAdminRegisterLink = document.getElementById('showAdminRegister');
   if (showAdminRegisterLink) {
     showAdminRegisterLink.addEventListener('click', (e) => {
@@ -156,9 +122,11 @@ function setupEventListeners() {
   const adminPanelBtn = document.getElementById('adminPanelBtn');
   if (adminPanelBtn) {
     adminPanelBtn.addEventListener('click', () => {
-      switchTab('admin');
-      loadUsersTable();
-      updateAdminInfo();
+      if (isAdmin) {
+        switchTab('admin');
+        loadUsersTable();
+        updateAdminInfo();
+      }
     });
   }
   
@@ -173,8 +141,7 @@ function setupEventListeners() {
   });
 }
 
-/* ============== PAGE NAVIGATION ============== */
-
+// ============== PAGE NAVIGATION ==============
 function showLoginPage() {
   safeToggle('loginPage', false);
   safeToggle('adminRegisterPage', true);
@@ -199,18 +166,16 @@ function showMainApp() {
   safeToggle('adminRegisterPage', true);
   safeToggle('mainApp', false);
   
-  // Initialize calculator
+  // Initialize calculator if needed
   if (typeof liveCalc === 'function') liveCalc();
 }
 
 function safeToggle(elementId, hide) {
   const el = document.getElementById(elementId);
-  if (el) {
-    el.classList.toggle('hidden', hide);
-  }
+  if (el) el.classList.toggle('hidden', hide);
 }
 
-/* ============== AUTHENTICATION FUNCTIONS ============== */
+// ============== AUTH FUNCTIONS ==============
 
 function togglePassword(inputId) {
   const input = document.getElementById(inputId);
@@ -219,6 +184,7 @@ function togglePassword(inputId) {
   }
 }
 
+// 🔐 LOGIN
 async function handleLogin(e) {
   e.preventDefault();
   
@@ -233,37 +199,22 @@ async function handleLogin(e) {
     return;
   }
   
-  // Check default admin first
-  if (email === CONFIG.DEFAULT_ADMIN.email && password === CONFIG.DEFAULT_ADMIN.password) {
-    loginUser({
-      ...CONFIG.DEFAULT_ADMIN,
-      isAdmin: true
-    });
-    return;
-  }
-  
-  // Check custom admin
-  const adminData = getAdminData();
-  if (adminData && adminData.email === email && adminData.password === password) {
-    loginUser({
-      ...adminData,
-      isAdmin: true
-    });
-    return;
-  }
-  
-  // Check regular users
-  const users = getUsersData();
-  const user = users.find(u => u.email === email && u.password === password);
-  
-  if (user) {
-    loginUser(user);
-  } else {
-    showError(errorEl, 'Invalid email or password');
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    // onAuthStateChanged handles the rest
+  } catch (error) {
+    console.error('Login error:', error);
+    let msg = 'Login failed';
+    if (error.code === 'auth/user-not-found') msg = 'No account with this email';
+    else if (error.code === 'auth/wrong-password') msg = 'Incorrect password';
+    else if (error.code === 'auth/invalid-email') msg = 'Invalid email format';
+    else if (error.code === 'auth/too-many-requests') msg = 'Too many attempts. Try later.';
+    showError(errorEl, msg);
   }
 }
 
-function handleAdminRegister(e) {
+// 🔐 ADMIN REGISTER (First Time Setup)
+async function handleAdminRegister(e) {
   e.preventDefault();
   
   const name = (document.getElementById('adminName')?.value || '').trim();
@@ -282,56 +233,62 @@ function handleAdminRegister(e) {
     showError(errorEl, 'All fields are required');
     return;
   }
-  
   if (password.length < 8) {
     showError(errorEl, 'Password must be at least 8 characters');
     return;
   }
-  
   if (password !== confirmPassword) {
     showError(errorEl, 'Passwords do not match');
     return;
   }
   
-  // Check if admin already exists (excluding default)
-  const existingAdmin = getAdminData();
-  if (existingAdmin && existingAdmin.email !== CONFIG.DEFAULT_ADMIN.email) {
-    showError(errorEl, 'Admin account already exists. Please login.');
-    return;
+  try {
+    // Check if any admin already exists
+    const adminQuery = await db.collection('users')
+      .where('role', '==', 'admin')
+      .limit(1)
+      .get();
+    
+    if (!adminQuery.empty) {
+      showError(errorEl, 'Admin account already exists. Please login.');
+      return;
+    }
+    
+    // Create Firebase Auth user
+    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+    const uid = userCredential.user.uid;
+    
+    // Save profile to Firestore
+    await db.collection('users').doc(uid).set({
+      uid,
+      name,
+      companyName,
+      email,
+      role: 'admin',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    if (successEl) {
+      successEl.classList.remove('hidden');
+      successEl.textContent = '✓ Admin account created! Redirecting to login...';
+    }
+    
+    // Sign out and redirect
+    await auth.signOut();
+    setTimeout(() => showLoginPage(), 2000);
+    
+  } catch (error) {
+    console.error('Admin register error:', error);
+    let msg = 'Registration failed';
+    if (error.code === 'auth/email-already-in-use') msg = 'Email already registered';
+    if (error.code === 'auth/weak-password') msg = 'Password too weak';
+    showError(errorEl, msg);
   }
-  
-  // Check if email already registered
-  const users = getUsersData();
-  if (users.some(u => u.email === email) || email === CONFIG.DEFAULT_ADMIN.email) {
-    showError(errorEl, 'Email already registered');
-    return;
-  }
-  
-  // Create admin
-  const adminData = {
-    name,
-    companyName,
-    email,
-    password,
-    createdAt: new Date().toISOString()
-  };
-  
-  localStorage.setItem(CONFIG.STORAGE_KEYS.ADMIN, JSON.stringify(adminData));
-  
-  if (successEl) {
-    successEl.classList.remove('hidden');
-  }
-  const form = document.getElementById('adminRegisterForm');
-  if (form) form.reset();
-  
-  // Auto-switch to login after 2 seconds
-  setTimeout(() => {
-    showLoginPage();
-    showToast('✓ Admin account created! Please login.');
-  }, 2000);
 }
 
-function handleCreateUser(e) {
+// 🔐 CREATE USER (Admin Panel)
+async function handleCreateUser(e) {
   e.preventDefault();
   
   if (!isAdmin) {
@@ -352,212 +309,191 @@ function handleCreateUser(e) {
     showError(msgEl, 'All fields are required', true);
     return;
   }
-  
   if (password.length < 8) {
     showError(msgEl, 'Password must be at least 8 characters', true);
     return;
   }
-  
   if (password !== confirmPassword) {
     showError(msgEl, 'Passwords do not match', true);
     return;
   }
   
-  // Check duplicates
-  const adminData = getAdminData();
-  let users = getUsersData();
-  
-  const allEmails = [
-    CONFIG.DEFAULT_ADMIN.email,
-    adminData?.email,
-    ...users.map(u => u.email)
-  ].filter(Boolean);
-  
-  if (allEmails.includes(email)) {
-    showError(msgEl, 'Email already registered', true);
-    return;
-  }
-  
-  // Create user
-  const newUser = {
-    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-    name,
-    email,
-    password,
-    createdAt: new Date().toISOString(),
-    createdBy: adminData?.name || CONFIG.DEFAULT_ADMIN.name
-  };
-  
-  users.push(newUser);
-  saveUsersData(users);
-  
-  showSuccess(msgEl, `✓ User "${name}" created successfully!`);
-  const form = document.getElementById('createUserForm');
-  if (form) form.reset();
-  
-  // Refresh table
-  loadUsersTable();
-  updateAdminInfo();
-}
-
-function loginUser(user) {
-  currentUser = user;
-  isAdmin = user.isAdmin || false;
-  
-  // Save session
-  sessionStorage.setItem(CONFIG.STORAGE_KEYS.SESSION, JSON.stringify({
-    email: user.email,
-    name: user.name,
-    isAdmin: user.isAdmin
-  }));
-  
-  // Update UI
-  updateUserInfo();
-  showMainApp();
-  
-  if (isAdmin) {
-    const adminBtn = document.getElementById('adminPanelBtn');
-    if (adminBtn) adminBtn.style.display = 'flex';
+  try {
+    // Create Firebase Auth user
+    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+    const uid = userCredential.user.uid;
+    
+    // Save to Firestore
+    await db.collection('users').doc(uid).set({
+      uid,
+      name,
+      email,
+      role: 'user',
+      createdBy: currentUserId,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastLogin: null
+    });
+    
+    showSuccess(msgEl, `✓ User "${name}" created! Share credentials with them.`);
+    document.getElementById('createUserForm')?.reset();
     loadUsersTable();
-    updateAdminInfo();
+    
+  } catch (error) {
+    console.error('Create user error:', error);
+    let msg = 'Failed to create user';
+    if (error.code === 'auth/email-already-in-use') msg = 'Email already registered';
+    showError(msgEl, msg, true);
   }
-  
-  showToast(`✓ Welcome, ${user.name.split(' ')[0]}!`);
 }
 
+// 🔐 LOGOUT
 function logout() {
-  currentUser = null;
-  isAdmin = false;
-  clearSession();
-  
-  // Reset calculator
-  if (typeof resetAll === 'function') resetAll();
-  
-  showLoginPage();
-  showToast('↪️ Logged out successfully');
+  auth.signOut().then(() => {
+    showToast('↪️ Logged out successfully');
+    // onAuthStateChanged handles UI update
+  }).catch((error) => {
+    console.error('Logout error:', error);
+    showToast('⚠️ Logout failed');
+  });
 }
 
-function clearSession() {
-  sessionStorage.removeItem(CONFIG.STORAGE_KEYS.SESSION);
-}
-
-function updateUserInfo() {
-  if (!currentUser) return;
-  
-  const nameEl = document.getElementById('userName');
-  const emailEl = document.getElementById('userEmail');
-  const avatarEl = document.getElementById('userAvatar');
-  
-  if (nameEl) nameEl.textContent = currentUser.name;
-  if (emailEl) emailEl.textContent = currentUser.email;
-  
-  // Set avatar initial
-  if (avatarEl && currentUser.name) {
-    const initial = currentUser.name.charAt(0).toUpperCase();
-    avatarEl.textContent = initial;
+// 🔐 UPDATE LAST LOGIN
+async function updateLastLogin() {
+  if (!currentUserId) return;
+  try {
+    await db.collection('users').doc(currentUserId).update({
+      lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (e) {
+    console.warn('Could not update last login:', e);
   }
 }
+
+// ============== ADMIN PANEL FUNCTIONS ==============
 
 function updateAdminInfo() {
-  if (!isAdmin) return;
-  
-  const adminData = getAdminData();
-  const users = getUsersData();
+  if (!isAdmin || !currentUser) return;
   
   const adminInfoEl = document.getElementById('currentAdminInfo');
   const totalUsersEl = document.getElementById('totalUsersCount');
   
-  if (adminInfoEl && adminData) {
-    adminInfoEl.textContent = `${adminData.name} • ${adminData.companyName}`;
+  if (adminInfoEl && currentUser) {
+    adminInfoEl.textContent = `${currentUser.name} • ${currentUser.companyName || 'N/A'}`;
   }
   
   if (totalUsersEl) {
-    totalUsersEl.textContent = users.length;
+    // Count will be updated by loadUsersTable
   }
 }
 
-function loadUsersTable() {
+async function loadUsersTable() {
   if (!isAdmin) return;
   
-  const users = getUsersData();
   const tbody = document.getElementById('usersTableBody');
   const noUsersMsg = document.getElementById('noUsersMsg');
-  
   if (!tbody) return;
   
-  if (users.length === 0) {
-    tbody.innerHTML = '';
-    if (noUsersMsg) noUsersMsg.classList.remove('hidden');
-    return;
-  }
-  
-  if (noUsersMsg) noUsersMsg.classList.add('hidden');
-  
-  tbody.innerHTML = users.map(user => {
-    const date = new Date(user.createdAt).toLocaleDateString('en-IN', {
-      year: 'numeric', month: 'short', day: 'numeric'
-    });
+  try {
+    const snapshot = await db.collection('users')
+      .where('role', '==', 'user')
+      .orderBy('createdAt', 'desc')
+      .get();
     
-    return `
-      <tr>
-        <td><strong>${escapeHtml(user.name)}</strong></td>
-        <td>${escapeHtml(user.email)}</td>
-        <td>${date}</td>
-        <td>
-          <button class="btn-sm btn-delete" onclick="deleteUser('${user.id}')">
-            🗑️ Delete
-          </button>
-        </td>
-      </tr>
-    `;
-  }).join('');
+    if (snapshot.empty) {
+      tbody.innerHTML = '';
+      if (noUsersMsg) noUsersMsg.classList.remove('hidden');
+      if (document.getElementById('totalUsersCount')) {
+        document.getElementById('totalUsersCount').textContent = '0';
+      }
+      return;
+    }
+    
+    if (noUsersMsg) noUsersMsg.classList.add('hidden');
+    
+    let html = '';
+    let count = 0;
+    snapshot.forEach(doc => {
+      const user = doc.data();
+      count++;
+      const date = user.createdAt?.toDate()?.toLocaleDateString('en-IN', {
+        year: 'numeric', month: 'short', day: 'numeric'
+      }) || 'N/A';
+      
+      html += `
+        <tr>
+          <td><strong>${escapeHtml(user.name)}</strong></td>
+          <td>${escapeHtml(user.email)}</td>
+          <td>${date}</td>
+          <td>
+            <button class="btn-sm btn-delete" onclick="deleteUser('${user.uid}')">
+              🗑️ Delete
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+    tbody.innerHTML = html;
+    
+    if (document.getElementById('totalUsersCount')) {
+      document.getElementById('totalUsersCount').textContent = count;
+    }
+    
+  } catch (error) {
+    console.error('Load users error:', error);
+    showToast('⚠️ Failed to load users');
+  }
 }
 
-function deleteUser(userId) {
+async function deleteUser(uid) {
   if (!isAdmin) return;
-  
   if (!confirm('Are you sure you want to delete this user?')) return;
   
-  let users = getUsersData();
-  const userIndex = users.findIndex(u => u.id === userId);
-  
-  if (userIndex > -1) {
-    const deletedName = users[userIndex].name;
-    users.splice(userIndex, 1);
-    saveUsersData(users);
+  try {
+    // Delete from Firestore
+    await db.collection('users').doc(uid).delete();
     
+    showToast('✓ User deleted from system');
     loadUsersTable();
-    updateAdminInfo();
-    showToast(`✓ User "${deletedName}" deleted`);
+    
+  } catch (error) {
+    console.error('Delete user error:', error);
+    showToast('⚠️ Failed to delete user');
   }
 }
 
-function clearAllData() {
+async function clearAllData() {
   if (!isAdmin) return;
   
-  if (!confirm('⚠️ WARNING: This will delete ALL data including admin account!\n\nAre you absolutely sure?')) return;
+  if (!confirm('⚠️ WARNING: This will delete ALL user data!\n\nAre you absolutely sure?')) return;
   
-  // Double confirmation
   const confirmText = prompt('Type "DELETE ALL" to confirm:');
   if (confirmText !== 'DELETE ALL') {
     showToast('⚠️ Operation cancelled');
     return;
   }
   
-  localStorage.removeItem(CONFIG.STORAGE_KEYS.ADMIN);
-  localStorage.removeItem(CONFIG.STORAGE_KEYS.USERS);
-  clearSession();
-  
-  currentUser = null;
-  isAdmin = false;
-  
-  showToast('✓ All data cleared. Default admin restored.');
-  setTimeout(() => {
-    location.reload();
-  }, 1500);
+  try {
+    // Delete all non-admin users from Firestore
+    const snapshot = await db.collection('users')
+      .where('role', '==', 'user')
+      .get();
+    
+    const batch = db.batch();
+    snapshot.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    
+    showToast('✓ All user data cleared');
+    loadUsersTable();
+    
+  } catch (error) {
+    console.error('Clear data error:', error);
+    showToast('⚠️ Failed to clear data');
+  }
 }
 
-/* ============== UTILITY FUNCTIONS ============== */
+// ============== UTILITY FUNCTIONS ==============
 
 function showError(element, message, isAdminForm = false) {
   if (!element) return;
@@ -587,42 +523,31 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-/* ============== CROSS-DEVICE SYNC (Optional) ============== */
-
-async function syncToServer(type, data) {
-  if (!CONFIG.SYNC_ENDPOINT) return;
+function updateUserInfo() {
+  if (!currentUser) return;
   
-  try {
-    await fetch(CONFIG.SYNC_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, data, timestamp: Date.now() })
-    });
-  } catch (e) {
-    console.warn('Sync failed:', e);
+  const nameEl = document.getElementById('userName');
+  const emailEl = document.getElementById('userEmail');
+  const avatarEl = document.getElementById('userAvatar');
+  
+  if (nameEl) nameEl.textContent = currentUser.name;
+  if (emailEl) emailEl.textContent = currentUser.email;
+  
+  if (avatarEl && currentUser.name) {
+    const initial = currentUser.name.charAt(0).toUpperCase();
+    avatarEl.textContent = initial;
   }
 }
 
-async function syncFromServer() {
-  if (!CONFIG.SYNC_ENDPOINT) return null;
-  
-  try {
-    const response = await fetch(CONFIG.SYNC_ENDPOINT);
-    if (response.ok) {
-      return await response.json();
-    }
-  } catch (e) {
-    console.warn('Fetch sync failed:', e);
-  }
-  return null;
+// ============== CALCULATOR INIT ==============
+function initializeCalculator() {
+  // Set default PF state
+  setPF('Y');
+  setGratuityMode('auto');
+  setLeaveMode('auto');
 }
 
-/* ============== CALCULATOR LOGIC ============== */
-
-let pfApplicable = 'Y';
-let calcResult = null;
-let gratuityMode = 'auto';
-let leaveMode = 'auto';
+// ============== CALCULATOR LOGIC (Original - Unchanged) ==============
 
 function setPF(val) {
   pfApplicable = val;
@@ -651,9 +576,8 @@ function setGratuityMode(mode) {
   if (autoBtn) autoBtn.classList.toggle('active', mode === 'auto');
   if (manualBtn) manualBtn.classList.toggle('active', mode === 'manual');
 
-  if (manualInput) {
-    manualInput.classList.toggle('hidden', mode !== 'manual');
-  }
+  if (manualInput) manualInput.classList.toggle('hidden', mode !== 'manual');
+  
   if (hint) {
     hint.textContent = mode === 'manual' 
       ? 'Enter custom monthly gratuity amount'
@@ -672,9 +596,8 @@ function setLeaveMode(mode) {
   if (autoBtn) autoBtn.classList.toggle('active', mode === 'auto');
   if (manualBtn) manualBtn.classList.toggle('active', mode === 'manual');
 
-  if (manualInput) {
-    manualInput.classList.toggle('hidden', mode !== 'manual');
-  }
+  if (manualInput) manualInput.classList.toggle('hidden', mode !== 'manual');
+  
   if (hint) {
     hint.textContent = mode === 'manual'
       ? 'Enter custom monthly leave encashment amount'
