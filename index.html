@@ -12,6 +12,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+
+  <!-- Bulk Upload Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   
   <link rel="stylesheet" href="style.css">
 </head>
@@ -67,7 +71,7 @@
   </div>
 
   <!-- =================== ADMIN REGISTER PAGE =================== -->
-   <div id="adminRegisterPage" class="auth-page hidden">
+  <div id="adminRegisterPage" class="auth-page hidden">
     <div class="auth-container">
       <div class="auth-card admin-card">
         <div class="auth-header">
@@ -75,7 +79,6 @@
           <h1>Admin Registration</h1>
           <p class="auth-subtitle">Create your admin account to manage users</p>
         </div>
-
 
         <form id="adminRegisterForm" class="auth-form">
           <div class="field-group">
@@ -129,14 +132,14 @@
 
   <!-- =================== MAIN APP (Protected) =================== -->
   <div id="mainApp" class="app-shell hidden">
+
     <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <!-- 🔗 Sidebar Logo with Placehold.co Fallback -->
         <div class="brand-icon">
-          <img src="https://placehold.co/48x48/1a1e2e/63b3ed?text=📊&font=roboto" 
-               alt="SLCI Logo" 
-               class="brand-logo" 
+          <img src="https://placehold.co/48x48/1a1e2e/63b3ed?text=📊&font=roboto"
+               alt="SLCI Logo"
+               class="brand-logo"
                onerror="this.style.display='none'; this.parentElement.innerHTML='📊'">
         </div>
         <div>
@@ -155,6 +158,9 @@
         <button class="nav-item" data-tab="export" aria-label="Open Export tab">
           <span class="nav-icon">↑</span> Export
         </button>
+        <button class="nav-item" data-tab="bulk" aria-label="Bulk Upload">
+          <span class="nav-icon">⬆</span> Bulk Upload
+        </button>
         <button class="nav-item" id="adminPanelBtn" data-tab="admin" style="display:none;" aria-label="Open Admin Panel">
           <span class="nav-icon">⚙️</span> Admin Panel
         </button>
@@ -172,6 +178,7 @@
 
     <!-- MAIN CONTENT -->
     <main class="main-content">
+
       <!-- HEADER BAR -->
       <header class="topbar">
         <div class="topbar-title">
@@ -184,9 +191,10 @@
         </div>
       </header>
 
-      <!-- TAB: CALCULATOR -->
+      <!-- =================== TAB: CALCULATOR =================== -->
       <div class="tab-panel active" id="tab-calculator" role="tabpanel">
         <div class="input-grid">
+
           <!-- LEFT: INPUTS -->
           <section class="card input-card">
             <div class="card-header">
@@ -225,172 +233,151 @@
               <div class="field-hint" id="pfHint">55% of Gross or Min Wage (whichever is higher) → Basic</div>
             </div>
 
-            <!-- ====== PROFESSIONAL TAX FIELD - REPLACE EXISTING PT FIELD ====== -->
-<div class="field-group special-field pt-field">
-  <label>
-    Professional Tax (Monthly)
-    <span class="formula-badge">State-wise Auto</span>
-  </label>
+            <!-- PROFESSIONAL TAX -->
+            <div class="field-group special-field pt-field">
+              <label>
+                Professional Tax (Monthly)
+                <span class="formula-badge">State-wise Auto</span>
+              </label>
+              <div class="toggle-group" role="radiogroup" aria-label="PT Mode">
+                <button class="toggle-btn active" id="ptAuto" onclick="setPTMode('auto')" role="radio" aria-checked="true">Auto (State-wise)</button>
+                <button class="toggle-btn" id="ptManual" onclick="setPTMode('manual')" role="radio" aria-checked="false">Manual Override</button>
+              </div>
+              <div id="ptAutoWrapper" style="margin-top: 10px;">
+                <div class="pt-selectors">
+                  <div class="pt-select-group">
+                    <label class="pt-sub-label">Select State</label>
+                    <select id="ptState" onchange="updatePTAuto()" class="pt-select">
+                      <option value="">-- Select State --</option>
+                      <option value="KA">Karnataka (KA)</option>
+                      <option value="OD">Odisha (OD)</option>
+                      <option value="GJ">Gujarat (GJ)</option>
+                      <option value="MH">Maharashtra (MH)</option>
+                      <option value="MH1">Maharashtra Metro (MH1)</option>
+                      <option value="AP">Andhra Pradesh (AP)</option>
+                      <option value="TS">Telangana (TS)</option>
+                      <option value="AS">Assam (AS)</option>
+                      <option value="SK">Sikkim (SK)</option>
+                      <option value="KL">Kerala (KL)</option>
+                      <option value="PB">Punjab (PB)</option>
+                      <option value="GA">Goa (GA)</option>
+                      <option value="BR">Bihar (BR)</option>
+                      <option value="MP">Madhya Pradesh (MP)</option>
+                      <option value="ML">Meghalaya (ML)</option>
+                      <option value="WB">West Bengal (WB)</option>
+                      <option value="TN">Tamil Nadu (TN)</option>
+                      <option value="TR">Tripura (TR)</option>
+                      <option value="JH">Jharkhand (JH)</option>
+                      <option value="MN">Manipur (MN)</option>
+                      <option value="OTHER">Other (No PT)</option>
+                    </select>
+                  </div>
+                  <div class="pt-select-group">
+                    <label class="pt-sub-label">Salary Month</label>
+                    <select id="ptMonth" onchange="updatePTAuto()" class="pt-select">
+                      <option value="1">January</option>
+                      <option value="2">February</option>
+                      <option value="3">March</option>
+                      <option value="4">April</option>
+                      <option value="5">May</option>
+                      <option value="6">June</option>
+                      <option value="7">July</option>
+                      <option value="8">August</option>
+                      <option value="9">September</option>
+                      <option value="10">October</option>
+                      <option value="11">November</option>
+                      <option value="12" selected>December</option>
+                    </select>
+                  </div>
+                  <div class="pt-select-group" id="ptGenderGroup" style="display:none;">
+                    <label class="pt-sub-label">Gender (MH/MH1 only)</label>
+                    <select id="ptGender" onchange="updatePTAuto()" class="pt-select">
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="pt-auto-result" id="ptAutoResult">
+                  <span class="pt-result-label">Calculated PT:</span>
+                  <span class="pt-result-value" id="ptAutoValue">Select state to calculate</span>
+                </div>
+                <div class="field-hint" id="ptAutoHint">Select state, month & gender to auto-calculate Professional Tax</div>
+              </div>
+              <div id="ptManualWrapper" class="hidden" style="margin-top: 10px;">
+                <div class="input-prefix">
+                  <span>₹</span>
+                  <input type="number" id="ptAmount" placeholder="Enter PT amount" min="0" value="0" oninput="liveCalc()" />
+                </div>
+                <div class="field-hint">Enter custom Professional Tax amount manually</div>
+              </div>
+            </div>
 
-  <!-- Mode Toggle -->
-  <div class="toggle-group" role="radiogroup" aria-label="PT Mode">
-    <button class="toggle-btn active" id="ptAuto" onclick="setPTMode('auto')" role="radio" aria-checked="true">Auto (State-wise)</button>
-    <button class="toggle-btn" id="ptManual" onclick="setPTMode('manual')" role="radio" aria-checked="false">Manual Override</button>
-  </div>
+            <!-- LWF -->
+            <div class="field-group special-field lwf-field">
+              <label>
+                LWF (Labour Welfare Fund)
+                <span class="formula-badge">State-wise Auto</span>
+              </label>
+              <div class="toggle-group" role="radiogroup" aria-label="LWF Mode">
+                <button class="toggle-btn active" id="lwfAuto" onclick="setLWFMode('auto')" role="radio" aria-checked="true">Auto (State-wise)</button>
+                <button class="toggle-btn" id="lwfManual" onclick="setLWFMode('manual')" role="radio" aria-checked="false">Manual Override</button>
+              </div>
+              <div id="lwfAutoWrapper" style="margin-top: 10px;">
+                <div class="lwf-selectors">
+                  <div class="lwf-select-group">
+                    <label class="lwf-sub-label">Select State</label>
+                    <select id="lwfState" onchange="updateLWFAuto()" class="lwf-select">
+                      <option value="">-- Select State --</option>
+                      <option value="TN">Tamil Nadu (TN)</option>
+                      <option value="AP">Andhra Pradesh (AP)</option>
+                      <option value="SKL">Kerala (SKL)</option>
+                      <option value="FKL">Karnataka (FKL)</option>
+                      <option value="MH">Maharashtra (MH)</option>
+                      <option value="Goa">Goa</option>
+                      <option value="DL">Delhi (DL)</option>
+                      <option value="CH">Chandigarh (CH)</option>
+                      <option value="MP">Madhya Pradesh (MP)</option>
+                      <option value="CG">Chhattisgarh (CG)</option>
+                      <option value="WB">West Bengal (WB)</option>
+                      <option value="OD">Odisha (OD)</option>
+                      <option value="HR">Haryana (HR)</option>
+                      <option value="OTHER">Other (No LWF)</option>
+                    </select>
+                  </div>
+                  <div class="lwf-select-group">
+                    <label class="lwf-sub-label">Salary Month</label>
+                    <select id="lwfMonth" onchange="updateLWFAuto()" class="lwf-select">
+                      <option value="1">January</option>
+                      <option value="2">February</option>
+                      <option value="3">March</option>
+                      <option value="4">April</option>
+                      <option value="5">May</option>
+                      <option value="6">June</option>
+                      <option value="7">July</option>
+                      <option value="8">August</option>
+                      <option value="9">September</option>
+                      <option value="10">October</option>
+                      <option value="11">November</option>
+                      <option value="12" selected>December</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="lwf-auto-result" id="lwfAutoResult">
+                  <span class="lwf-result-label">Calculated LWF:</span>
+                  <span class="lwf-result-value" id="lwfAutoValue">Select state to calculate</span>
+                </div>
+                <div class="field-hint" id="lwfAutoHint">Select state and month to auto-calculate LWF</div>
+              </div>
+              <div id="lwfManualWrapper" class="hidden" style="margin-top: 10px;">
+                <div class="input-prefix">
+                  <span>₹</span>
+                  <input type="number" id="lwfAmount" placeholder="Enter LWF amount" min="0" value="0" oninput="liveCalc()" />
+                </div>
+                <div class="field-hint">Enter custom LWF amount manually</div>
+              </div>
+            </div>
 
-  <!-- Auto Mode: State + Month + Gender Selectors -->
-  <div id="ptAutoWrapper" style="margin-top: 10px;">
-    <div class="pt-selectors">
-      <div class="pt-select-group">
-        <label class="pt-sub-label">Select State</label>
-        <select id="ptState" onchange="updatePTAuto()" class="pt-select">
-          <option value="">-- Select State --</option>
-          <option value="KA">Karnataka (KA)</option>
-          <option value="OD">Odisha (OD)</option>
-          <option value="GJ">Gujarat (GJ)</option>
-          <option value="MH">Maharashtra (MH)</option>
-          <option value="MH1">Maharashtra Metro (MH1)</option>
-          <option value="AP">Andhra Pradesh (AP)</option>
-          <option value="TS">Telangana (TS)</option>
-          <option value="AS">Assam (AS)</option>
-          <option value="SK">Sikkim (SK)</option>
-          <option value="KL">Kerala (KL)</option>
-          <option value="PB">Punjab (PB)</option>
-          <option value="GA">Goa (GA)</option>
-          <option value="BR">Bihar (BR)</option>
-          <option value="MP">Madhya Pradesh (MP)</option>
-          <option value="ML">Meghalaya (ML)</option>
-          <option value="WB">West Bengal (WB)</option>
-          <option value="TN">Tamil Nadu (TN)</option>
-          <option value="TR">Tripura (TR)</option>
-          <option value="JH">Jharkhand (JH)</option>
-          <option value="MN">Manipur (MN)</option>
-          <option value="OTHER">Other (No PT)</option>
-        </select>
-      </div>
-
-      <div class="pt-select-group">
-        <label class="pt-sub-label">Salary Month</label>
-        <select id="ptMonth" onchange="updatePTAuto()" class="pt-select">
-          <option value="1">January</option>
-          <option value="2">February</option>
-          <option value="3">March</option>
-          <option value="4">April</option>
-          <option value="5">May</option>
-          <option value="6">June</option>
-          <option value="7">July</option>
-          <option value="8">August</option>
-          <option value="9">September</option>
-          <option value="10">October</option>
-          <option value="11">November</option>
-          <option value="12" selected>December</option>
-        </select>
-      </div>
-
-      <div class="pt-select-group" id="ptGenderGroup" style="display:none;">
-        <label class="pt-sub-label">Gender (MH/MH1 only)</label>
-        <select id="ptGender" onchange="updatePTAuto()" class="pt-select">
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Auto Result Display -->
-    <div class="pt-auto-result" id="ptAutoResult">
-      <span class="pt-result-label">Calculated PT:</span>
-      <span class="pt-result-value" id="ptAutoValue">Select state to calculate</span>
-    </div>
-    <div class="field-hint" id="ptAutoHint">Select state, month & gender to auto-calculate Professional Tax</div>
-  </div>
-
-  <!-- Manual Mode Input -->
-  <div id="ptManualWrapper" class="hidden" style="margin-top: 10px;">
-    <div class="input-prefix">
-      <span>₹</span>
-      <input type="number" id="ptAmount" placeholder="Enter PT amount" min="0" value="0" oninput="liveCalc()" />
-    </div>
-    <div class="field-hint">Enter custom Professional Tax amount manually</div>
-  </div>
-</div>
-<!-- ====== END PT FIELD ====== -->
-
-            <!-- ====== LWF FIELD — REPLACE YOUR EXISTING LWF FIELD WITH THIS ====== -->
-<div class="field-group special-field lwf-field">
-  <label>
-    LWF (Labour Welfare Fund)
-    <span class="formula-badge">State-wise Auto</span>
-  </label>
-
-  <!-- Mode Toggle -->
-  <div class="toggle-group" role="radiogroup" aria-label="LWF Mode">
-    <button class="toggle-btn active" id="lwfAuto" onclick="setLWFMode('auto')" role="radio" aria-checked="true">Auto (State-wise)</button>
-    <button class="toggle-btn" id="lwfManual" onclick="setLWFMode('manual')" role="radio" aria-checked="false">Manual Override</button>
-  </div>
-
-  <!-- Auto Mode: State + Month Selector -->
-  <div id="lwfAutoWrapper" style="margin-top: 10px;">
-    <div class="lwf-selectors">
-      <div class="lwf-select-group">
-        <label class="lwf-sub-label">Select State</label>
-        <select id="lwfState" onchange="updateLWFAuto()" class="lwf-select">
-          <option value="">-- Select State --</option>
-          <option value="TN">Tamil Nadu (TN)</option>
-          <option value="AP">Andhra Pradesh (AP)</option>
-          <option value="SKL">Kerala (SKL)</option>
-          <option value="FKL">Karnataka (FKL)</option>
-          <option value="MH">Maharashtra (MH)</option>
-          <option value="Goa">Goa</option>
-          <option value="DL">Delhi (DL)</option>
-          <option value="CH">Chandigarh (CH)</option>
-          <option value="MP">Madhya Pradesh (MP)</option>
-          <option value="CG">Chhattisgarh (CG)</option>
-          <option value="WB">West Bengal (WB)</option>
-          <option value="OD">Odisha (OD)</option>
-          <option value="HR">Haryana (HR)</option>
-          <option value="OTHER">Other (No LWF)</option>
-        </select>
-      </div>
-
-      <div class="lwf-select-group">
-        <label class="lwf-sub-label">Salary Month</label>
-        <select id="lwfMonth" onchange="updateLWFAuto()" class="lwf-select">
-          <option value="1">January</option>
-          <option value="2">February</option>
-          <option value="3">March</option>
-          <option value="4">April</option>
-          <option value="5">May</option>
-          <option value="6">June</option>
-          <option value="7">July</option>
-          <option value="8">August</option>
-          <option value="9">September</option>
-          <option value="10">October</option>
-          <option value="11">November</option>
-          <option value="12" selected>December</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Auto Result Display -->
-    <div class="lwf-auto-result" id="lwfAutoResult">
-      <span class="lwf-result-label">Calculated LWF:</span>
-      <span class="lwf-result-value" id="lwfAutoValue">Select state to calculate</span>
-    </div>
-    <div class="field-hint" id="lwfAutoHint">Select state and month to auto-calculate LWF</div>
-  </div>
-
-  <!-- Manual Mode Input -->
-  <div id="lwfManualWrapper" class="hidden" style="margin-top: 10px;">
-    <div class="input-prefix">
-      <span>₹</span>
-      <input type="number" id="lwfAmount" placeholder="Enter LWF amount" min="0" value="0" oninput="liveCalc()" />
-    </div>
-    <div class="field-hint">Enter custom LWF amount manually</div>
-  </div>
-</div>
-<!-- ====== END LWF FIELD ====== -->
-
-            <!-- GRATUITY FIELD -->
+            <!-- GRATUITY -->
             <div class="field-group special-field">
               <label>
                 Gratuity (Monthly Provision)
@@ -409,7 +396,7 @@
               <div class="field-hint" id="gratuityHint">Formula: Basic ÷ 26 × 15 ÷ 12 (monthly provision)</div>
             </div>
 
-            <!-- LEAVE COMPONENT FIELD -->
+            <!-- LEAVE ENCASHMENT -->
             <div class="field-group special-field">
               <label>
                 Leave Encashment (Monthly Provision)
@@ -450,17 +437,14 @@
                 <div class="hero-label">Final CTC (Annual)</div>
                 <div class="hero-value" id="annualCTC">—</div>
               </div>
-
               <div class="result-hero secondary">
                 <div class="hero-label">Final CTC (Monthly)</div>
                 <div class="hero-value" id="monthlyCTC">—</div>
               </div>
-
               <div class="result-hero initial-ctc-card">
                 <div class="hero-label">Initial CTC (Monthly)</div>
                 <div class="hero-value" id="r_initialCTC">—</div>
               </div>
-
               <div class="mini-grid">
                 <div class="mini-item">
                   <span class="mini-label">Basic</span>
@@ -489,17 +473,17 @@
               </div>
             </div>
           </section>
+
         </div>
       </div>
 
-      <!-- TAB: BREAKDOWN -->
+      <!-- =================== TAB: BREAKDOWN =================== -->
       <div class="tab-panel" id="tab-breakdown" role="tabpanel">
         <div class="breakdown-empty" id="breakdownEmpty">
           <div class="empty-icon large">⊞</div>
           <p>Please calculate first from the Calculator tab</p>
           <button class="btn-go" onclick="switchTab('calculator')">Go to Calculator</button>
         </div>
-
         <div class="breakdown-content hidden" id="breakdownContent">
           <div class="breakdown-grid">
             <!-- SALARY STRUCTURE -->
@@ -522,7 +506,6 @@
                 </tfoot>
               </table>
             </div>
-
             <!-- EMPLOYER CONTRIBUTIONS -->
             <div class="card breakdown-card">
               <div class="card-header">
@@ -542,7 +525,6 @@
                 </tfoot>
               </table>
             </div>
-
             <!-- EMPLOYEE DEDUCTIONS -->
             <div class="card breakdown-card">
               <div class="card-header">
@@ -562,7 +544,6 @@
                 </tfoot>
               </table>
             </div>
-
             <!-- FINAL COST CARD -->
             <div class="card breakdown-card final-card">
               <div class="card-header">
@@ -575,7 +556,7 @@
         </div>
       </div>
 
-      <!-- TAB: EXPORT -->
+      <!-- =================== TAB: EXPORT =================== -->
       <div class="tab-panel" id="tab-export" role="tabpanel">
         <div class="export-wrapper">
           <div class="card export-card">
@@ -600,7 +581,6 @@
                 <span class="export-sub">Tab-separated values</span>
               </button>
             </div>
-
             <div class="preview-area" id="exportPreview">
               <div class="preview-empty">Calculate first to see export preview</div>
             </div>
@@ -608,7 +588,100 @@
         </div>
       </div>
 
-      <!-- TAB: ADMIN PANEL (Hidden by default) -->
+      <!-- =================== TAB: BULK UPLOAD =================== -->
+      <div class="tab-panel" id="tab-bulk" role="tabpanel">
+        <div class="bulk-wrapper">
+          <div class="card bulk-main-card">
+            <div class="card-header">
+              <span class="card-icon">⬆</span>
+              <h2>Bulk CTC Calculator — Upload Employee File</h2>
+              <span class="badge-new">New</span>
+            </div>
+
+            <!-- DROP ZONE -->
+            <div class="bulk-drop-zone" id="bulkDropZone">
+              <div class="drop-content">
+                <div class="drop-big-icon">📂</div>
+                <div class="drop-title">Drop your Excel or CSV file here</div>
+                <div class="drop-sub">Supports .xlsx, .xls, .csv formats</div>
+                <button class="btn-browse" onclick="document.getElementById('bulkFileInput').click()">Browse File</button>
+              </div>
+              <input type="file" id="bulkFileInput" accept=".csv,.xlsx,.xls" style="display:none">
+            </div>
+
+            <!-- TEMPLATE NOTE -->
+            <div class="bulk-template-note">
+              <div class="template-title">Required Columns (Blue = Mandatory)</div>
+              <div class="bulk-col-tags">
+                <span class="col-tag mandatory">Employee Name</span>
+                <span class="col-tag mandatory">Gross Salary</span>
+                <span class="col-tag mandatory">Min Wage</span>
+                <span class="col-tag optional">PF (Y/N)</span>
+                <span class="col-tag optional">PT Amount</span>
+                <span class="col-tag optional">LWF Amount</span>
+                <span class="col-tag optional">Gratuity</span>
+                <span class="col-tag optional">Leave Encashment</span>
+              </div>
+              <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+                Optional fields pe default auto-calculation hogi &nbsp;•&nbsp;
+                <a href="#" onclick="bulkDownloadTemplate(); return false;" style="color:var(--accent);text-decoration:none;">↓ Download Sample Template</a>
+              </div>
+            </div>
+
+            <!-- STATUS BAR -->
+            <div class="bulk-status" id="bulkStatus" style="display:none"></div>
+
+            <!-- PROGRESS BAR -->
+            <div class="bulk-progress-wrap" id="bulkProgressWrap" style="display:none">
+              <div class="bulk-progress-fill" id="bulkProgressFill"></div>
+            </div>
+
+            <!-- FILE INFO + ACTION ROW -->
+            <div class="bulk-action-row" id="bulkActionRow" style="display:none">
+              <div class="bulk-file-info">
+                <span class="file-name-tag" id="bulkFileName">—</span>
+                <span class="file-row-tag" id="bulkRowCount">— rows</span>
+              </div>
+              <div class="bulk-action-btns">
+                <button class="btn-calc-bulk" onclick="processBulkFile()">⟳ Calculate All</button>
+                <button class="btn-reset-bulk" onclick="resetBulk()">✕ Clear</button>
+              </div>
+            </div>
+
+            <!-- RESULTS SECTION -->
+            <div id="bulkResultsSection" style="display:none">
+
+              <!-- SUMMARY CARDS -->
+              <div class="bulk-summary-grid" id="bulkSummaryCards"></div>
+
+              <!-- EXPORT ROW -->
+              <div class="bulk-export-row">
+                <button class="export-btn-bulk green" onclick="bulkExportCSV()">
+                  <span>📊</span> Export Full CSV
+                </button>
+                <button class="export-btn-bulk blue" onclick="bulkExportTXT()">
+                  <span>📄</span> Export Summary TXT
+                </button>
+                <button class="export-btn-bulk purple" onclick="bulkCopyClipboard()">
+                  <span>⎘</span> Copy to Clipboard
+                </button>
+                <span class="bulk-export-status" id="bulkExportStatus"></span>
+              </div>
+
+              <!-- RESULTS TABLE -->
+              <div class="bulk-table-scroll">
+                <table class="bulk-results-table" id="bulkResultsTable">
+                  <thead id="bulkTableHead"></thead>
+                  <tbody id="bulkTableBody"></tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =================== TAB: ADMIN PANEL =================== -->
       <div class="tab-panel" id="tab-admin" role="tabpanel">
         <div class="admin-wrapper">
           <div class="card admin-card-large">
@@ -661,9 +734,7 @@
                       <th scope="col">Actions</th>
                     </tr>
                   </thead>
-                  <tbody id="usersTableBody">
-                    <!-- Users will be populated here -->
-                  </tbody>
+                  <tbody id="usersTableBody"></tbody>
                 </table>
               </div>
               <div id="noUsersMsg" class="admin-empty">No users registered yet.</div>
@@ -683,9 +754,11 @@
               </div>
               <button class="btn-admin-danger" onclick="clearAllData()">⚠️ Clear All Data (Reset)</button>
             </div>
+
           </div>
         </div>
       </div>
+
     </main>
   </div>
 
