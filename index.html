@@ -233,13 +233,80 @@
               </div>
             </div>
 
-            <div class="field-group">
-              <label for="lwfAmount">LWF (Labour Welfare Fund)</label>
-              <div class="input-prefix">
-                <span>₹</span>
-                <input type="number" id="lwfAmount" placeholder="e.g. 0" min="0" value="0" oninput="liveCalc()" />
-              </div>
-            </div>
+            <!-- ====== LWF FIELD — REPLACE YOUR EXISTING LWF FIELD WITH THIS ====== -->
+<div class="field-group special-field lwf-field">
+  <label>
+    LWF (Labour Welfare Fund)
+    <span class="formula-badge">State-wise Auto</span>
+  </label>
+
+  <!-- Mode Toggle -->
+  <div class="toggle-group" role="radiogroup" aria-label="LWF Mode">
+    <button class="toggle-btn active" id="lwfAuto" onclick="setLWFMode('auto')" role="radio" aria-checked="true">Auto (State-wise)</button>
+    <button class="toggle-btn" id="lwfManual" onclick="setLWFMode('manual')" role="radio" aria-checked="false">Manual Override</button>
+  </div>
+
+  <!-- Auto Mode: State + Month Selector -->
+  <div id="lwfAutoWrapper" style="margin-top: 10px;">
+    <div class="lwf-selectors">
+      <div class="lwf-select-group">
+        <label class="lwf-sub-label">Select State</label>
+        <select id="lwfState" onchange="updateLWFAuto()" class="lwf-select">
+          <option value="">-- Select State --</option>
+          <option value="TN">Tamil Nadu (TN)</option>
+          <option value="AP">Andhra Pradesh (AP)</option>
+          <option value="SKL">Kerala (SKL)</option>
+          <option value="FKL">Karnataka (FKL)</option>
+          <option value="MH">Maharashtra (MH)</option>
+          <option value="Goa">Goa</option>
+          <option value="DL">Delhi (DL)</option>
+          <option value="CH">Chandigarh (CH)</option>
+          <option value="MP">Madhya Pradesh (MP)</option>
+          <option value="CG">Chhattisgarh (CG)</option>
+          <option value="WB">West Bengal (WB)</option>
+          <option value="OD">Odisha (OD)</option>
+          <option value="HR">Haryana (HR)</option>
+          <option value="OTHER">Other (No LWF)</option>
+        </select>
+      </div>
+
+      <div class="lwf-select-group">
+        <label class="lwf-sub-label">Salary Month</label>
+        <select id="lwfMonth" onchange="updateLWFAuto()" class="lwf-select">
+          <option value="1">January</option>
+          <option value="2">February</option>
+          <option value="3">March</option>
+          <option value="4">April</option>
+          <option value="5">May</option>
+          <option value="6">June</option>
+          <option value="7">July</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12" selected>December</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Auto Result Display -->
+    <div class="lwf-auto-result" id="lwfAutoResult">
+      <span class="lwf-result-label">Calculated LWF:</span>
+      <span class="lwf-result-value" id="lwfAutoValue">Select state to calculate</span>
+    </div>
+    <div class="field-hint" id="lwfAutoHint">Select state and month to auto-calculate LWF</div>
+  </div>
+
+  <!-- Manual Mode Input -->
+  <div id="lwfManualWrapper" class="hidden" style="margin-top: 10px;">
+    <div class="input-prefix">
+      <span>₹</span>
+      <input type="number" id="lwfAmount" placeholder="Enter LWF amount" min="0" value="0" oninput="liveCalc()" />
+    </div>
+    <div class="field-hint">Enter custom LWF amount manually</div>
+  </div>
+</div>
+<!-- ====== END LWF FIELD ====== -->
 
             <!-- GRATUITY FIELD -->
             <div class="field-group special-field">

@@ -1836,3 +1836,122 @@ input:invalid:not(:placeholder-shown) {
     background: white;
   }
 }
+
+/* =================== LWF SECTION STYLES ===================
+   Add these styles to the END of your style.css file
+   ========================================================= */
+
+/* LWF Field container */
+.lwf-field {
+  background: rgba(104, 211, 145, 0.04);
+  border: 1px solid rgba(104, 211, 145, 0.15);
+  border-radius: 10px;
+  padding: 14px 14px 10px;
+  margin-bottom: 14px;
+  transition: border-color 0.2s;
+}
+
+.lwf-field:hover {
+  border-color: rgba(104, 211, 145, 0.25);
+}
+
+/* State + Month selector row */
+.lwf-selectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 600px) {
+  .lwf-selectors {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lwf-select-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lwf-sub-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* LWF Select dropdown */
+.lwf-select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a869a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.lwf-select:focus {
+  border-color: var(--accent3);
+  box-shadow: 0 0 0 3px rgba(104, 211, 145, 0.1);
+}
+
+.lwf-select option {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+/* LWF Auto Result display */
+.lwf-auto-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  margin-top: 6px;
+}
+
+.lwf-result-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.lwf-result-value {
+  font-family: 'Syne', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent3);
+  transition: color 0.2s;
+}
+
+/* Slide-in animation for auto/manual wrappers */
+#lwfAutoWrapper,
+#lwfManualWrapper {
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+#lwfAutoWrapper:not(.hidden),
+#lwfManualWrapper:not(.hidden) {
+  animation: slideDown 0.2s ease;
+}
