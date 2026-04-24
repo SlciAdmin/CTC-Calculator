@@ -634,7 +634,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   let edliEmployer = pf === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0;
   let bonus = basic <= 21000 ? Math.round(minWage * 0.0833) : 0;
   let initialCTC = gross + epfEmployer + edliEmployer + bonus;
-  let esiEmployer = gross <= 21000 ? Math.round(gross * 0.0325) : 0;
+  let esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
 
   let gratuityAuto = Math.round((basic / 26) * 15 / 12);
   let gratuity = (gratuityOverride !== null && gratuityOverride >= 0)
@@ -649,7 +649,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   let finalCTC = initialCTC + esiEmployer + gratuity + lwf + leaveComponent;
 
   let epfEmployee = pf === 'Y' ? Math.min(Math.round(basic * 0.12), 1800) : 0;
-  let esiEmployee = gross <= 21000 ? Math.round(gross * 0.0075) : 0;
+  let esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
   let lwfEmployee = lwf;
   let ptDeduction = pt;
   let cashInHand = gross - epfEmployee - esiEmployee - lwfEmployee - ptDeduction;
