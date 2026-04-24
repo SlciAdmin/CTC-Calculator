@@ -225,13 +225,95 @@
               <div class="field-hint" id="pfHint">55% of Gross or Min Wage (whichever is higher) → Basic</div>
             </div>
 
-            <div class="field-group">
-              <label for="ptAmount">Professional Tax (Monthly)</label>
-              <div class="input-prefix">
-                <span>₹</span>
-                <input type="number" id="ptAmount" placeholder="e.g. 200" min="0" value="0" oninput="liveCalc()" />
-              </div>
-            </div>
+            <!-- ====== PROFESSIONAL TAX FIELD - REPLACE EXISTING PT FIELD ====== -->
+<div class="field-group special-field pt-field">
+  <label>
+    Professional Tax (Monthly)
+    <span class="formula-badge">State-wise Auto</span>
+  </label>
+
+  <!-- Mode Toggle -->
+  <div class="toggle-group" role="radiogroup" aria-label="PT Mode">
+    <button class="toggle-btn active" id="ptAuto" onclick="setPTMode('auto')" role="radio" aria-checked="true">Auto (State-wise)</button>
+    <button class="toggle-btn" id="ptManual" onclick="setPTMode('manual')" role="radio" aria-checked="false">Manual Override</button>
+  </div>
+
+  <!-- Auto Mode: State + Month + Gender Selectors -->
+  <div id="ptAutoWrapper" style="margin-top: 10px;">
+    <div class="pt-selectors">
+      <div class="pt-select-group">
+        <label class="pt-sub-label">Select State</label>
+        <select id="ptState" onchange="updatePTAuto()" class="pt-select">
+          <option value="">-- Select State --</option>
+          <option value="KA">Karnataka (KA)</option>
+          <option value="OD">Odisha (OD)</option>
+          <option value="GJ">Gujarat (GJ)</option>
+          <option value="MH">Maharashtra (MH)</option>
+          <option value="MH1">Maharashtra Metro (MH1)</option>
+          <option value="AP">Andhra Pradesh (AP)</option>
+          <option value="TS">Telangana (TS)</option>
+          <option value="AS">Assam (AS)</option>
+          <option value="SK">Sikkim (SK)</option>
+          <option value="KL">Kerala (KL)</option>
+          <option value="PB">Punjab (PB)</option>
+          <option value="GA">Goa (GA)</option>
+          <option value="BR">Bihar (BR)</option>
+          <option value="MP">Madhya Pradesh (MP)</option>
+          <option value="ML">Meghalaya (ML)</option>
+          <option value="WB">West Bengal (WB)</option>
+          <option value="TN">Tamil Nadu (TN)</option>
+          <option value="TR">Tripura (TR)</option>
+          <option value="JH">Jharkhand (JH)</option>
+          <option value="MN">Manipur (MN)</option>
+          <option value="OTHER">Other (No PT)</option>
+        </select>
+      </div>
+
+      <div class="pt-select-group">
+        <label class="pt-sub-label">Salary Month</label>
+        <select id="ptMonth" onchange="updatePTAuto()" class="pt-select">
+          <option value="1">January</option>
+          <option value="2">February</option>
+          <option value="3">March</option>
+          <option value="4">April</option>
+          <option value="5">May</option>
+          <option value="6">June</option>
+          <option value="7">July</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12" selected>December</option>
+        </select>
+      </div>
+
+      <div class="pt-select-group" id="ptGenderGroup" style="display:none;">
+        <label class="pt-sub-label">Gender (MH/MH1 only)</label>
+        <select id="ptGender" onchange="updatePTAuto()" class="pt-select">
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Auto Result Display -->
+    <div class="pt-auto-result" id="ptAutoResult">
+      <span class="pt-result-label">Calculated PT:</span>
+      <span class="pt-result-value" id="ptAutoValue">Select state to calculate</span>
+    </div>
+    <div class="field-hint" id="ptAutoHint">Select state, month & gender to auto-calculate Professional Tax</div>
+  </div>
+
+  <!-- Manual Mode Input -->
+  <div id="ptManualWrapper" class="hidden" style="margin-top: 10px;">
+    <div class="input-prefix">
+      <span>₹</span>
+      <input type="number" id="ptAmount" placeholder="Enter PT amount" min="0" value="0" oninput="liveCalc()" />
+    </div>
+    <div class="field-hint">Enter custom Professional Tax amount manually</div>
+  </div>
+</div>
+<!-- ====== END PT FIELD ====== -->
 
             <!-- ====== LWF FIELD — REPLACE YOUR EXISTING LWF FIELD WITH THIS ====== -->
 <div class="field-group special-field lwf-field">

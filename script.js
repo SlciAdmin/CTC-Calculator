@@ -1,7 +1,7 @@
 /* ============================================
    CTC CALCULATOR — FIREBASE AUTH + LOGIC
    New Labour Code | Cross-Device Login System
-   LWF: State-wise Auto Calculation (v3.0)
+   LWF + PT: State-wise Auto Calculation (v4.0)
    ============================================ */
 
 // 🔥 FIREBASE CONFIG
@@ -29,20 +29,16 @@ let calcResult = null;
 let gratuityMode = 'auto';
 let leaveMode = 'auto';
 let lwfMode = 'auto'; // 'auto' | 'manual'
+let ptMode = 'auto';  // 'auto' | 'manual' ← NEW
 
 // ============== LWF STATE-WISE CONFIG ==============
-// Exactly matching SQL CASE formula
-// "leave days > 0" condition is handled by treating LWF as 0 if no leaves
-// In web calculator, we assume leave days exist (user enters LWF applicable scenario)
-
 const LWF_STATES = {
-  // Format: { amount, months: 'all' | 'dec' | 'jun-dec', formula: null | 'hr' }
   TN:    { name: 'Tamil Nadu',       months: 'dec',     amount: 20,    formula: null },
   AP:    { name: 'Andhra Pradesh',   months: 'dec',     amount: 30,    formula: null },
   SKL:   { name: 'Kerala',           months: 'all',     amount: 20,    formula: null },
   FKL:   { name: 'Karnataka',        months: 'jun-dec', amount: 20,    formula: null },
   MH:    { name: 'Maharashtra',      months: 'jun-dec', amount: 25,    formula: null },
-  Goa:   { name: 'Goa',             months: 'jun-dec', amount: 60,    formula: null },
+  Goa:   { name: 'Goa',              months: 'jun-dec', amount: 60,    formula: null },
   DL:    { name: 'Delhi',            months: 'jun-dec', amount: 0.75,  formula: null },
   CH:    { name: 'Chandigarh',       months: 'all',     amount: 5,     formula: null },
   MP:    { name: 'Madhya Pradesh',   months: 'jun-dec', amount: 10,    formula: null },
@@ -53,33 +49,16 @@ const LWF_STATES = {
   OTHER: { name: 'Other',            months: 'none',    amount: 0,     formula: null },
 };
 
-/**
- * Compute LWF based on SQL formula logic
- * @param {string} stateCode - e.g. 'MH', 'HR', 'DL'
- * @param {number} month - 1-12
- * @param {number} gross - Monthly gross salary (used for HR formula)
- * @param {boolean} hasLeaves - Whether leave days exist (SQL: isnull(L1..L5) > 0)
- * @returns {number} LWF amount
- */
 function computeLWFAuto(stateCode, month, gross, hasLeaves) {
-  // SQL formula outer condition: IF leave days > 0, THEN calculate, ELSE 0
-  // In web calculator, hasLeaves defaults to true (we assume applicable scenario)
   if (!hasLeaves) return 0;
   if (!stateCode || !LWF_STATES[stateCode]) return 0;
-
   const state = LWF_STATES[stateCode];
-
-  // HR state: dynamic formula — Gross × 0.002, max 34
-  // SQL: iif(gross*0.002 <= 34, gross*0.002, 34)
   if (state.formula === 'hr') {
     const hrVal = gross * 0.002;
     return hrVal <= 34 ? Math.round(hrVal * 100) / 100 : 34;
   }
-
-  // Check month applicability
   const isDecember = month === 12;
   const isJuneOrDec = month === 6 || month === 12;
-
   switch (state.months) {
     case 'all':     return state.amount;
     case 'dec':     return isDecember ? state.amount : 0;
@@ -89,51 +68,33 @@ function computeLWFAuto(stateCode, month, gross, hasLeaves) {
   }
 }
 
-/**
- * Get LWF hint text for selected state + month
- */
 function getLWFHint(stateCode, month, gross) {
   if (!stateCode || !LWF_STATES[stateCode]) return 'Select a state to see LWF rule';
-
   const state = LWF_STATES[stateCode];
   const monthName = new Date(2024, month - 1, 1).toLocaleString('en-IN', { month: 'long' });
-
   if (stateCode === 'OTHER') return 'No LWF applicable for selected state';
-
   if (state.formula === 'hr') {
     const hrVal = gross * 0.002;
     const cap = hrVal <= 34 ? hrVal : 34;
     return `HR Formula: Gross × 0.2% = ₹${hrVal.toFixed(2)} → Capped at ₹34 → Result: ₹${cap.toFixed(2)}`;
   }
-
-  const appMonths = {
-    'all': 'every month',
-    'dec': 'December only',
-    'jun-dec': 'June & December only',
-    'none': 'never'
-  };
-
+  const appMonths = { 'all': 'every month', 'dec': 'December only', 'jun-dec': 'June & December only', 'none': 'never' };
   const isApplicable = computeLWFAuto(stateCode, month, gross, true) > 0;
   const rule = appMonths[state.months] || '';
   return `${state.name}: ₹${state.amount} applicable ${rule}. ${monthName} → ${isApplicable ? 'APPLICABLE ✓' : 'NOT applicable this month'}`;
 }
 
 // ============== LWF UI FUNCTIONS ==============
-
 function setLWFMode(mode) {
   lwfMode = mode;
-
   const autoBtn = document.getElementById('lwfAuto');
   const manualBtn = document.getElementById('lwfManual');
   const autoWrapper = document.getElementById('lwfAutoWrapper');
   const manualWrapper = document.getElementById('lwfManualWrapper');
-
   if (autoBtn) autoBtn.classList.toggle('active', mode === 'auto');
   if (manualBtn) manualBtn.classList.toggle('active', mode === 'manual');
-
   if (autoWrapper) autoWrapper.classList.toggle('hidden', mode !== 'auto');
   if (manualWrapper) manualWrapper.classList.toggle('hidden', mode !== 'manual');
-
   if (mode === 'auto') updateLWFAuto();
   liveCalc();
 }
@@ -143,29 +104,23 @@ function updateLWFAuto() {
   const monthEl = document.getElementById('lwfMonth');
   const resultEl = document.getElementById('lwfAutoValue');
   const hintEl = document.getElementById('lwfAutoHint');
-
   if (!stateEl || !monthEl) return;
-
   const stateCode = stateEl.value;
   const month = parseInt(monthEl.value) || 12;
   const gross = parseFloat(document.getElementById('grossSalary')?.value) || 0;
-
   if (!stateCode) {
     if (resultEl) resultEl.textContent = 'Select state to calculate';
     if (hintEl) hintEl.textContent = 'Select state and month to auto-calculate LWF';
     liveCalc();
     return;
   }
-
   const lwfVal = computeLWFAuto(stateCode, month, gross, true);
   const hint = getLWFHint(stateCode, month, gross);
-
   if (resultEl) {
     resultEl.textContent = lwfVal > 0 ? `₹${lwfVal}` : '₹0 (Not applicable this month)';
     resultEl.style.color = lwfVal > 0 ? 'var(--accent3)' : 'var(--text-muted)';
   }
   if (hintEl) hintEl.textContent = hint;
-
   liveCalc();
 }
 
@@ -173,30 +128,321 @@ function getLWFValue() {
   if (lwfMode === 'manual') {
     return parseFloat(document.getElementById('lwfAmount')?.value) || 0;
   }
-
-  // Auto mode
   const stateEl = document.getElementById('lwfState');
   const monthEl = document.getElementById('lwfMonth');
   if (!stateEl || !monthEl || !stateEl.value) return 0;
-
   const stateCode = stateEl.value;
   const month = parseInt(monthEl.value) || 12;
   const gross = parseFloat(document.getElementById('grossSalary')?.value) || 0;
-
   return computeLWFAuto(stateCode, month, gross, true);
 }
 
 function getLWFLabel() {
   if (lwfMode === 'manual') return 'LWF (Manual)';
-
   const stateEl = document.getElementById('lwfState');
   if (!stateEl || !stateEl.value) return 'LWF (Auto)';
-
   const stateCode = stateEl.value;
   const state = LWF_STATES[stateCode];
   if (!state) return 'LWF (Auto)';
-
   return `LWF – ${state.name}`;
+}
+
+// ============== PROFESSIONAL TAX STATE-WISE CONFIG ==============
+// Mirrors your SQL CASE formula exactly
+const PT_STATES = {
+  KA: {
+    name: 'Karnataka',
+    rules: [ { min: 24999, max: null, amount: (month) => month === 2 ? 300 : 200 } ]
+  },
+  OD: {
+    name: 'Odisha',
+    rules: [
+      { min: 13305, max: 25000, amount: 125 },
+      { min: 25001, max: null, amount: (month) => month === 2 ? 300 : 200 }
+    ]
+  },
+  GJ: {
+    name: 'Gujarat',
+    rules: [
+      { min: 6000, max: 0, amount: 8 },
+      { min: 9000, max: 0, amount: 0 },
+      { min: 12000, max: null, amount: 200 }
+    ]
+  },
+  MH: {
+    name: 'Maharashtra',
+    rules: [
+      { min: 7501, max: 10000, amount: 175, gender: 'Male' },
+      { min: 10001, max: null, amount: (month) => month === 2 ? 300 : 200, gender: 'Male' },
+      { min: 25001, max: null, amount: (month) => month === 2 ? 300 : 200, gender: 'Female' }
+    ]
+  },
+  MH1: {
+    name: 'Maharashtra Metro',
+    rules: [
+      { min: 7501, max: 10000, amount: 175, gender: 'Male' },
+      { min: 10001, max: null, amount: (month) => month === 2 ? 300 : 200, gender: 'Male' },
+      { min: 25001, max: null, amount: (month) => month === 2 ? 300 : 200, gender: 'Female' }
+    ]
+  },
+  AP: {
+    name: 'Andhra Pradesh',
+    rules: [
+      { min: 15001, max: 20000, amount: 150 },
+      { min: 20001, max: null, amount: 200 }
+    ]
+  },
+  TS: {
+    name: 'Telangana',
+    rules: [
+      { min: 15001, max: 20000, amount: 150 },
+      { min: 20001, max: null, amount: 200 }
+    ]
+  },
+  AS: {
+    name: 'Assam',
+    rules: [
+      { min: 10001, max: 15000, amount: 150 },
+      { min: 15001, max: 25000, amount: 180 },
+      { min: 25001, max: null, amount: 208 }
+    ]
+  },
+  SK: {
+    name: 'Sikkim',
+    rules: [
+      { min: 20001, max: 30000, amount: 125 },
+      { min: 30001, max: 40000, amount: 150 },
+      { min: 40001, max: null, amount: 200 }
+    ]
+  },
+  KL: {
+    name: 'Kerala',
+    rules: [
+      { min: 12000, max: 17999, amount: 120, month: 6 },
+      { min: 18000, max: 29999, amount: 180, month: 6 },
+      { min: 30000, max: 44999, amount: 300, month: 6 },
+      { min: 45000, max: 59999, amount: 450, month: 6 },
+      { min: 60000, max: 74999, amount: 600, month: 6 },
+      { min: 75000, max: 99999, amount: 750, month: 6 },
+      { min: 100000, max: 124999, amount: 1000, month: 6 },
+      { min: 125000, max: null, amount: 1250, month: 6 }
+    ]
+  },
+  PB: {
+    name: 'Punjab',
+    rules: [ { min: 20833, max: null, amount: 200 } ]
+  },
+  GA: {
+    name: 'Goa',
+    rules: [
+      { min: 15001, max: 25000, amount: 150 },
+      { min: 25001, max: null, amount: 200 }
+    ]
+  },
+  BR: {
+    name: 'Bihar',
+    rules: [
+      { min: 25001, max: 41666, amount: 83.33 },
+      { min: 41667, max: 83333, amount: 166.67 },
+      { min: 83334, max: null, amount: 208.33 }
+    ]
+  },
+  MP: {
+    name: 'Madhya Pradesh',
+    rules: [
+      { min: 18751, max: 25000, amount: 125 },
+      { min: 25001, max: 33333, amount: (month) => month === 3 ? 166 : 166 },
+      { min: 33334, max: null, amount: (month) => month === 3 ? 208 : 212 }
+    ]
+  },
+  ML: {
+    name: 'Meghalaya',
+    rules: [
+      { min: 4167, max: 6250, amount: 16.50 },
+      { min: 6251, max: 8333, amount: 25 },
+      { min: 8334, max: 12500, amount: 41.50 },
+      { min: 12501, max: 16666, amount: 62.50 },
+      { min: 16667, max: 20833, amount: 83.33 },
+      { min: 20834, max: 25000, amount: 104.16 },
+      { min: 25001, max: 29166, amount: 125 },
+      { min: 29167, max: 33333, amount: 150 },
+      { min: 33334, max: 37500, amount: 175 },
+      { min: 37501, max: 41666, amount: 200 },
+      { min: 41667, max: null, amount: 208 }
+    ]
+  },
+  WB: {
+    name: 'West Bengal',
+    rules: [
+      { min: 10001, max: 15000, amount: 110 },
+      { min: 15001, max: 25000, amount: 130 },
+      { min: 25001, max: 40000, amount: 150 },
+      { min: 40001, max: null, amount: 200 }
+    ]
+  },
+  TN: {
+    name: 'Tamil Nadu',
+    rules: [
+      { min: 21001, max: 30000, amount: 30 },
+      { min: 30001, max: 45000, amount: 70.83 },
+      { min: 45001, max: 60000, amount: 155 },
+      { min: 60001, max: 75000, amount: 171 },
+      { min: 75001, max: null, amount: 208 }
+    ]
+  },
+  TR: {
+    name: 'Tripura',
+    rules: [
+      { min: 7501, max: 15000, amount: 150 },
+      { min: 15001, max: null, amount: 208 }
+    ]
+  },
+  JH: {
+    name: 'Jharkhand',
+    rules: [
+      { min: 25001, max: 41666, amount: 100 },
+      { min: 41667, max: 66666, amount: 150 },
+      { min: 66667, max: 83333, amount: 175 },
+      { min: 83334, max: null, amount: 208 }
+    ]
+  },
+  MN: {
+    name: 'Manipur',
+    rules: [
+      { min: 4168, max: 6250, amount: 100 },
+      { min: 6251, max: 8333, amount: 167 },
+      { min: 8334, max: 10416, amount: 200 },
+      { min: 10417, max: null, amount: (month) => month === 3 ? 208 : 212 }
+    ]
+  },
+  OTHER: { name: 'Other', rules: [] }
+};
+
+// ============== PT CALCULATION FUNCTIONS ==============
+function computePTAuto(stateCode, salary, month, gender) {
+  if (!stateCode || !PT_STATES[stateCode]) return 0;
+  const state = PT_STATES[stateCode];
+  if (!state.rules || state.rules.length === 0) return 0;
+  for (const rule of state.rules) {
+    if (salary < rule.min) continue;
+    if (rule.max !== null && salary > rule.max) continue;
+    if (rule.month !== undefined && rule.month !== month) continue;
+    if (rule.gender !== undefined && rule.gender !== gender) continue;
+    if (typeof rule.amount === 'function') {
+      return Math.round(rule.amount(month) * 100) / 100;
+    }
+    return Math.round(rule.amount * 100) / 100;
+  }
+  return 0;
+}
+
+function getPTHint(stateCode, salary, month, gender) {
+  if (!stateCode || !PT_STATES[stateCode]) return 'Select a state to see PT rule';
+  const state = PT_STATES[stateCode];
+  const stateName = state.name;
+  if (stateCode === 'OTHER') return 'No Professional Tax applicable for selected state';
+  const applicableRules = state.rules.filter(rule => {
+    if (salary < rule.min) return false;
+    if (rule.max !== null && salary > rule.max) return false;
+    if (rule.month !== undefined && rule.month !== month) return false;
+    if (rule.gender !== undefined && rule.gender !== gender) return false;
+    return true;
+  });
+  if (applicableRules.length === 0) {
+    return `${stateName}: No PT applicable for salary ₹${salary.toLocaleString('en-IN')} in ${new Date(2024, month-1).toLocaleString('en-IN', {month:'long'})}`;
+  }
+  const rule = applicableRules[0];
+  const amount = typeof rule.amount === 'function' ? rule.amount(month) : rule.amount;
+  return `${stateName}: ₹${amount} applicable (Salary: ₹${salary.toLocaleString('en-IN')}, Month: ${new Date(2024, month-1).toLocaleString('en-IN', {month:'long'})}${rule.gender ? `, Gender: ${rule.gender}` : ''})`;
+}
+
+// ============== PT UI FUNCTIONS ==============
+function setPTMode(mode) {
+  ptMode = mode;
+  const autoBtn = document.getElementById('ptAuto');
+  const manualBtn = document.getElementById('ptManual');
+  const autoWrapper = document.getElementById('ptAutoWrapper');
+  const manualWrapper = document.getElementById('ptManualWrapper');
+  const manualInput = document.getElementById('ptAmount');
+  if (autoBtn) autoBtn.classList.toggle('active', mode === 'auto');
+  if (manualBtn) manualBtn.classList.toggle('active', mode === 'manual');
+  if (autoWrapper) autoWrapper.classList.toggle('hidden', mode !== 'auto');
+  if (manualWrapper) manualWrapper.classList.toggle('hidden', mode !== 'manual');
+  const stateEl = document.getElementById('ptState');
+  const genderGroup = document.getElementById('ptGenderGroup');
+  if (stateEl && genderGroup) {
+    const showGender = ['MH', 'MH1'].includes(stateEl.value);
+    genderGroup.style.display = showGender ? 'flex' : 'none';
+  }
+  if (mode === 'auto') {
+    updatePTAuto();
+  } else {
+    const autoVal = computePTAuto(
+      document.getElementById('ptState')?.value,
+      parseFloat(document.getElementById('grossSalary')?.value) || 0,
+      parseInt(document.getElementById('ptMonth')?.value) || 12,
+      document.getElementById('ptGender')?.value || 'Male'
+    );
+    if (manualInput) manualInput.value = autoVal > 0 ? autoVal : '';
+  }
+  liveCalc();
+}
+
+function updatePTAuto() {
+  const stateEl = document.getElementById('ptState');
+  const monthEl = document.getElementById('ptMonth');
+  const genderEl = document.getElementById('ptGender');
+  const resultEl = document.getElementById('ptAutoValue');
+  const hintEl = document.getElementById('ptAutoHint');
+  const genderGroup = document.getElementById('ptGenderGroup');
+  if (!stateEl || !monthEl) return;
+  const stateCode = stateEl.value;
+  const month = parseInt(monthEl.value) || 12;
+  const salary = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+  const gender = genderEl?.value || 'Male';
+  if (genderGroup) {
+    const showGender = ['MH', 'MH1'].includes(stateCode);
+    genderGroup.style.display = showGender ? 'flex' : 'none';
+  }
+  if (!stateCode) {
+    if (resultEl) resultEl.textContent = 'Select state to calculate';
+    if (hintEl) hintEl.textContent = 'Select state, month & gender to auto-calculate Professional Tax';
+    liveCalc();
+    return;
+  }
+  const ptVal = computePTAuto(stateCode, salary, month, gender);
+  const hint = getPTHint(stateCode, salary, month, gender);
+  if (resultEl) {
+    resultEl.textContent = ptVal > 0 ? `₹${ptVal}` : '₹0 (Not applicable)';
+    resultEl.style.color = ptVal > 0 ? 'var(--accent3)' : 'var(--text-muted)';
+  }
+  if (hintEl) hintEl.textContent = hint;
+  liveCalc();
+}
+
+function getPTValue() {
+  if (ptMode === 'manual') {
+    return parseFloat(document.getElementById('ptAmount')?.value) || 0;
+  }
+  const stateEl = document.getElementById('ptState');
+  const monthEl = document.getElementById('ptMonth');
+  const genderEl = document.getElementById('ptGender');
+  if (!stateEl || !monthEl || !stateEl.value) return 0;
+  const stateCode = stateEl.value;
+  const month = parseInt(monthEl.value) || 12;
+  const salary = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+  const gender = genderEl?.value || 'Male';
+  return computePTAuto(stateCode, salary, month, gender);
+}
+
+function getPTLabel() {
+  if (ptMode === 'manual') return 'PT (Manual)';
+  const stateEl = document.getElementById('ptState');
+  if (!stateEl || !stateEl.value) return 'PT (Auto)';
+  const stateCode = stateEl.value;
+  const state = PT_STATES[stateCode];
+  if (!state) return 'PT (Auto)';
+  return `PT – ${state.name}`;
 }
 
 // ============== INITIALIZATION ==============
@@ -256,52 +502,36 @@ function setupAuthListener() {
 function setupEventListeners() {
   const loginForm = document.getElementById('loginForm');
   if (loginForm) loginForm.addEventListener('submit', handleLogin);
-
   const adminRegisterForm = document.getElementById('adminRegisterForm');
   if (adminRegisterForm) adminRegisterForm.addEventListener('submit', handleAdminRegister);
-
   const createUserForm = document.getElementById('createUserForm');
   if (createUserForm) createUserForm.addEventListener('submit', handleCreateUser);
-
   const showAdminRegisterLink = document.getElementById('showAdminRegister');
   if (showAdminRegisterLink) {
-    showAdminRegisterLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      showAdminRegister();
-    });
+    showAdminRegisterLink.addEventListener('click', (e) => { e.preventDefault(); showAdminRegister(); });
   }
-
   const backToLoginLink = document.getElementById('backToLogin');
   if (backToLoginLink) {
-    backToLoginLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      showLoginPage();
-    });
+    backToLoginLink.addEventListener('click', (e) => { e.preventDefault(); showLoginPage(); });
   }
-
   const adminPanelBtn = document.getElementById('adminPanelBtn');
   if (adminPanelBtn) {
     adminPanelBtn.addEventListener('click', () => {
-      if (isAdmin) {
-        switchTab('admin');
-        loadUsersTable();
-        updateAdminInfo();
-      }
+      if (isAdmin) { switchTab('admin'); loadUsersTable(); updateAdminInfo(); }
     });
   }
-
   document.querySelectorAll('.nav-item[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
       if (tab !== 'admin' || isAdmin) switchTab(tab);
     });
   });
-
-  // Gross salary change should refresh LWF auto calc (for HR formula)
+  // Gross salary change should refresh LWF & PT auto calc
   const grossInput = document.getElementById('grossSalary');
   if (grossInput) {
     grossInput.addEventListener('input', () => {
       if (lwfMode === 'auto') updateLWFAuto();
+      if (ptMode === 'auto') updatePTAuto();
     });
   }
 }
@@ -315,7 +545,6 @@ function showLoginPage() {
   const form = document.getElementById('loginForm');
   if (form) form.reset();
 }
-
 function showAdminRegister() {
   safeToggle('loginPage', true);
   safeToggle('adminRegisterPage', false);
@@ -325,14 +554,12 @@ function showAdminRegister() {
   const form = document.getElementById('adminRegisterForm');
   if (form) form.reset();
 }
-
 function showMainApp() {
   safeToggle('loginPage', true);
   safeToggle('adminRegisterPage', true);
   safeToggle('mainApp', false);
   if (typeof liveCalc === 'function') liveCalc();
 }
-
 function safeToggle(elementId, hide) {
   const el = document.getElementById(elementId);
   if (el) el.classList.toggle('hidden', hide);
@@ -343,7 +570,6 @@ function togglePassword(inputId) {
   const input = document.getElementById(inputId);
   if (input) input.type = input.type === 'password' ? 'text' : 'password';
 }
-
 async function handleLogin(e) {
   e.preventDefault();
   const email = (document.getElementById('loginEmail')?.value || '').trim().toLowerCase();
@@ -351,9 +577,8 @@ async function handleLogin(e) {
   const errorEl = document.getElementById('loginError');
   if (errorEl) errorEl.classList.add('hidden');
   if (!email || !password) { showError(errorEl, 'Please enter email and password'); return; }
-  try {
-    await auth.signInWithEmailAndPassword(email, password);
-  } catch (error) {
+  try { await auth.signInWithEmailAndPassword(email, password); }
+  catch (error) {
     let msg = 'Login failed';
     if (error.code === 'auth/user-not-found') msg = 'No account with this email';
     else if (error.code === 'auth/wrong-password') msg = 'Incorrect password';
@@ -362,7 +587,6 @@ async function handleLogin(e) {
     showError(errorEl, msg);
   }
 }
-
 async function handleAdminRegister(e) {
   e.preventDefault();
   const name = (document.getElementById('adminName')?.value || '').trim();
@@ -398,7 +622,6 @@ async function handleAdminRegister(e) {
     showToast('⚠️ ' + msg);
   }
 }
-
 async function handleCreateUser(e) {
   e.preventDefault();
   if (!isAdmin) { showToast('⚠️ Admin access required'); return; }
@@ -427,24 +650,17 @@ async function handleCreateUser(e) {
     showError(msgEl, msg, true);
   }
 }
-
 function logout() {
-  auth.signOut().then(() => {
-    showToast('↪️ Logged out successfully');
-  }).catch(() => {
-    showToast('⚠️ Logout failed');
-  });
+  auth.signOut().then(() => { showToast('↪️ Logged out successfully'); })
+  .catch(() => { showToast('⚠️ Logout failed'); });
 }
-
 async function updateLastLogin() {
   if (!currentUserId) return;
   try {
     await db.collection('users').doc(currentUserId).update({
       lastLogin: firebase.firestore.FieldValue.serverTimestamp()
     });
-  } catch (e) {
-    console.warn('Could not update last login:', e);
-  }
+  } catch (e) { console.warn('Could not update last login:', e); }
 }
 
 // ============== ADMIN PANEL ==============
@@ -455,7 +671,6 @@ function updateAdminInfo() {
     adminInfoEl.textContent = `${currentUser.name} • ${currentUser.companyName || 'N/A'}`;
   }
 }
-
 async function loadUsersTable() {
   if (!isAdmin) return;
   const tbody = document.getElementById('usersTableBody');
@@ -485,7 +700,6 @@ async function loadUsersTable() {
     showToast('⚠️ Failed to load users');
   }
 }
-
 async function deleteUser(uid) {
   if (!isAdmin) return;
   if (!confirm('Are you sure you want to delete this user?')) return;
@@ -493,11 +707,8 @@ async function deleteUser(uid) {
     await db.collection('users').doc(uid).delete();
     showToast('✓ User deleted from system');
     loadUsersTable();
-  } catch (error) {
-    showToast('⚠️ Failed to delete user');
-  }
+  } catch (error) { showToast('⚠️ Failed to delete user'); }
 }
-
 async function clearAllData() {
   if (!isAdmin) return;
   if (!confirm('⚠️ WARNING: This will delete ALL user data!\n\nAre you absolutely sure?')) return;
@@ -510,9 +721,7 @@ async function clearAllData() {
     await batch.commit();
     showToast('✓ All user data cleared');
     loadUsersTable();
-  } catch (error) {
-    showToast('⚠️ Failed to clear data');
-  }
+  } catch (error) { showToast('⚠️ Failed to clear data'); }
 }
 
 // ============== UTILITY ==============
@@ -522,20 +731,17 @@ function showError(element, message, isAdminForm = false) {
   element.classList.remove('hidden');
   element.className = isAdminForm ? 'admin-msg error' : 'auth-error';
 }
-
 function showSuccess(element, message) {
   if (!element) return;
   element.textContent = message;
   element.classList.remove('hidden');
   element.className = 'admin-msg success';
 }
-
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text || '';
   return div.innerHTML;
 }
-
 function showToast(msg) {
   const t = document.getElementById('toast');
   if (!t) return;
@@ -543,7 +749,6 @@ function showToast(msg) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
 }
-
 function updateUserInfo() {
   if (!currentUser) return;
   const nameEl = document.getElementById('userName');
@@ -560,12 +765,13 @@ function initializeCalculator() {
   setGratuityMode('auto');
   setLeaveMode('auto');
   setLWFMode('auto');
-
-  // Set current month as default in LWF month selector
+  setPTMode('auto'); // ← NEW
   const monthEl = document.getElementById('lwfMonth');
+  const ptMonthEl = document.getElementById('ptMonth');
   if (monthEl) {
     const currentMonth = new Date().getMonth() + 1;
     monthEl.value = currentMonth;
+    if (ptMonthEl) ptMonthEl.value = currentMonth;
   }
 }
 
@@ -582,7 +788,6 @@ function setPF(val) {
     : '53% of Gross or Min Wage (whichever is higher) → Basic';
   liveCalc();
 }
-
 function setGratuityMode(mode) {
   gratuityMode = mode;
   const autoBtn = document.getElementById('gratuityAuto');
@@ -597,7 +802,6 @@ function setGratuityMode(mode) {
     : 'Formula: Basic ÷ 26 × 15 ÷ 12 (monthly provision)';
   liveCalc();
 }
-
 function setLeaveMode(mode) {
   leaveMode = mode;
   const autoBtn = document.getElementById('leaveAuto');
@@ -616,44 +820,28 @@ function setLeaveMode(mode) {
 function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride) {
   gross = Math.round(gross);
   minWage = Math.round(minWage);
-
   let basicPct = pf === 'Y' ? 0.55 : 0.53;
   let basicFromGross = Math.round(gross * basicPct);
   let basic = Math.max(basicFromGross, minWage);
   basic = Math.min(basic, gross);
-
   let hra = Math.round(basic * 0.5);
   let conv = Math.max(gross - basic - hra, 0);
-
-  if (basic + hra > gross) {
-    hra = gross - basic;
-    conv = 0;
-  }
-
+  if (basic + hra > gross) { hra = gross - basic; conv = 0; }
   let epfEmployer = pf === 'Y' ? Math.min(Math.round(basic * 0.125), 1875) : 0;
   let edliEmployer = pf === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0;
   let bonus = basic <= 21000 ? Math.round(minWage * 0.0833) : 0;
   let initialCTC = gross + epfEmployer + edliEmployer + bonus;
   let esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
-
   let gratuityAuto = Math.round((basic / 26) * 15 / 12);
-  let gratuity = (gratuityOverride !== null && gratuityOverride >= 0)
-    ? Math.round(gratuityOverride)
-    : gratuityAuto;
-
+  let gratuity = (gratuityOverride !== null && gratuityOverride >= 0) ? Math.round(gratuityOverride) : gratuityAuto;
   let leaveAuto = Math.round((basic / 26) * 1.25);
-  let leaveComponent = (leaveOverride !== null && leaveOverride >= 0)
-    ? Math.round(leaveOverride)
-    : leaveAuto;
-
+  let leaveComponent = (leaveOverride !== null && leaveOverride >= 0) ? Math.round(leaveOverride) : leaveAuto;
   let finalCTC = initialCTC + esiEmployer + gratuity + lwf + leaveComponent;
-
   let epfEmployee = pf === 'Y' ? Math.min(Math.round(basic * 0.12), 1800) : 0;
   let esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
   let lwfEmployee = lwf;
-  let ptDeduction = pt;
+  let ptDeduction = pt; // ← PT from calculation
   let cashInHand = gross - epfEmployee - esiEmployee - lwfEmployee - ptDeduction;
-
   return {
     gross, basic, hra, conv, minWage, pfApplicable: pf,
     epfEmployer, edliEmployer, bonus, initialCTC,
@@ -676,11 +864,8 @@ function updateGratuityPlaceholder() {
     const basic = Math.min(Math.max(Math.round(gross * basicPct), minWage), gross);
     const autoVal = Math.round((basic / 26) * 15 / 12);
     input.placeholder = `Auto = ₹${autoVal.toLocaleString('en-IN')}`;
-  } else {
-    input.placeholder = 'e.g. 500';
-  }
+  } else { input.placeholder = 'e.g. 500'; }
 }
-
 function updateLeavePlaceholder() {
   const gross = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
@@ -691,9 +876,7 @@ function updateLeavePlaceholder() {
     const basic = Math.min(Math.max(Math.round(gross * basicPct), minWage), gross);
     const autoVal = Math.round((basic / 26) * 1.25);
     input.placeholder = `Auto = ₹${autoVal.toLocaleString('en-IN')}`;
-  } else {
-    input.placeholder = 'e.g. 200';
-  }
+  } else { input.placeholder = 'e.g. 200'; }
 }
 
 function liveCalc() {
@@ -707,30 +890,28 @@ function liveCalc() {
 function calculate(silent = false) {
   const gross = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
-  const pt = parseFloat(document.getElementById('ptAmount')?.value) || 0;
-
+  
+  // ← Get PT from auto or manual (NEW)
+  const pt = getPTValue();
   // Get LWF from auto or manual
   const lwf = getLWFValue();
-
+  
   if (gross <= 0 || minWage <= 0) {
     if (!silent) showToast('⚠️ Please enter Gross Salary and Minimum Wage');
     return;
   }
-
   let gratuityOverride = null;
   if (gratuityMode === 'manual') {
     const val = parseFloat(document.getElementById('gratuityCustom')?.value);
     if (!isNaN(val) && val >= 0) gratuityOverride = val;
   }
-
   let leaveOverride = null;
   if (leaveMode === 'manual') {
     const val = parseFloat(document.getElementById('leaveCustom')?.value);
     if (!isNaN(val) && val >= 0) leaveOverride = val;
   }
-
   const r = computeCTC(gross, minWage, pfApplicable, pt, lwf, gratuityOverride, leaveOverride);
-
+  
   // Store LWF mode info for display
   r.lwfMode = lwfMode;
   r.lwfLabel = getLWFLabel();
@@ -740,7 +921,17 @@ function calculate(silent = false) {
     if (!stateEl || !stateEl.value) return 'Not Selected';
     return LWF_STATES[stateEl.value]?.name || stateEl.value;
   })();
-
+  
+  // ← Store PT mode info for display (NEW)
+  r.ptMode = ptMode;
+  r.ptLabel = getPTLabel();
+  r.ptStateName = (() => {
+    if (ptMode === 'manual') return 'Manual';
+    const stateEl = document.getElementById('ptState');
+    if (!stateEl || !stateEl.value) return 'Not Selected';
+    return PT_STATES[stateEl.value]?.name || stateEl.value;
+  })();
+  
   calcResult = r;
   renderSummary(r);
   renderBreakdown(r);
@@ -748,14 +939,8 @@ function calculate(silent = false) {
   if (!silent) showToast('✓ CTC Calculated Successfully');
 }
 
-function fmt(n) {
-  return '₹' + Math.round(n).toLocaleString('en-IN');
-}
-
-function pct(part, total) {
-  if (!total) return '0%';
-  return (part / total * 100).toFixed(1) + '%';
-}
+function fmt(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
+function pct(part, total) { if (!total) return '0%'; return (part / total * 100).toFixed(1) + '%'; }
 
 function renderSummary(r) {
   safeToggle('summaryEmpty', true);
@@ -770,28 +955,16 @@ function renderSummary(r) {
   setText('r_cash', fmt(r.cashInHand));
   setText('r_bonus', r.bonus > 0 ? fmt(r.bonus) : 'N/A');
 }
-
-function setText(elementId, text) {
-  const el = document.getElementById(elementId);
-  if (el) el.textContent = text;
-}
+function setText(elementId, text) { const el = document.getElementById(elementId); if (el) el.textContent = text; }
 
 function renderBreakdown(r) {
   safeToggle('breakdownEmpty', true);
   safeToggle('breakdownContent', false);
-
-  const salRows = [
-    ['Basic', r.basic],
-    ['HRA (50% of Basic)', r.hra],
-    ['Conveyance / Other', r.conv],
-  ];
+  const salRows = [ ['Basic', r.basic], ['HRA (50% of Basic)', r.hra], ['Conveyance / Other', r.conv] ];
   let salHtml = '';
-  salRows.forEach(([label, val]) => {
-    salHtml += `<tr><td>${label}</td><td>${fmt(val)}</td><td>${pct(val, r.gross)}</td></tr>`;
-  });
+  salRows.forEach(([label, val]) => { salHtml += `<tr><td>${label}</td><td>${fmt(val)}</td><td>${pct(val, r.gross)}</td></tr>`; });
   setTextContent('salaryTable', salHtml);
   setText('tfoot_gross', fmt(r.gross));
-
   const empRows = [
     ['EPF – Employer @ 12.5% of Basic', '12.5% (max ₹1,875)', r.epfEmployer],
     ['EDLI – Employer @ 0.5% upto ₹15,000', '0.5% (max ₹75)', r.edliEmployer],
@@ -803,23 +976,22 @@ function renderBreakdown(r) {
   });
   setTextContent('employerTable', empHtml);
   setText('tfoot_initialCTC', fmt(r.initialCTC));
-
+  
+  // ← Updated deduction rows with PT (NEW)
   const dedRows = [
     ['EPF – Employee @ 12% of Basic', '12% (max ₹1,800)', r.epfEmployee, r.pfApplicable === 'Y'],
     ['ESI – Employee @ 0.75% (Gross ≤ ₹21,000)', '0.75%', r.esiEmployee, r.gross <= 21000],
+    [`PT – ${r.ptStateName} (${r.ptMode === 'manual' ? 'Manual' : 'Auto'})`, 'State', r.ptDeduction, r.ptDeduction > 0],
     [`LWF – ${r.lwfStateName} (${r.lwfMode === 'manual' ? 'Manual' : 'Auto'})`, 'State', r.lwfEmployee, r.lwfEmployee > 0],
-    ['Professional Tax', 'State', r.ptDeduction, r.ptDeduction > 0],
   ];
   let dedHtml = '';
   dedRows.forEach(([label, rate, val, applicable]) => {
-    const dispVal = applicable && val > 0
-      ? `<span style="color:var(--danger)">${fmt(val)}</span>`
-      : `<span style="color:var(--text-muted)">—</span>`;
+    const dispVal = applicable && val > 0 ? `<span style="color:var(--danger)">${fmt(val)}</span>` : `<span style="color:var(--text-muted)">—</span>`;
     dedHtml += `<tr><td>${label}</td><td style="color:var(--text-dim)">${rate}</td><td>${dispVal}</td></tr>`;
   });
   setTextContent('deductionTable', dedHtml);
   setText('tfoot_cash', fmt(r.cashInHand));
-
+  
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
   const gratuityLabel = r.gratuityMode === 'manual'
     ? `Gratuity <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">CUSTOM</span>`
@@ -830,7 +1002,11 @@ function renderBreakdown(r) {
   const lwfLabel = r.lwfMode === 'manual'
     ? `LWF – Employee <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>`
     : `LWF – ${r.lwfStateName} <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>`;
-
+  // ← PT label (NEW)
+  const ptLabel = r.ptMode === 'manual'
+    ? `PT – Employee <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>`
+    : `PT – ${r.ptStateName} <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>`;
+  
   const finalItemsData = [
     { label: 'Gross Salary', val: fmt(r.gross), sub: 'Monthly', cls: '' },
     { label: 'Initial CTC', val: fmt(r.initialCTC), sub: 'Gross + Employer Contributions', cls: '' },
@@ -838,57 +1014,42 @@ function renderBreakdown(r) {
     { label: gratuityLabel, val: fmt(r.gratuity), sub: r.gratuityMode === 'manual' ? `Manual (Auto: ${fmt(r.gratuityAuto)})` : 'Basic/26 × 15 ÷ 12', cls: '' },
     { label: leaveLabel, val: fmt(r.leaveComponent), sub: r.leaveMode === 'manual' ? `Manual (Auto: ${fmt(r.leaveAuto)})` : 'Basic/26 × 1.25', cls: '' },
     { label: lwfLabel, val: r.lwf > 0 ? fmt(r.lwf) : '₹0 (N/A)', sub: r.lwfMode === 'auto' ? `${r.lwfStateName} – State-wise auto` : 'Manual override', cls: '' },
+    { label: ptLabel, val: r.ptDeduction > 0 ? fmt(r.ptDeduction) : '₹0 (N/A)', sub: r.ptMode === 'auto' ? `${r.ptStateName} – State-wise auto` : 'Manual override', cls: '' }, // ← NEW
     { label: 'Final CTC (Monthly)', val: fmt(r.finalCTC), sub: empName, cls: 'highlight' },
     { label: 'Final CTC (Annual)', val: fmt(r.finalCTCAnnual), sub: empName, cls: 'highlight' },
     { label: 'Cash in Hand', val: fmt(r.cashInHand), sub: 'After all deductions', cls: 'green' },
     { label: 'PF Applicable', val: r.pfApplicable === 'Y' ? 'Yes' : 'No', sub: r.pfApplicable === 'Y' ? '55% Basic Rule' : '53% Basic Rule', cls: 'purple' },
   ];
-
   let fiHtml = '';
   finalItemsData.forEach(item => {
     fiHtml += `<div class="final-item ${item.cls}"><div class="fi-label">${item.label}</div><div class="fi-val">${item.val}</div><div class="fi-sub">${item.sub}</div></div>`;
   });
   setTextContent('finalItems', fiHtml);
 }
-
-function setTextContent(elementId, html) {
-  const el = document.getElementById(elementId);
-  if (el) el.innerHTML = html;
-}
+function setTextContent(elementId, html) { const el = document.getElementById(elementId); if (el) el.innerHTML = html; }
 
 function renderExportPreview(r) {
   const rows = [
     ['SALARY STRUCTURE', '', true],
-    ['Basic', fmt(r.basic), false],
-    ['HRA', fmt(r.hra), false],
-    ['Conveyance', fmt(r.conv), false],
+    ['Basic', fmt(r.basic), false], ['HRA', fmt(r.hra), false], ['Conveyance', fmt(r.conv), false],
     ['Gross Salary', fmt(r.gross), false],
     ['EMPLOYER CONTRIBUTIONS', '', true],
-    ['EPF Employer (12.5%)', fmt(r.epfEmployer), false],
-    ['EDLI Employer (0.5%)', fmt(r.edliEmployer), false],
-    ['Bonus (8.33% of Min Wage)', fmt(r.bonus), false],
-    ['Initial CTC', fmt(r.initialCTC), false],
+    ['EPF Employer (12.5%)', fmt(r.epfEmployer), false], ['EDLI Employer (0.5%)', fmt(r.edliEmployer), false],
+    ['Bonus (8.33% of Min Wage)', fmt(r.bonus), false], ['Initial CTC', fmt(r.initialCTC), false],
     ['ESI Employer (3.25%)', fmt(r.esiEmployer), false],
-    [`Gratuity (${r.gratuityMode})`, fmt(r.gratuity), false],
-    [`Leave Component (${r.leaveMode})`, fmt(r.leaveComponent), false],
+    [`Gratuity (${r.gratuityMode})`, fmt(r.gratuity), false], [`Leave Component (${r.leaveMode})`, fmt(r.leaveComponent), false],
     ['EMPLOYEE DEDUCTIONS', '', true],
-    ['EPF Employee (12%)', fmt(r.epfEmployee), false],
-    ['ESI Employee (0.75%)', fmt(r.esiEmployee), false],
-    ['Professional Tax', fmt(r.ptDeduction), false],
+    ['EPF Employee (12%)', fmt(r.epfEmployee), false], ['ESI Employee (0.75%)', fmt(r.esiEmployee), false],
+    [`PT – ${r.ptStateName} (${r.ptMode})`, fmt(r.ptDeduction), false], // ← NEW
     [`LWF – ${r.lwfStateName} (${r.lwfMode})`, fmt(r.lwf), false],
     ['FINAL TOTALS', '', true],
-    ['Final CTC (Monthly)', fmt(r.finalCTC), false],
-    ['Final CTC (Annual)', fmt(r.finalCTCAnnual), false],
+    ['Final CTC (Monthly)', fmt(r.finalCTC), false], ['Final CTC (Annual)', fmt(r.finalCTCAnnual), false],
     ['Cash in Hand', fmt(r.cashInHand), false],
   ];
-
   let html = '<table class="preview-table">';
   rows.forEach(([label, val, isHead]) => {
-    if (isHead) {
-      html += `<tr class="section-head"><td colspan="2">${label}</td></tr>`;
-    } else {
-      html += `<tr><td>${label}</td><td>${val}</td></tr>`;
-    }
+    if (isHead) html += `<tr class="section-head"><td colspan="2">${label}</td></tr>`;
+    else html += `<tr><td>${label}</td><td>${val}</td></tr>`;
   });
   html += '</table>';
   setTextContent('exportPreview', html);
@@ -905,14 +1066,10 @@ function switchTab(tab) {
 
 function resetAll() {
   const fields = ['empName', 'grossSalary', 'minWage', 'ptAmount'];
-  fields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = id === 'ptAmount' ? '0' : '';
-  });
-
+  fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = id === 'ptAmount' ? '0' : ''; });
+  
   // Reset LWF
-  lwfMode = 'auto';
-  setLWFMode('auto');
+  lwfMode = 'auto'; setLWFMode('auto');
   const lwfStateEl = document.getElementById('lwfState');
   if (lwfStateEl) lwfStateEl.value = '';
   const lwfResultEl = document.getElementById('lwfAutoValue');
@@ -921,39 +1078,37 @@ function resetAll() {
   if (lwfHintEl) lwfHintEl.textContent = 'Select state and month to auto-calculate LWF';
   const lwfAmountEl = document.getElementById('lwfAmount');
   if (lwfAmountEl) lwfAmountEl.value = '0';
-
-  // Reset month to current
   const monthEl = document.getElementById('lwfMonth');
   if (monthEl) monthEl.value = new Date().getMonth() + 1;
-
+  
+  // ← Reset PT (NEW)
+  ptMode = 'auto'; setPTMode('auto');
+  const ptStateEl = document.getElementById('ptState');
+  if (ptStateEl) ptStateEl.value = '';
+  const ptResultEl = document.getElementById('ptAutoValue');
+  if (ptResultEl) ptResultEl.textContent = 'Select state to calculate';
+  const ptHintEl = document.getElementById('ptAutoHint');
+  if (ptHintEl) ptHintEl.textContent = 'Select state, month & gender to auto-calculate Professional Tax';
+  const ptAmountEl = document.getElementById('ptAmount');
+  if (ptAmountEl) ptAmountEl.value = '0';
+  const ptMonthEl = document.getElementById('ptMonth');
+  if (ptMonthEl) ptMonthEl.value = new Date().getMonth() + 1;
+  
   setText('r_initialCTC', '—');
-
-  gratuityMode = 'auto';
-  setGratuityMode('auto');
+  gratuityMode = 'auto'; setGratuityMode('auto');
   const gratuityCustom = document.getElementById('gratuityCustom');
   if (gratuityCustom) gratuityCustom.value = '';
-
-  leaveMode = 'auto';
-  setLeaveMode('auto');
+  leaveMode = 'auto'; setLeaveMode('auto');
   const leaveCustom = document.getElementById('leaveCustom');
   if (leaveCustom) leaveCustom.value = '';
-
   pfApplicable = 'Y';
-  const pfYes = document.getElementById('pfYes');
-  const pfNo = document.getElementById('pfNo');
-  const pfHint = document.getElementById('pfHint');
-  if (pfYes) pfYes.classList.add('active');
-  if (pfNo) pfNo.classList.remove('active');
+  const pfYes = document.getElementById('pfYes'); const pfNo = document.getElementById('pfNo'); const pfHint = document.getElementById('pfHint');
+  if (pfYes) pfYes.classList.add('active'); if (pfNo) pfNo.classList.remove('active');
   if (pfHint) pfHint.textContent = '55% of Gross or Min Wage (whichever is higher) → Basic';
-
-  safeToggle('summaryEmpty', false);
-  safeToggle('summaryResults', true);
-  safeToggle('breakdownEmpty', false);
-  safeToggle('breakdownContent', true);
-
+  safeToggle('summaryEmpty', false); safeToggle('summaryResults', true);
+  safeToggle('breakdownEmpty', false); safeToggle('breakdownContent', true);
   const exportPreview = document.getElementById('exportPreview');
   if (exportPreview) exportPreview.innerHTML = '<div class="preview-empty">Calculate first to see export preview</div>';
-
   calcResult = null;
   showToast('↺ Calculator Reset');
 }
@@ -971,6 +1126,7 @@ Employee: ${empName}
 PF Applicable: ${r.pfApplicable === 'Y' ? 'Yes' : 'No'}
 State Min Wage: ${fmt(r.minWage)}
 LWF: ${r.lwfStateName} (${r.lwfMode}) = ${fmt(r.lwf)}
+PT: ${r.ptStateName} (${r.ptMode}) = ${fmt(r.ptDeduction)}
 
 SALARY STRUCTURE (MONTHLY)
 —————————————————————————
@@ -997,13 +1153,13 @@ EMPLOYEE DEDUCTIONS
 ——————————————————
 EPF Employee      : ${fmt(r.epfEmployee)}
 ESI Employee      : ${fmt(r.esiEmployee)}
+PT (${r.ptStateName}) : ${fmt(r.ptDeduction)}
 LWF (${r.lwfStateName}) : ${fmt(r.lwf)}
-Professional Tax  : ${fmt(r.ptDeduction)}
 ────────────────────────
 NET CASH IN HAND  : ${fmt(r.cashInHand)}
 
 Formula: As per New Labour Code — Basic = MAX(${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross, Min Wage)
-LWF computed as per state-wise New Labour Code rules.
+LWF & PT computed as per state-wise New Labour Code rules.
 `;
   const blob = new Blob([content], { type: 'text/plain' });
   const link = document.createElement('a');
@@ -1019,33 +1175,24 @@ function exportCSV() {
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
   const rows = [
     ['Component', 'Amount (Monthly)', 'Notes'],
-    ['Employee Name', empName, ''],
-    ['PF Applicable', r.pfApplicable, ''],
-    ['State Min Wage', r.minWage, ''],
-    ['', '', ''],
-    ['=== SALARY STRUCTURE ===', '', ''],
+    ['Employee Name', empName, ''], ['PF Applicable', r.pfApplicable, ''], ['State Min Wage', r.minWage, ''],
+    ['', '', ''], ['=== SALARY STRUCTURE ===', '', ''],
     ['Basic', r.basic, `MAX(${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross, MinWage)`],
-    ['HRA', r.hra, '50% of Basic'],
-    ['Conveyance / Other', r.conv, 'Residual'],
-    ['Gross Salary', r.gross, ''],
-    ['', '', ''],
-    ['=== EMPLOYER CONTRIBUTIONS ===', '', ''],
+    ['HRA', r.hra, '50% of Basic'], ['Conveyance / Other', r.conv, 'Residual'],
+    ['Gross Salary', r.gross, ''], ['', '', ''], ['=== EMPLOYER CONTRIBUTIONS ===', '', ''],
     ['EPF Employer', r.epfEmployer, '12.5% of Basic (max ₹1875)'],
     ['EDLI Employer', r.edliEmployer, '0.5% of Basic (max ₹75)'],
     ['Bonus', r.bonus, '8.33% of Min Wage (if Basic ≤ ₹21000)'],
-    ['Initial CTC', r.initialCTC, ''],
-    ['ESI Employer', r.esiEmployer, '3.25% of Gross (if ≤ ₹21000)'],
+    ['Initial CTC', r.initialCTC, ''], ['ESI Employer', r.esiEmployer, '3.25% of Gross (if ≤ ₹21000)'],
     [`Gratuity (${r.gratuityMode})`, r.gratuity, r.gratuityMode === 'manual' ? `Custom (Auto=${r.gratuityAuto})` : 'Basic/26×15÷12'],
     [`Leave Component (${r.leaveMode})`, r.leaveComponent, r.leaveMode === 'manual' ? `Custom (Auto=${r.leaveAuto})` : 'Basic/26×1.25'],
     [`LWF – ${r.lwfStateName} (${r.lwfMode})`, r.lwf, 'State-wise Labour Welfare Fund'],
-    ['Final CTC Monthly', r.finalCTC, ''],
-    ['Final CTC Annual', r.finalCTCAnnual, ''],
-    ['', '', ''],
-    ['=== EMPLOYEE DEDUCTIONS ===', '', ''],
+    [`PT – ${r.ptStateName} (${r.ptMode})`, r.ptDeduction, 'State-wise Professional Tax'], // ← NEW
+    ['Final CTC Monthly', r.finalCTC, ''], ['Final CTC Annual', r.finalCTCAnnual, ''],
+    ['', '', ''], ['=== EMPLOYEE DEDUCTIONS ===', '', ''],
     ['EPF Employee', r.epfEmployee, '12% of Basic (max ₹1800)'],
     ['ESI Employee', r.esiEmployee, '0.75% of Gross (if ≤ ₹21000)'],
-    ['Professional Tax', r.ptDeduction, ''],
-    [`LWF – ${r.lwfStateName}`, r.lwfEmployee, 'Employee share'],
+    ['Professional Tax', r.ptDeduction, ''], [`LWF – ${r.lwfStateName}`, r.lwfEmployee, 'Employee share'],
     ['Cash in Hand', r.cashInHand, ''],
   ];
   let csv = rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
@@ -1062,27 +1209,17 @@ function copyToClipboard() {
   const r = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
   const text = [
-    `CTC Report — ${empName}`,
-    `Basic\t${r.basic}`,
-    `HRA\t${r.hra}`,
-    `Conveyance\t${r.conv}`,
-    `Gross\t${r.gross}`,
-    `EPF (Employer)\t${r.epfEmployer}`,
-    `EDLI (Employer)\t${r.edliEmployer}`,
-    `Bonus\t${r.bonus}`,
-    `ESI (Employer)\t${r.esiEmployer}`,
-    `Gratuity (${r.gratuityMode})\t${r.gratuity}`,
-    `Leave Component (${r.leaveMode})\t${r.leaveComponent}`,
+    `CTC Report — ${empName}`, `Basic\t${r.basic}`, `HRA\t${r.hra}`, `Conveyance\t${r.conv}`,
+    `Gross\t${r.gross}`, `EPF (Employer)\t${r.epfEmployer}`, `EDLI (Employer)\t${r.edliEmployer}`,
+    `Bonus\t${r.bonus}`, `ESI (Employer)\t${r.esiEmployer}`,
+    `Gratuity (${r.gratuityMode})\t${r.gratuity}`, `Leave Component (${r.leaveMode})\t${r.leaveComponent}`,
     `LWF – ${r.lwfStateName} (${r.lwfMode})\t${r.lwf}`,
-    `Final CTC (Monthly)\t${r.finalCTC}`,
-    `Final CTC (Annual)\t${r.finalCTCAnnual}`,
+    `PT – ${r.ptStateName} (${r.ptMode})\t${r.ptDeduction}`, // ← NEW
+    `Final CTC (Monthly)\t${r.finalCTC}`, `Final CTC (Annual)\t${r.finalCTCAnnual}`,
     `Cash in Hand\t${r.cashInHand}`,
   ].join('\n');
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('⎘ Copied to clipboard');
-  }).catch(() => {
-    showToast('⚠️ Copy failed — try downloading instead');
-  });
+  navigator.clipboard.writeText(text).then(() => { showToast('⎘ Copied to clipboard'); })
+  .catch(() => { showToast('⚠️ Copy failed — try downloading instead'); });
 }
 
 document.addEventListener('keydown', (e) => {
