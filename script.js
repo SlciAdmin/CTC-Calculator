@@ -824,18 +824,58 @@ function setLeaveMode(mode) {
 
 // ============== CORE CTC ENGINE ==============
 // THIS IS THE SINGLE SOURCE OF TRUTH — used by both Individual & Bulk
+// ============== CORE CTC ENGINE ==============
+// THIS IS THE SINGLE SOURCE OF TRUTH — used by both Individual & Bulk
+// v5.2: Defer Allowance = 10% of Gross when Gross > ₹1,00,000
 function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride) {
   gross = Math.round(gross);
   minWage = Math.round(minWage);
+  
+  // ── Basic Calculation ──
   let basicPct = pf === 'Y' ? 0.55 : 0.53;
   let basicFromGross = Math.round(gross * basicPct);
   let basic = Math.max(basicFromGross, minWage);
   basic = Math.min(basic, gross);
 
-  let hra = Math.round(basic * 0.5);
-  let conv = Math.max(gross - basic - hra, 0);
-  if (basic + hra > gross) { hra = gross - basic; conv = 0; }
+  // ── 🎯 HRA & Conv/Defer Logic: State-wise + Gross Threshold ──
+  let hra, conv, convLabel;
 
+  if (gross > 100000) {
+    // ✅ Defer Allowance Mode: Fixed 10% of Gross
+    convLabel = 'Defer Allowance';
+    conv = Math.round(gross * 0.10);  // 🎯 10% of Gross
+    
+    // HRA = 50% of Basic, but adjust to fit within Gross
+    hra = Math.round(basic * 0.5);
+    
+    // Ensure: Basic + HRA + Defer Allowance ≤ Gross
+    let totalWithoutConv = basic + hra;
+    let maxConvAllowed = gross - totalWithoutConv;
+    
+    if (maxConvAllowed < 0) {
+      // Basic already exceeds Gross (due to Min Wage), adjust
+      conv = 0;
+      hra = Math.max(gross - basic, 0);
+    } else if (conv > maxConvAllowed) {
+      // Defer Allowance capped to fit
+      conv = maxConvAllowed;
+    }
+    // If there's leftover space, Defer Allowance stays at 10% (no expansion)
+    
+  } else {
+    // ✅ Conveyance Mode: Residual Calculation (Old Logic)
+    convLabel = 'Conveyance / Other';
+    hra = Math.round(basic * 0.5);
+    conv = Math.max(gross - basic - hra, 0);
+    
+    // Safety: If Basic + HRA > Gross, adjust HRA
+    if (basic + hra > gross) {
+      hra = gross - basic;
+      conv = 0;
+    }
+  }
+
+  // ── Employer Contributions ──
   let epfEmployer = pf === 'Y' ? Math.min(Math.round(basic * 0.125), 1875) : 0;
   let edliEmployer = pf === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0;
   let bonus = basic <= 21000 ? Math.round(minWage * 0.0833) : 0;
@@ -844,6 +884,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   let esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
   let esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
 
+  // ── Gratuity & Leave ──
   let gratuityAuto = Math.round((basic / 26) * 15 / 12);
   let gratuity = (gratuityOverride !== null && gratuityOverride !== undefined && !isNaN(gratuityOverride) && gratuityOverride >= 0)
     ? Math.round(gratuityOverride)
@@ -854,14 +895,13 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
     ? Math.round(leaveOverride)
     : leaveAuto;
 
+  // ── Final CTC ──
   let finalCTC = initialCTC + esiEmployer + gratuity + lwf + leaveComponent;
 
   let epfEmployee = pf === 'Y' ? Math.min(Math.round(basic * 0.12), 1800) : 0;
   let cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
 
-  // ── Conveyance label: "Special Allowance" jab gross > 1,00,000 ──
-  const convLabel = getConvLabel(gross);
-
+  // ── Return Object ──
   return {
     gross, basic, hra, conv, convLabel, minWage, pfApplicable: pf,
     epfEmployer, edliEmployer, bonus, initialCTC,
