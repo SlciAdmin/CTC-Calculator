@@ -36,7 +36,7 @@ let ptMode = 'auto';
 // ============== HELPER: Conveyance Label ==============
 // Jab gross > 1,00,000 ho tab "Special Allowance" warna "Conveyance / Other"
 function getConvLabel(gross) {
-  return (gross > 100000) ? 'Special Allowance' : 'Conveyance / Other';
+  return (gross > 100000) ? 'Defer Allowance' : 'Conveyance / Other';
 }
 
 // ============== LWF STATE-WISE CONFIG ==============
@@ -1194,7 +1194,7 @@ LWF (${r.lwfStateName}) : ${fmt(r.lwf)}
 NET CASH IN HAND  : ${fmt(r.cashInHand)}
 
 Formula: As per New Labour Code — Basic = MAX(${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross, Min Wage)
-${r.convLabel}: Residual after Basic + HRA${r.gross > 100000 ? ' (Special Allowance applied — Gross > ₹1,00,000)' : ''}
+${r.convLabel}: Residual after Basic + HRA${r.gross > 100000 ? ' (Defer Allowance applied — Gross > ₹1,00,000)' : ''}
 LWF & PT computed as per state-wise New Labour Code rules.
 `;
   const blob = new Blob([content], { type: 'text/plain' });
@@ -1218,7 +1218,7 @@ function exportCSV() {
     ['=== SALARY STRUCTURE ===', '', ''],
     ['Basic', r.basic, `MAX(${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross, MinWage)`],
     ['HRA', r.hra, '50% of Basic'],
-    [r.convLabel, r.conv, r.gross > 100000 ? 'Special Allowance (Gross > ₹1L)' : 'Residual'],   // ← Dynamic
+    [r.convLabel, r.conv, r.gross > 100000 ? 'Defer Allowance (Gross > ₹1L)' : 'Residual'],   // ← Dynamic
     ['Gross Salary', r.gross, ''],
     ['', '', ''],
     ['=== EMPLOYER CONTRIBUTIONS ===', '', ''],
@@ -1765,7 +1765,7 @@ function bulkExportCSV() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const headers = [
     'Row','Employee Name','PF',
-    'Gross Salary','Basic','HRA','Conveyance / Special Allowance',  // ← Updated header
+    'Gross Salary','Basic','HRA','Conveyance / Defer Allowance',  // ← Updated header
     'EPF Employer','EDLI Employer','Bonus','ESI Employer',
     'Gratuity (Auto)','Gratuity (Used)','Leave Auto','Leave Used',
     'LWF','PT','Initial CTC',
