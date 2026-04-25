@@ -1040,7 +1040,7 @@ function renderBreakdown(r) {
     salRows = [
       ['Basic',                                       r.basic],
       ['HRA (50% of Basic)',                          r.hra],
-      [`Defer Allowance (10% of Gross)`,              r.deferAllowance],
+      [`Defer Allowance `,              r.deferAllowance],
       [`${r.convLabel} (Residual)`,                   r.conv],
     ];
   } else {
@@ -1118,7 +1118,7 @@ function renderBreakdown(r) {
   // Insert Defer Allowance info row just after Gross Salary when applicable
   if (r.isHighGross) {
     finalItemsData.splice(1, 0, {
-      label: 'Defer Allowance (10% of Gross)',
+      label: 'Defer Allowance ',
       val: fmt(r.deferAllowance),
       sub: `Gross > ₹1,00,000 | Conveyance (Residual): ${fmt(r.conv)}`,
       cls: 'purple'
@@ -1142,7 +1142,7 @@ function renderExportPreview(r) {
   ];
 
   if (r.isHighGross) {
-    rows.push(['Defer Allowance (10% of Gross)', fmt(r.deferAllowance), false]);
+    rows.push(['Defer Allowance ', fmt(r.deferAllowance), false]);
     rows.push(['Conveyance ', fmt(r.conv), false]);
   } else {
     rows.push([r.convLabel, fmt(r.conv), false]);
@@ -1319,7 +1319,7 @@ function exportCSV() {
   ];
 
   if (r.isHighGross) {
-    rows.push(['Defer Allowance (10% of Gross)', r.deferAllowance, 'Fixed 10% — Gross > ₹1,00,000']);
+    rows.push(['Defer Allowance ', r.deferAllowance, 'Fixed 10% — Gross > ₹1,00,000']);
     rows.push(['Conveyance', r.conv, 'Residual after Basic+HRA+Defer']);
   } else {
     rows.push([r.convLabel, r.conv, 'Residual after Basic + HRA']);
@@ -1858,7 +1858,7 @@ function bulkExportCSV() {
   const headers = [
     'Row','Employee Name','PF',
     'Gross Salary','Basic','HRA',
-    'Defer Allowance (10% of Gross)','Conveyance (Residual)',
+    'Defer Allowance ','Conveyance (Residual)',
     'EPF Employer','EDLI Employer','Bonus','ESI Employer',
     'Gratuity (Auto)','Gratuity (Used)','Leave Auto','Leave Used',
     'LWF','PT','Initial CTC',
