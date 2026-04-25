@@ -862,11 +862,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
       conv = gross - basic - hra - deferAllowance;   // ← residual ~7.5%
       if (conv < 0) conv = 0;
     }
-    convLabel = 'Conveyance / Other';  // label for the residual row
+    convLabel = 'Conveyance ';  // label for the residual row
   } else {
     // ── NORMAL MODE ──
     conv      = Math.max(gross - basic - hra, 0);
-    convLabel = 'Conveyance / Other';
+    convLabel = 'Conveyance ';
   }
 
   // ── Employer contributions ──
@@ -1143,7 +1143,7 @@ function renderExportPreview(r) {
 
   if (r.isHighGross) {
     rows.push(['Defer Allowance (10% of Gross)', fmt(r.deferAllowance), false]);
-    rows.push(['Conveyance / Other (Residual)', fmt(r.conv), false]);
+    rows.push(['Conveyance ', fmt(r.conv), false]);
   } else {
     rows.push([r.convLabel, fmt(r.conv), false]);
   }
@@ -1245,7 +1245,7 @@ function exportPDF() {
 
   const allowanceLines = r.isHighGross
     ? `Defer Allowance (10%) : ${fmt(r.deferAllowance)}\nConveyance (Residual)  : ${fmt(r.conv)}`
-    : `Conveyance / Other    : ${fmt(r.conv)}`;
+    : `Conveyance     : ${fmt(r.conv)}`;
 
   const content = `
 CTC CALCULATION REPORT — NEW LABOUR LAW 2024
@@ -1320,7 +1320,7 @@ function exportCSV() {
 
   if (r.isHighGross) {
     rows.push(['Defer Allowance (10% of Gross)', r.deferAllowance, 'Fixed 10% — Gross > ₹1,00,000']);
-    rows.push(['Conveyance / Other (Residual)', r.conv, 'Residual after Basic+HRA+Defer']);
+    rows.push(['Conveyance', r.conv, 'Residual after Basic+HRA+Defer']);
   } else {
     rows.push([r.convLabel, r.conv, 'Residual after Basic + HRA']);
   }
