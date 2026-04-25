@@ -835,8 +835,8 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   let initialCTC = gross + epfEmployer + edliEmployer + bonus;
 
   // ESI: based on gross (as per ESI Act threshold ₹21,000/month gross)
-  let esiEmployer = gross <= 21000 ? Math.round(gross * 0.0325) : 0;
-  let esiEmployee = gross <= 21000 ? Math.round(gross * 0.0075) : 0;
+  let esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
+  let esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
 
   let gratuityAuto = Math.round((basic / 26) * 15 / 12);
   let gratuity = (gratuityOverride !== null && gratuityOverride !== undefined && !isNaN(gratuityOverride) && gratuityOverride >= 0)
