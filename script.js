@@ -1,8 +1,9 @@
 /* ============================================
    CTC CALCULATOR — FIREBASE AUTH + LOGIC
    New Labour Code | Cross-Device Login System
-   LWF + PT: State-wise Auto Calculation (v5.0)
+   LWF + PT: State-wise Auto Calculation (v5.1)
    BULK UPLOAD: Fully Fixed & Parity with Individual
+   Conveyance → Special Allowance when Gross > ₹1,00,000
    ============================================ */
 
 // 🔥 FIREBASE CONFIG
@@ -31,6 +32,12 @@ let gratuityMode = 'auto';
 let leaveMode = 'auto';
 let lwfMode = 'auto';
 let ptMode = 'auto';
+
+// ============== HELPER: Conveyance Label ==============
+// Jab gross > 1,00,000 ho tab "Special Allowance" warna "Conveyance / Other"
+function getConvLabel(gross) {
+  return (gross > 100000) ? 'Special Allowance' : 'Conveyance / Other';
+}
 
 // ============== LWF STATE-WISE CONFIG ==============
 const LWF_STATES = {
@@ -834,7 +841,6 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   let bonus = basic <= 21000 ? Math.round(minWage * 0.0833) : 0;
   let initialCTC = gross + epfEmployer + edliEmployer + bonus;
 
-  // ESI: based on gross (as per ESI Act threshold ₹21,000/month gross)
   let esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
   let esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
 
@@ -853,8 +859,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   let epfEmployee = pf === 'Y' ? Math.min(Math.round(basic * 0.12), 1800) : 0;
   let cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
 
+  // ── Conveyance label: "Special Allowance" jab gross > 1,00,000 ──
+  const convLabel = getConvLabel(gross);
+
   return {
-    gross, basic, hra, conv, minWage, pfApplicable: pf,
+    gross, basic, hra, conv, convLabel, minWage, pfApplicable: pf,
     epfEmployer, edliEmployer, bonus, initialCTC,
     esiEmployer, esiEmployee,
     gratuity, gratuityAuto,
@@ -963,17 +972,28 @@ function renderSummary(r) {
   setText('r_gross', fmt(r.gross));
   setText('r_cash', fmt(r.cashInHand));
   setText('r_bonus', r.bonus > 0 ? fmt(r.bonus) : 'N/A');
+
+  // ── Update "Conveyance" label in summary mini-grid dynamically ──
+  const convMiniLabel = document.querySelector('.mini-item .mini-label[data-field="conv"]');
+  if (convMiniLabel) convMiniLabel.textContent = r.convLabel;
 }
 function setText(elementId, text) { const el = document.getElementById(elementId); if (el) el.textContent = text; }
 
 function renderBreakdown(r) {
   safeToggle('breakdownEmpty', true);
   safeToggle('breakdownContent', false);
-  const salRows = [ ['Basic', r.basic], ['HRA (50% of Basic)', r.hra], ['Conveyance / Other', r.conv] ];
+
+  // ── Salary structure: use r.convLabel for Conveyance row ──
+  const salRows = [
+    ['Basic', r.basic],
+    ['HRA (50% of Basic)', r.hra],
+    [r.convLabel, r.conv]   // ← Dynamic label here
+  ];
   let salHtml = '';
   salRows.forEach(([label, val]) => { salHtml += `<tr><td>${label}</td><td>${fmt(val)}</td><td>${pct(val, r.gross)}</td></tr>`; });
   setTextContent('salaryTable', salHtml);
   setText('tfoot_gross', fmt(r.gross));
+
   const empRows = [
     ['EPF – Employer @ 12.5% of Basic', '12.5% (max ₹1,875)', r.epfEmployer],
     ['EDLI – Employer @ 0.5% upto ₹15,000', '0.5% (max ₹75)', r.edliEmployer],
@@ -985,6 +1005,7 @@ function renderBreakdown(r) {
   });
   setTextContent('employerTable', empHtml);
   setText('tfoot_initialCTC', fmt(r.initialCTC));
+
   const dedRows = [
     ['EPF – Employee @ 12% of Basic', '12% (max ₹1,800)', r.epfEmployee, r.pfApplicable === 'Y'],
     ['ESI – Employee @ 0.75% (Gross ≤ ₹21,000)', '0.75%', r.esiEmployee, r.gross <= 21000],
@@ -998,6 +1019,7 @@ function renderBreakdown(r) {
   });
   setTextContent('deductionTable', dedHtml);
   setText('tfoot_cash', fmt(r.cashInHand));
+
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
   const gratuityLabel = r.gratuityMode === 'manual'
     ? `Gratuity <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">CUSTOM</span>`
@@ -1011,6 +1033,7 @@ function renderBreakdown(r) {
   const ptLabel = r.ptMode === 'manual'
     ? `PT – Employee <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>`
     : `PT – ${r.ptStateName} <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>`;
+
   const finalItemsData = [
     { label: 'Gross Salary', val: fmt(r.gross), sub: 'Monthly', cls: '' },
     { label: 'Initial CTC', val: fmt(r.initialCTC), sub: 'Gross + Employer Contributions', cls: '' },
@@ -1033,21 +1056,29 @@ function renderBreakdown(r) {
 function setTextContent(elementId, html) { const el = document.getElementById(elementId); if (el) el.innerHTML = html; }
 
 function renderExportPreview(r) {
+  // ── r.convLabel used here for dynamic Conveyance / Special Allowance ──
   const rows = [
     ['SALARY STRUCTURE', '', true],
-    ['Basic', fmt(r.basic), false], ['HRA', fmt(r.hra), false], ['Conveyance', fmt(r.conv), false],
+    ['Basic', fmt(r.basic), false],
+    ['HRA', fmt(r.hra), false],
+    [r.convLabel, fmt(r.conv), false],   // ← Dynamic label
     ['Gross Salary', fmt(r.gross), false],
     ['EMPLOYER CONTRIBUTIONS', '', true],
-    ['EPF Employer (12.5%)', fmt(r.epfEmployer), false], ['EDLI Employer (0.5%)', fmt(r.edliEmployer), false],
-    ['Bonus (8.33% of Min Wage)', fmt(r.bonus), false], ['Initial CTC', fmt(r.initialCTC), false],
+    ['EPF Employer (12.5%)', fmt(r.epfEmployer), false],
+    ['EDLI Employer (0.5%)', fmt(r.edliEmployer), false],
+    ['Bonus (8.33% of Min Wage)', fmt(r.bonus), false],
+    ['Initial CTC', fmt(r.initialCTC), false],
     ['ESI Employer (3.25%)', fmt(r.esiEmployer), false],
-    [`Gratuity (${r.gratuityMode})`, fmt(r.gratuity), false], [`Leave Component (${r.leaveMode})`, fmt(r.leaveComponent), false],
+    [`Gratuity (${r.gratuityMode})`, fmt(r.gratuity), false],
+    [`Leave Component (${r.leaveMode})`, fmt(r.leaveComponent), false],
     ['EMPLOYEE DEDUCTIONS', '', true],
-    ['EPF Employee (12%)', fmt(r.epfEmployee), false], ['ESI Employee (0.75%)', fmt(r.esiEmployee), false],
+    ['EPF Employee (12%)', fmt(r.epfEmployee), false],
+    ['ESI Employee (0.75%)', fmt(r.esiEmployee), false],
     [`PT – ${r.ptStateName} (${r.ptMode})`, fmt(r.ptDeduction), false],
     [`LWF – ${r.lwfStateName} (${r.lwfMode})`, fmt(r.lwf), false],
     ['FINAL TOTALS', '', true],
-    ['Final CTC (Monthly)', fmt(r.finalCTC), false], ['Final CTC (Annual)', fmt(r.finalCTCAnnual), false],
+    ['Final CTC (Monthly)', fmt(r.finalCTC), false],
+    ['Final CTC (Annual)', fmt(r.finalCTCAnnual), false],
     ['Cash in Hand', fmt(r.cashInHand), false],
   ];
   let html = '<table class="preview-table">';
@@ -1136,7 +1167,7 @@ SALARY STRUCTURE (MONTHLY)
 —————————————————————————
 Basic Salary      : ${fmt(r.basic)}  (${pct(r.basic, r.gross)} of Gross)
 HRA               : ${fmt(r.hra)}    (50% of Basic)
-Conveyance/Other  : ${fmt(r.conv)}
+${r.convLabel.padEnd(18)}: ${fmt(r.conv)}
 ────────────────────────
 Gross Salary      : ${fmt(r.gross)}
 
@@ -1163,6 +1194,7 @@ LWF (${r.lwfStateName}) : ${fmt(r.lwf)}
 NET CASH IN HAND  : ${fmt(r.cashInHand)}
 
 Formula: As per New Labour Code — Basic = MAX(${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross, Min Wage)
+${r.convLabel}: Residual after Basic + HRA${r.gross > 100000 ? ' (Special Allowance applied — Gross > ₹1,00,000)' : ''}
 LWF & PT computed as per state-wise New Labour Code rules.
 `;
   const blob = new Blob([content], { type: 'text/plain' });
@@ -1179,24 +1211,34 @@ function exportCSV() {
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
   const rows = [
     ['Component', 'Amount (Monthly)', 'Notes'],
-    ['Employee Name', empName, ''], ['PF Applicable', r.pfApplicable, ''], ['State Min Wage', r.minWage, ''],
-    ['', '', ''], ['=== SALARY STRUCTURE ===', '', ''],
+    ['Employee Name', empName, ''],
+    ['PF Applicable', r.pfApplicable, ''],
+    ['State Min Wage', r.minWage, ''],
+    ['', '', ''],
+    ['=== SALARY STRUCTURE ===', '', ''],
     ['Basic', r.basic, `MAX(${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross, MinWage)`],
-    ['HRA', r.hra, '50% of Basic'], ['Conveyance / Other', r.conv, 'Residual'],
-    ['Gross Salary', r.gross, ''], ['', '', ''], ['=== EMPLOYER CONTRIBUTIONS ===', '', ''],
+    ['HRA', r.hra, '50% of Basic'],
+    [r.convLabel, r.conv, r.gross > 100000 ? 'Special Allowance (Gross > ₹1L)' : 'Residual'],   // ← Dynamic
+    ['Gross Salary', r.gross, ''],
+    ['', '', ''],
+    ['=== EMPLOYER CONTRIBUTIONS ===', '', ''],
     ['EPF Employer', r.epfEmployer, '12.5% of Basic (max ₹1875)'],
     ['EDLI Employer', r.edliEmployer, '0.5% of Basic (max ₹75)'],
     ['Bonus', r.bonus, '8.33% of Min Wage (if Basic ≤ ₹21000)'],
-    ['Initial CTC', r.initialCTC, ''], ['ESI Employer', r.esiEmployer, '3.25% of Gross (if ≤ ₹21000)'],
+    ['Initial CTC', r.initialCTC, ''],
+    ['ESI Employer', r.esiEmployer, '3.25% of Gross (if ≤ ₹21000)'],
     [`Gratuity (${r.gratuityMode})`, r.gratuity, r.gratuityMode === 'manual' ? `Custom (Auto=${r.gratuityAuto})` : 'Basic/26×15÷12'],
     [`Leave Component (${r.leaveMode})`, r.leaveComponent, r.leaveMode === 'manual' ? `Custom (Auto=${r.leaveAuto})` : 'Basic/26×1.25'],
     [`LWF – ${r.lwfStateName} (${r.lwfMode})`, r.lwf, 'State-wise Labour Welfare Fund'],
     [`PT – ${r.ptStateName} (${r.ptMode})`, r.ptDeduction, 'State-wise Professional Tax'],
-    ['Final CTC Monthly', r.finalCTC, ''], ['Final CTC Annual', r.finalCTCAnnual, ''],
-    ['', '', ''], ['=== EMPLOYEE DEDUCTIONS ===', '', ''],
+    ['Final CTC Monthly', r.finalCTC, ''],
+    ['Final CTC Annual', r.finalCTCAnnual, ''],
+    ['', '', ''],
+    ['=== EMPLOYEE DEDUCTIONS ===', '', ''],
     ['EPF Employee', r.epfEmployee, '12% of Basic (max ₹1800)'],
     ['ESI Employee', r.esiEmployee, '0.75% of Gross (if ≤ ₹21000)'],
-    ['Professional Tax', r.ptDeduction, ''], [`LWF – ${r.lwfStateName}`, r.lwfEmployee, 'Employee share'],
+    ['Professional Tax', r.ptDeduction, ''],
+    [`LWF – ${r.lwfStateName}`, r.lwfEmployee, 'Employee share'],
     ['Cash in Hand', r.cashInHand, ''],
   ];
   let csv = rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
@@ -1213,13 +1255,21 @@ function copyToClipboard() {
   const r = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
   const text = [
-    `CTC Report — ${empName}`, `Basic\t${r.basic}`, `HRA\t${r.hra}`, `Conveyance\t${r.conv}`,
-    `Gross\t${r.gross}`, `EPF (Employer)\t${r.epfEmployer}`, `EDLI (Employer)\t${r.edliEmployer}`,
-    `Bonus\t${r.bonus}`, `ESI (Employer)\t${r.esiEmployer}`,
-    `Gratuity (${r.gratuityMode})\t${r.gratuity}`, `Leave Component (${r.leaveMode})\t${r.leaveComponent}`,
+    `CTC Report — ${empName}`,
+    `Basic\t${r.basic}`,
+    `HRA\t${r.hra}`,
+    `${r.convLabel}\t${r.conv}`,   // ← Dynamic label
+    `Gross\t${r.gross}`,
+    `EPF (Employer)\t${r.epfEmployer}`,
+    `EDLI (Employer)\t${r.edliEmployer}`,
+    `Bonus\t${r.bonus}`,
+    `ESI (Employer)\t${r.esiEmployer}`,
+    `Gratuity (${r.gratuityMode})\t${r.gratuity}`,
+    `Leave Component (${r.leaveMode})\t${r.leaveComponent}`,
     `LWF – ${r.lwfStateName} (${r.lwfMode})\t${r.lwf}`,
     `PT – ${r.ptStateName} (${r.ptMode})\t${r.ptDeduction}`,
-    `Final CTC (Monthly)\t${r.finalCTC}`, `Final CTC (Annual)\t${r.finalCTCAnnual}`,
+    `Final CTC (Monthly)\t${r.finalCTC}`,
+    `Final CTC (Annual)\t${r.finalCTCAnnual}`,
     `Cash in Hand\t${r.cashInHand}`,
   ].join('\n');
   navigator.clipboard.writeText(text).then(() => { showToast('⎘ Copied to clipboard'); })
@@ -1234,20 +1284,19 @@ document.addEventListener('keydown', (e) => {
 });
 
 /* =====================================================
-   BULK UPLOAD — COMPLETELY FIXED v5.0
+   BULK UPLOAD — COMPLETELY FIXED v5.1
    Uses same computeCTC() as individual calculator
+   convLabel auto-applied per row based on gross
    ===================================================== */
 
-let bulkRawData = [];      // ← stores parsed JSON rows from file
+let bulkRawData = [];
 let bulkCalcResults = [];
 
-// ─── INIT: Setup drag-drop & file input ───
 function initBulkTab() {
   const dropZone = document.getElementById('bulkDropZone');
   const fileInput = document.getElementById('bulkFileInput');
   if (!dropZone || !fileInput) return;
 
-  // Remove old listeners by replacing nodes
   const newDrop = dropZone.cloneNode(true);
   const newInput = fileInput.cloneNode(true);
   dropZone.parentNode.replaceChild(newDrop, dropZone);
@@ -1268,7 +1317,6 @@ function initBulkTab() {
     if (e.target.files[0]) handleBulkFile(e.target.files[0], newInput);
   });
 
-  // Browse button inside dropzone
   const browseBtn = newDrop.querySelector('.btn-browse');
   if (browseBtn) {
     browseBtn.addEventListener('click', (e) => {
@@ -1278,19 +1326,15 @@ function initBulkTab() {
   }
 }
 
-// ─── FILE HANDLER ───
-// ─── FILE HANDLER: CSV + Excel with Smart Fallback ───
 function handleBulkFile(file, fileInputEl) {
   const ext = file.name.split('.').pop().toLowerCase();
   setBulkStatus('info', '⟳ Reading file: ' + file.name + '...');
 
-  // ─── CSV HANDLING ───
   if (ext === 'csv') {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: (result) => {
-        // Filter empty rows from CSV
         bulkRawData = result.data.filter(row =>
           row && Object.values(row).some(v => {
             if (v === null || v === undefined) return false;
@@ -1305,42 +1349,29 @@ function handleBulkFile(file, fileInputEl) {
         setBulkStatus('error', '⚠️ CSV parse failed: ' + err.message);
       }
     });
-    
-  // ─── EXCEL HANDLING (.xlsx / .xls) ───
+
   } else if (['xlsx', 'xls'].includes(ext)) {
     const reader = new FileReader();
-    
     reader.onload = (e) => {
       try {
         const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        
-        // ── STEP 1: Try with raw:true for accurate numeric values ──
         let rawJson = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
-        
-        // ── STEP 2: Apply smart header detection ──
         let processedData = findHeaderAndData(rawJson);
-        
-        // ── STEP 3: Fallback if detection failed or returned empty ──
         if (!processedData || processedData.length === 0) {
-          // Try alternative: header:1 mode (array of arrays)
           const rawData = XLSX.utils.sheet_to_json(ws, { defval: '', header: 1 });
-          
           if (rawData && rawData.length > 1) {
             const headers = rawData[0].map(h => String(h || '').trim()).filter(h => h);
             processedData = rawData.slice(1).map(row => {
               const obj = {};
               headers.forEach((h, i) => {
                 const val = row[i];
-                // Keep null for empty cells, don't convert to string "null"
                 obj[h] = (val === undefined || val === null || String(val).trim() === '') ? null : val;
               });
               return obj;
             }).filter(row => row && Object.keys(row).length > 0);
           }
         }
-        
-        // ── STEP 4: Final filter - remove truly empty/invalid rows ──
         bulkRawData = (processedData || []).filter(row => {
           if (!row || typeof row !== 'object') return false;
           return Object.values(row).some(v => {
@@ -1349,36 +1380,25 @@ function handleBulkFile(file, fileInputEl) {
             return s !== '' && s !== 'null' && s !== 'undefined' && s !== 'n/a' && s !== '-' && s !== 'na';
           });
         });
-        
-        // ── STEP 5: Success callback ──
         if (bulkRawData.length > 0) {
           onBulkFileReady(file.name, bulkRawData.length);
         } else {
           setBulkStatus('error', '⚠️ No valid data rows found. Check file headers & content.');
         }
-        
       } catch (err) {
         console.error('Excel parse error:', err);
-        setBulkStatus('error', '⚠️ Excel read failed: ' + err.message + '. Please ensure file is valid .xlsx/.xls format.');
+        setBulkStatus('error', '⚠️ Excel read failed: ' + err.message);
       }
     };
-    
-    reader.onerror = (err) => {
-      console.error('FileReader error:', err);
-      setBulkStatus('error', '⚠️ File read error - please try uploading again');
-    };
-    
+    reader.onerror = () => setBulkStatus('error', '⚠️ File read error - please try again');
     reader.readAsArrayBuffer(file);
-    
-  // ─── UNSUPPORTED FORMAT ───
+
   } else {
     setBulkStatus('error', '⚠️ Unsupported format. Please use .csv, .xlsx, or .xls');
   }
 }
 
-// ─── CALLED AFTER FILE IS PARSED SUCCESSFULLY ───
 function onBulkFileReady(fileName, rowCount) {
-  // Show file info and action buttons
   const actionRow = document.getElementById('bulkActionRow');
   const fileNameEl = document.getElementById('bulkFileName');
   const rowCountEl = document.getElementById('bulkRowCount');
@@ -1388,35 +1408,27 @@ function onBulkFileReady(fileName, rowCount) {
   setBulkStatus('success', `✓ File loaded: "${fileName}" — ${rowCount} rows detected. Click "Calculate All" to process.`);
 }
 
-// ─── NORMALIZE KEY for flexible column matching ───
-// ─── NORMALIZE KEY: More robust column matching ───
 function normKey(k) {
   if (!k && k !== 0) return '';
   return k.toString()
     .trim()
     .toLowerCase()
-    .replace(/[\s_\-\/\(\)\.\,\'\"]+/g, '')  // Remove ALL special chars
-    .replace(/[^a-z0-9]/g, '');                // Keep only letters & numbers
+    .replace(/[\s_\-\/\(\)\.\,\'\"]+/g, '')
+    .replace(/[^a-z0-9]/g, '');
 }
-// ─── GET FIELD VALUE: With fallback partial matching ───
+
 function getBulkField(row, aliases, fieldNameForDebug = null) {
   if (!row || typeof row !== 'object') return null;
-  
-  // Create normalized map
   const normalizedRow = {};
   for (const [origKey, origVal] of Object.entries(row)) {
     const nk = normKey(origKey);
     if (nk) normalizedRow[nk] = { originalKey: origKey, value: origVal };
   }
-  
-  // Debug: Log available keys for first row of Gross Salary
   if (fieldNameForDebug === 'Gross Salary' && window.__debugBulk !== false) {
     console.log('🔍 Available columns:', Object.keys(row));
     console.log('🔍 Normalized keys:', Object.keys(normalizedRow));
-    window.__debugBulk = false; // Only log once
+    window.__debugBulk = false;
   }
-  
-  // Strategy 1: Exact normalized match
   for (const alias of aliases) {
     const nk = normKey(alias);
     if (!nk) continue;
@@ -1428,14 +1440,10 @@ function getBulkField(row, aliases, fieldNameForDebug = null) {
       return s;
     }
   }
-  
-  // Strategy 2: Partial/contains match (most important!)
   for (const alias of aliases) {
     const aliasNorm = normKey(alias);
     if (!aliasNorm) continue;
-    
     for (const [keyNorm, data] of Object.entries(normalizedRow)) {
-      // Check bidirectional contains
       if (keyNorm.includes(aliasNorm) || aliasNorm.includes(keyNorm)) {
         const val = data.value;
         if (val === undefined || val === null) continue;
@@ -1445,104 +1453,69 @@ function getBulkField(row, aliases, fieldNameForDebug = null) {
       }
     }
   }
-  
-  // Strategy 3: Fallback - find any column with numeric-looking value for salary fields
   if (['Gross Salary', 'Min Wage', 'PT Amount', 'LWF Amount'].includes(fieldNameForDebug)) {
     for (const [keyNorm, data] of Object.entries(normalizedRow)) {
       const val = data.value;
-      if (typeof val === 'number' && !isNaN(val) && val > 0) {
-        return String(val);
-      }
+      if (typeof val === 'number' && !isNaN(val) && val > 0) return String(val);
       if (typeof val === 'string') {
         const cleaned = val.replace(/[₹,\s]/g, '').trim();
-        if (!isNaN(cleaned) && parseFloat(cleaned) > 0) {
-          return cleaned;
-        }
+        if (!isNaN(cleaned) && parseFloat(cleaned) > 0) return cleaned;
       }
     }
   }
-  
   return null;
 }
 
-// ─── CLEAN NUMERIC VALUE (removes ₹, commas, spaces, rejects "null") ───
-// ─── CLEAN NUMERIC VALUE: Handles all edge cases ───
 function cleanNum(v) {
   if (v === null || v === undefined) return NaN;
-  
-  // Handle case where value is literally the string "null"
   if (String(v).trim().toLowerCase() === 'null') return NaN;
-  
   const s = String(v)
-    .replace(/[₹,\s]/g, '')      // Remove currency & commas
-    .replace(/[^\d.\-]/g, '')    // Keep only digits, dot, minus
+    .replace(/[₹,\s]/g, '')
+    .replace(/[^\d.\-]/g, '')
     .trim();
-    
-  if (!s || s === '-' || s === '.' || ['null', 'undefined', 'n/a', 'na', ''].includes(s.toLowerCase())) {
-    return NaN;
-  }
-  
+  if (!s || s === '-' || s === '.' || ['null', 'undefined', 'n/a', 'na', ''].includes(s.toLowerCase())) return NaN;
   const n = parseFloat(s);
   return isNaN(n) ? NaN : n;
 }
 
-// ─── SMART ROW SCANNER: finds actual header row in messy Excel files ───
-// Some Excel files have title rows before the actual data header
-// ─── SMART HEADER DETECTION: More reliable ───
 function findHeaderAndData(rawRows) {
   if (!rawRows || !Array.isArray(rawRows) || rawRows.length === 0) return [];
-  
   const headerKeywords = [
-    'gross', 'employee', 'name', 'empname', 'minwage', 'minimumwage', 
-    'salary', 'wage', 'basic', 'hra', 'pf', 'pt', 'lwf', 'gratuity', 
+    'gross', 'employee', 'name', 'empname', 'minwage', 'minimumwage',
+    'salary', 'wage', 'basic', 'hra', 'pf', 'pt', 'lwf', 'gratuity',
     'leave', 'encashment', 'monthly', 'pay', 'amount'
   ];
-  
-  // Scan first 10 rows to find header
   for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
     const row = rawRows[i];
     if (!row || typeof row !== 'object') continue;
-    
     const allText = [
       ...Object.keys(row).map(k => String(k || '').toLowerCase()),
       ...Object.values(row).map(v => String(v || '').toLowerCase())
     ].join(' ');
-    
     const keywordCount = headerKeywords.filter(kw => allText.includes(kw)).length;
-    
-    // If 3+ keywords found, this is likely the header row
     if (keywordCount >= 3) {
       if (i === 0) return rawRows;
-      
-      // Use this row's VALUES as headers
       const headerValues = Object.values(row).map((v, idx) => {
         const h = String(v || '').trim();
         return h || `Column${idx + 1}`;
       });
-      
-      // Remap subsequent rows
       const dataRows = rawRows.slice(i + 1).map(dataRow => {
         const vals = Object.values(dataRow);
         const remapped = {};
         headerValues.forEach((h, colIdx) => {
           if (h) {
             const val = vals[colIdx];
-            // Preserve null for truly empty cells
             remapped[h] = (val === undefined || val === null || String(val).trim() === '') ? null : val;
           }
         });
         return remapped;
       });
-      
       return dataRows.filter(r => r && Object.keys(r).length > 0);
     }
   }
-  
-  // Fallback: return as-is (first row = header)
   return rawRows;
 }
 
-// ─── PROCESS BULK FILE — called when user clicks "Calculate All" ───
 function processBulkFile() {
   if (!bulkRawData || bulkRawData.length === 0) {
     showToast('⚠️ No file loaded. Please upload first.');
@@ -1550,7 +1523,6 @@ function processBulkFile() {
     return;
   }
 
-  // Reset debug flag
   window.__debugBulk = true;
 
   const rows = bulkRawData.filter(row =>
@@ -1567,7 +1539,7 @@ function processBulkFile() {
   }
 
   setBulkStatus('info', `⟳ Processing ${rows.length} employees...`);
-  
+
   const progressWrap = document.getElementById('bulkProgressWrap');
   const progressFill = document.getElementById('bulkProgressFill');
   if (progressWrap) progressWrap.style.display = 'block';
@@ -1584,70 +1556,58 @@ function processBulkFile() {
 
     const rowNum = i + 1;
 
-    // ── Employee Name ──
     const name = getBulkField(row, [
       'Employee Name', 'EmployeeName', 'Name', 'Emp Name', 'EmpName', 'Employee', 'EMPLOYEE NAME', 'employee name', 'emp_name'
     ], 'Employee Name') || `Employee ${rowNum}`;
 
-    // ── Gross Salary (CRITICAL) ──
     const grossRaw = getBulkField(row, [
-      'Gross Salary', 'Gross', 'Monthly Gross', 'GrossSalary', 'GROSS', 'gross salary', 
+      'Gross Salary', 'Gross', 'Monthly Gross', 'GrossSalary', 'GROSS', 'gross salary',
       'Gross Pay', 'Monthly Gross Salary', 'gross_pay', 'Gross_Amt', 'Total Gross'
     ], 'Gross Salary');
-    
     const gross = cleanNum(grossRaw);
 
-    // ── Min Wage ──
     const minWageRaw = getBulkField(row, [
-      'Min Wage', 'Minimum Wage', 'MinWage', 'State Min Wage', 'Min Salary', 
+      'Min Wage', 'Minimum Wage', 'MinWage', 'State Min Wage', 'Min Salary',
       'STATE MIN WAGE', 'min wage', 'minimum wage', 'Min_Wage', 'Minimum Monthly Wage', 'min_wage'
     ], 'Min Wage');
     const minWage = cleanNum(minWageRaw);
 
-    // ── Validation with DETAILED error messages ──
     if (isNaN(gross) || gross <= 0) {
       const availableCols = Object.keys(row).join(', ');
-      bulkCalcResults.push({ 
-        name, 
-        rowNum, 
-        error: `❌ Gross Salary not found. Got: "${grossRaw}". Available columns: ${availableCols.substring(0,100)}...` 
+      bulkCalcResults.push({
+        name, rowNum,
+        error: `❌ Gross Salary not found. Got: "${grossRaw}". Available columns: ${availableCols.substring(0,100)}...`
       });
       errors++;
       return;
     }
     if (isNaN(minWage) || minWage <= 0) {
-      bulkCalcResults.push({ 
-        name, 
-        rowNum, 
-        error: `❌ Min Wage not found. Got: "${minWageRaw}". Check column header.` 
+      bulkCalcResults.push({
+        name, rowNum,
+        error: `❌ Min Wage not found. Got: "${minWageRaw}". Check column header.`
       });
       errors++;
       return;
     }
 
-    // ── PF ──
     const pfRaw = getBulkField(row, ['PF', 'PF Applicable', 'PF (Y/N)', 'pf', 'PF_Applicable', 'PF Applicability', 'pf_yn']);
     const pf = pfRaw && pfRaw.toString().trim().toUpperCase() === 'N' ? 'N' : 'Y';
 
-    // ── PT ──
     const ptRaw = getBulkField(row, ['PT', 'PT Amount', 'Professional Tax', 'PT (Monthly)', 'pt', 'Prof Tax', 'ProfTax', 'pt_amt']);
     const pt = isNaN(cleanNum(ptRaw)) ? 0 : Math.max(0, cleanNum(ptRaw));
 
-    // ── LWF ──
     const lwfRaw = getBulkField(row, ['LWF', 'LWF Amount', 'Labour Welfare Fund', 'LWF (Monthly)', 'lwf', 'LWF_Amount', 'lwf_amt']);
     const lwf = isNaN(cleanNum(lwfRaw)) ? 0 : Math.max(0, cleanNum(lwfRaw));
 
-    // ── Gratuity Override ──
     const gratRaw = getBulkField(row, ['Gratuity', 'Gratuity Amount', 'Monthly Gratuity', 'gratuity', 'gratuity_amt']);
     const gratuityOverride = (gratRaw && !isNaN(cleanNum(gratRaw))) ? cleanNum(gratRaw) : null;
 
-    // ── Leave Override ──
     const leaveRaw = getBulkField(row, ['Leave Encashment', 'Leave', 'Monthly Leave', 'Leave Amount', 'leave encashment', 'leave', 'leave_amt']);
     const leaveOverride = (leaveRaw && !isNaN(cleanNum(leaveRaw))) ? cleanNum(leaveRaw) : null;
 
-    // ── CALCULATE ──
     try {
       const r = computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride);
+      // convLabel is already set inside computeCTC via getConvLabel(gross)
       bulkCalcResults.push({
         name, rowNum, error: null, ...r,
         epfEmp: r.epfEmployer, edli: r.edliEmployer, esiEmp: r.esiEmployer,
@@ -1661,12 +1621,10 @@ function processBulkFile() {
     }
   });
 
-  // Show results
   const delay = Math.min(total * 8, 1500);
   setTimeout(() => {
     if (progressWrap) progressWrap.style.display = 'none';
     renderBulkResults(errors, total);
-    
     if (errors === 0) {
       showToast(`✅ Success! All ${total} employees calculated.`);
     } else {
@@ -1675,18 +1633,14 @@ function processBulkFile() {
   }, delay + 200);
 }
 
-
-// ─── FORMAT HELPERS ───
 function bulkFmt(n) {
   if (n === null || n === undefined || isNaN(n)) return '₹0';
   return '₹' + Math.round(n).toLocaleString('en-IN');
 }
 
-// ─── RENDER RESULTS TABLE ───
 function renderBulkResults(errors, total) {
   const valid = bulkCalcResults.filter(r => !r.error);
 
-  // Summary stats
   const totalMonthly = valid.reduce((s, r) => s + (r.finalCTC || 0), 0);
   const totalAnnual = valid.reduce((s, r) => s + (r.finalAnnual || 0), 0);
   const avgCash = valid.length ? Math.round(valid.reduce((s, r) => s + (r.cash || 0), 0) / valid.length) : 0;
@@ -1694,7 +1648,6 @@ function renderBulkResults(errors, total) {
   const minCTC = valid.length ? Math.min(...valid.map(r => r.finalCTC || 0)) : 0;
   const maxCTC = valid.length ? Math.max(...valid.map(r => r.finalCTC || 0)) : 0;
 
-  // Summary Cards
   const summaryEl = document.getElementById('bulkSummaryCards');
   if (summaryEl) {
     summaryEl.innerHTML = `
@@ -1710,12 +1663,12 @@ function renderBulkResults(errors, total) {
     `;
   }
 
-  // Table Header
+  // ── Table header: "Conveyance / Spl. Allow." — reflects both cases ──
   const headEl = document.getElementById('bulkTableHead');
   if (headEl) {
     headEl.innerHTML = `<tr>
       <th>#</th><th>Employee Name</th><th>PF</th>
-      <th>Gross</th><th>Basic</th><th>HRA</th><th>Conv.</th>
+      <th>Gross</th><th>Basic</th><th>HRA</th><th>Conv./Spl.Allow.</th>
       <th>EPF Emp</th><th>EDLI</th><th>Bonus</th><th>ESI Emp</th>
       <th>Gratuity</th><th>Leave Enc.</th><th>LWF</th><th>PT</th>
       <th>Initial CTC</th><th>Final CTC/Mo</th><th>Annual CTC</th>
@@ -1723,7 +1676,6 @@ function renderBulkResults(errors, total) {
     </tr>`;
   }
 
-  // Totals accumulator
   const tot = { gross:0, basic:0, hra:0, conv:0, epfEmp:0, edli:0, bonus:0, esiEmp:0,
     gratuityUsed:0, leaveUsed:0, lwf:0, pt:0, initialCTC:0, finalCTC:0,
     finalAnnual:0, epfEe:0, esiEe:0, cash:0 };
@@ -1741,10 +1693,12 @@ function renderBulkResults(errors, total) {
       return;
     }
 
-    // Accumulate totals
     ['gross','basic','hra','conv','epfEmp','edli','bonus','esiEmp','gratuityUsed','leaveUsed','lwf','pt','initialCTC','finalCTC','finalAnnual','epfEe','esiEe','cash'].forEach(k => {
       tot[k] = (tot[k] || 0) + (r[k] || 0);
     });
+
+    // ── Show convLabel as tooltip on the cell ──
+    const convCellTitle = r.convLabel || 'Conveyance / Other';
 
     bodyHtml += `<tr class="${alt}">
       <td style="color:var(--text-muted)">${r.rowNum}</td>
@@ -1753,7 +1707,7 @@ function renderBulkResults(errors, total) {
       <td class="td-right">${bulkFmt(r.gross)}</td>
       <td class="td-right">${bulkFmt(r.basic)}</td>
       <td class="td-right">${bulkFmt(r.hra)}</td>
-      <td class="td-right">${bulkFmt(r.conv)}</td>
+      <td class="td-right" title="${convCellTitle}">${bulkFmt(r.conv)}${r.gross > 100000 ? ' <span style="font-size:9px;color:var(--accent2)">SA</span>' : ''}</td>
       <td class="td-right">${bulkFmt(r.epfEmp)}</td>
       <td class="td-right">${bulkFmt(r.edli)}</td>
       <td class="td-right">${r.bonus > 0 ? bulkFmt(r.bonus) : '<span style="color:var(--text-muted)">—</span>'}</td>
@@ -1772,7 +1726,6 @@ function renderBulkResults(errors, total) {
     </tr>`;
   });
 
-  // Total row
   if (valid.length > 0) {
     bodyHtml += `<tr class="total-row">
       <td colspan="3">TOTAL (${valid.length} employees)</td>
@@ -1808,12 +1761,11 @@ function renderBulkResults(errors, total) {
   setBulkStatus(errors > 0 ? 'info' : 'success', statusMsg);
 }
 
-// ─── EXPORT CSV ───
 function bulkExportCSV() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const headers = [
     'Row','Employee Name','PF',
-    'Gross Salary','Basic','HRA','Conveyance',
+    'Gross Salary','Basic','HRA','Conveyance / Special Allowance',  // ← Updated header
     'EPF Employer','EDLI Employer','Bonus','ESI Employer',
     'Gratuity (Auto)','Gratuity (Used)','Leave Auto','Leave Used',
     'LWF','PT','Initial CTC',
@@ -1830,7 +1782,8 @@ function bulkExportCSV() {
       r.lwf, r.pt, r.initialCTC,
       r.finalCTC, r.finalAnnual,
       r.epfEe, r.esiEe, r.cash, 'Calculated',
-      `Basic=${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross or MinWage`
+      // ── convLabel in notes column ──
+      `Basic=${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross or MinWage | ${r.convLabel}`
     ];
   });
   const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -1843,7 +1796,6 @@ function bulkExportCSV() {
   showToast('✓ Bulk CSV Downloaded');
 }
 
-// ─── EXPORT TXT SUMMARY ───
 function bulkExportTXT() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const valid = bulkCalcResults.filter(r => !r.error);
@@ -1853,7 +1805,7 @@ function bulkExportTXT() {
   let txt = `BULK CTC CALCULATION REPORT — NEW LABOUR CODE\n${'='.repeat(60)}\nDate: ${now}\nTotal Employees: ${bulkCalcResults.length}  |  Processed: ${valid.length}  |  Errors: ${bulkCalcResults.length - valid.length}\nTotal Monthly CTC Payout: ${bulkFmt(totalMonthly)}\nTotal Annual CTC Payout:  ${bulkFmt(totalAnnual)}\n${'='.repeat(60)}\n\n`;
   valid.forEach((r, i) => {
     txt += `${i+1}. ${r.name}  (PF: ${r.pfApplicable})\n`;
-    txt += `   Gross: ${bulkFmt(r.gross)} | Basic: ${bulkFmt(r.basic)} | HRA: ${bulkFmt(r.hra)} | Conv: ${bulkFmt(r.conv)}\n`;
+    txt += `   Gross: ${bulkFmt(r.gross)} | Basic: ${bulkFmt(r.basic)} | HRA: ${bulkFmt(r.hra)} | ${r.convLabel}: ${bulkFmt(r.conv)}\n`;  // ← Dynamic
     txt += `   EPF Emp: ${bulkFmt(r.epfEmp)} | EDLI: ${bulkFmt(r.edli)} | Bonus: ${r.bonus > 0 ? bulkFmt(r.bonus) : 'N/A'} | ESI Emp: ${r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A'}\n`;
     txt += `   Gratuity: ${bulkFmt(r.gratuityUsed)} | Leave: ${bulkFmt(r.leaveUsed)} | LWF: ${r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A'} | PT: ${r.pt > 0 ? bulkFmt(r.pt) : 'N/A'}\n`;
     txt += `   Initial CTC: ${bulkFmt(r.initialCTC)}\n`;
@@ -1876,11 +1828,13 @@ function bulkExportTXT() {
   showToast('✓ Summary TXT Downloaded');
 }
 
-// ─── COPY TO CLIPBOARD ───
 function bulkCopyClipboard() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const valid = bulkCalcResults.filter(r => !r.error);
-  const headers = ['#','Name','PF','Gross','Basic','HRA','Conv','EPF Emp','EDLI','Bonus','ESI Emp','Gratuity','Leave','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Ee','ESI Ee','Cash in Hand'];
+  // ── Dynamic header based on whether any row has gross > 1L ──
+  const hasHighGross = valid.some(r => r.gross > 100000);
+  const convHeader = hasHighGross ? 'Conv./Spl.Allow.' : 'Conveyance';
+  const headers = ['#','Name','PF','Gross','Basic','HRA',convHeader,'EPF Emp','EDLI','Bonus','ESI Emp','Gratuity','Leave','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Ee','ESI Ee','Cash in Hand'];
   const rows = valid.map((r, i) => [
     i+1, r.name, r.pfApplicable,
     r.gross, r.basic, r.hra, r.conv,
@@ -1895,7 +1849,6 @@ function bulkCopyClipboard() {
     .catch(() => showToast('⚠️ Copy failed'));
 }
 
-// ─── DOWNLOAD TEMPLATE ───
 function bulkDownloadTemplate() {
   const csv = `Employee Name,Gross Salary,Min Wage,PF (Y/N),PT Amount,LWF Amount,Gratuity,Leave Encashment
 Rahul Sharma,30000,16868,Y,200,20,,
@@ -1904,8 +1857,8 @@ Amit Patel,18000,16868,N,0,0,,
 Neha Singh,60000,16868,Y,300,25,,
 Vikram Gupta,25000,16868,Y,200,20,,
 Sunita Kumar,50000,14000,Y,200,0,,
-Rajesh Mehta,35000,15860,Y,200,20,,
-Pooja Joshi,22000,16868,Y,200,0,,
+Rajesh Mehta,120000,15860,Y,200,20,,
+Pooja Joshi,150000,16868,Y,200,0,,
 Arun Rao,80000,16868,N,208,0,,
 Kavita Nair,15000,14858,Y,0,0,,`;
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1916,7 +1869,6 @@ Kavita Nair,15000,14858,Y,0,0,,`;
   showToast('✓ Template Downloaded');
 }
 
-// ─── RESET BULK ───
 function resetBulk() {
   bulkRawData = [];
   bulkCalcResults = [];
@@ -1930,12 +1882,10 @@ function resetBulk() {
   if (progressWrap) progressWrap.style.display = 'none';
   if (statusEl) statusEl.style.display = 'none';
   if (progressFill) progressFill.style.width = '0%';
-  // Re-init to restore fresh event listeners
   initBulkTab();
   showToast('↺ Bulk upload reset');
 }
 
-// ─── HELPERS ───
 function setBulkStatus(type, msg) {
   const el = document.getElementById('bulkStatus');
   if (!el) return;
