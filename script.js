@@ -1395,47 +1395,69 @@ function normKey(k) {
   return k.toString()
     .trim()
     .toLowerCase()
-    .replace(/[\s_\-\/\(\)\.\,]+/g, '')  // Remove spaces, underscores, etc.
-    .replace(/[^a-z0-9]/g, '');            // Keep only alphanumeric
+    .replace(/[\s_\-\/\(\)\.\,\'\"]+/g, '')  // Remove ALL special chars
+    .replace(/[^a-z0-9]/g, '');                // Keep only letters & numbers
 }
-
 // ─── GET FIELD VALUE: With fallback partial matching ───
-function getBulkField(row, aliases) {
+function getBulkField(row, aliases, fieldNameForDebug = null) {
   if (!row || typeof row !== 'object') return null;
   
-  // Create normalized map: normalized_key -> original_value
+  // Create normalized map
   const normalizedRow = {};
   for (const [origKey, origVal] of Object.entries(row)) {
     const nk = normKey(origKey);
-    if (nk) normalizedRow[nk] = origVal;
+    if (nk) normalizedRow[nk] = { originalKey: origKey, value: origVal };
+  }
+  
+  // Debug: Log available keys for first row of Gross Salary
+  if (fieldNameForDebug === 'Gross Salary' && window.__debugBulk !== false) {
+    console.log('🔍 Available columns:', Object.keys(row));
+    console.log('🔍 Normalized keys:', Object.keys(normalizedRow));
+    window.__debugBulk = false; // Only log once
   }
   
   // Strategy 1: Exact normalized match
   for (const alias of aliases) {
     const nk = normKey(alias);
     if (!nk) continue;
-    const val = normalizedRow[nk];
-    if (val === undefined || val === null) continue;
-    const s = String(val).trim();
-    if (s === '' || ['null', 'undefined', 'n/a', '-', 'na'].includes(s.toLowerCase())) continue;
-    return s;
+    if (normalizedRow[nk]) {
+      const val = normalizedRow[nk].value;
+      if (val === undefined || val === null) continue;
+      const s = String(val).trim();
+      if (s === '' || ['null', 'undefined', 'n/a', '-', 'na', 'none'].includes(s.toLowerCase())) continue;
+      return s;
+    }
   }
   
-  // Strategy 2: Partial/contains match (fallback)
+  // Strategy 2: Partial/contains match (most important!)
   for (const alias of aliases) {
     const aliasNorm = normKey(alias);
     if (!aliasNorm) continue;
     
-    for (const [origKey, origVal] of Object.entries(row)) {
-      const keyNorm = normKey(origKey);
-      if (!keyNorm) continue;
-      
-      // Check if keys contain each other
+    for (const [keyNorm, data] of Object.entries(normalizedRow)) {
+      // Check bidirectional contains
       if (keyNorm.includes(aliasNorm) || aliasNorm.includes(keyNorm)) {
-        if (origVal === undefined || origVal === null) continue;
-        const s = String(origVal).trim();
-        if (s === '' || ['null', 'undefined', 'n/a', '-', 'na'].includes(s.toLowerCase())) continue;
+        const val = data.value;
+        if (val === undefined || val === null) continue;
+        const s = String(val).trim();
+        if (s === '' || ['null', 'undefined', 'n/a', '-', 'na', 'none'].includes(s.toLowerCase())) continue;
         return s;
+      }
+    }
+  }
+  
+  // Strategy 3: Fallback - find any column with numeric-looking value for salary fields
+  if (['Gross Salary', 'Min Wage', 'PT Amount', 'LWF Amount'].includes(fieldNameForDebug)) {
+    for (const [keyNorm, data] of Object.entries(normalizedRow)) {
+      const val = data.value;
+      if (typeof val === 'number' && !isNaN(val) && val > 0) {
+        return String(val);
+      }
+      if (typeof val === 'string') {
+        const cleaned = val.replace(/[₹,\s]/g, '').trim();
+        if (!isNaN(cleaned) && parseFloat(cleaned) > 0) {
+          return cleaned;
+        }
       }
     }
   }
@@ -1448,12 +1470,15 @@ function getBulkField(row, aliases) {
 function cleanNum(v) {
   if (v === null || v === undefined) return NaN;
   
+  // Handle case where value is literally the string "null"
+  if (String(v).trim().toLowerCase() === 'null') return NaN;
+  
   const s = String(v)
-    .replace(/[₹,\s]/g, '')  // Remove ₹, commas, spaces
+    .replace(/[₹,\s]/g, '')      // Remove currency & commas
+    .replace(/[^\d.\-]/g, '')    // Keep only digits, dot, minus
     .trim();
     
-  // Reject invalid string values
-  if (!s || s === '-' || ['null', 'undefined', 'n/a', 'na', ''].includes(s.toLowerCase())) {
+  if (!s || s === '-' || s === '.' || ['null', 'undefined', 'n/a', 'na', ''].includes(s.toLowerCase())) {
     return NaN;
   }
   
@@ -1467,15 +1492,14 @@ function cleanNum(v) {
 function findHeaderAndData(rawRows) {
   if (!rawRows || !Array.isArray(rawRows) || rawRows.length === 0) return [];
   
-  // Comprehensive header keywords (case-insensitive)
   const headerKeywords = [
     'gross', 'employee', 'name', 'empname', 'minwage', 'minimumwage', 
     'salary', 'wage', 'basic', 'hra', 'pf', 'pt', 'lwf', 'gratuity', 
-    'leave', 'encashment', 'monthly', 'pay'
+    'leave', 'encashment', 'monthly', 'pay', 'amount'
   ];
   
-  // Scan first 5 rows to find header
-  for (let i = 0; i < Math.min(rawRows.length, 5); i++) {
+  // Scan first 10 rows to find header
+  for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
     const row = rawRows[i];
     if (!row || typeof row !== 'object') continue;
     
@@ -1484,57 +1508,66 @@ function findHeaderAndData(rawRows) {
       ...Object.values(row).map(v => String(v || '').toLowerCase())
     ].join(' ');
     
-    // Check if this row contains header keywords
-    const hasHeader = headerKeywords.some(kw => allText.includes(kw));
+    const keywordCount = headerKeywords.filter(kw => allText.includes(kw)).length;
     
-    if (hasHeader) {
-      // Found header at index i
-      if (i === 0) return rawRows; // Normal case - first row is header
+    // If 3+ keywords found, this is likely the header row
+    if (keywordCount >= 3) {
+      if (i === 0) return rawRows;
       
-      // Use this row's VALUES as new headers
+      // Use this row's VALUES as headers
       const headerValues = Object.values(row).map((v, idx) => {
         const h = String(v || '').trim();
         return h || `Column${idx + 1}`;
       });
       
-      // Remap data rows using detected headers
+      // Remap subsequent rows
       const dataRows = rawRows.slice(i + 1).map(dataRow => {
         const vals = Object.values(dataRow);
         const remapped = {};
         headerValues.forEach((h, colIdx) => {
-          if (h) remapped[h] = vals[colIdx] !== undefined ? vals[colIdx] : '';
+          if (h) {
+            const val = vals[colIdx];
+            // Preserve null for truly empty cells
+            remapped[h] = (val === undefined || val === null || String(val).trim() === '') ? null : val;
+          }
         });
         return remapped;
       });
       
-      return dataRows;
+      return dataRows.filter(r => r && Object.keys(r).length > 0);
     }
   }
   
-  // Fallback: Assume first row is header (default XLSX behavior)
+  // Fallback: return as-is (first row = header)
   return rawRows;
 }
 
 // ─── PROCESS BULK FILE — called when user clicks "Calculate All" ───
 function processBulkFile() {
   if (!bulkRawData || bulkRawData.length === 0) {
-    showToast('⚠️ No file loaded. Please upload a file first.');
-    setBulkStatus('error', '⚠️ No file loaded. Please upload a CSV or Excel file first.');
+    showToast('⚠️ No file loaded. Please upload first.');
+    setBulkStatus('error', '⚠️ No data found in file.');
     return;
   }
 
-  // Filter out completely empty rows
+  // Reset debug flag
+  window.__debugBulk = true;
+
   const rows = bulkRawData.filter(row =>
-    Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== '')
+    row && Object.values(row).some(v => {
+      if (v === null || v === undefined) return false;
+      const s = String(v).trim().toLowerCase();
+      return s !== '' && s !== 'null' && s !== 'undefined' && s !== 'n/a' && s !== '-';
+    })
   );
 
   if (rows.length === 0) {
-    setBulkStatus('error', '⚠️ File has no valid data rows.');
+    setBulkStatus('error', '⚠️ No valid data rows. Check file headers.');
     return;
   }
 
   setBulkStatus('info', `⟳ Processing ${rows.length} employees...`);
-
+  
   const progressWrap = document.getElementById('bulkProgressWrap');
   const progressFill = document.getElementById('bulkProgressFill');
   if (progressWrap) progressWrap.style.display = 'block';
@@ -1545,7 +1578,6 @@ function processBulkFile() {
   const total = rows.length;
 
   rows.forEach((row, i) => {
-    // Update progress
     setTimeout(() => {
       if (progressFill) progressFill.style.width = Math.round(((i + 1) / total) * 100) + '%';
     }, i * 5);
@@ -1554,72 +1586,74 @@ function processBulkFile() {
 
     // ── Employee Name ──
     const name = getBulkField(row, [
-      'Employee Name', 'EmployeeName', 'Name', 'Emp Name', 'EmpName', 'Employee', 'EMPLOYEE NAME', 'employee name'
-    ]) || `Employee ${rowNum}`;
+      'Employee Name', 'EmployeeName', 'Name', 'Emp Name', 'EmpName', 'Employee', 'EMPLOYEE NAME', 'employee name', 'emp_name'
+    ], 'Employee Name') || `Employee ${rowNum}`;
 
-    // ── Gross Salary ──
+    // ── Gross Salary (CRITICAL) ──
     const grossRaw = getBulkField(row, [
-      'Gross Salary', 'Gross', 'Monthly Gross', 'GrossSalary', 'GROSS', 'gross salary', 'Gross Pay', 'Monthly Gross Salary'
-    ]);
+      'Gross Salary', 'Gross', 'Monthly Gross', 'GrossSalary', 'GROSS', 'gross salary', 
+      'Gross Pay', 'Monthly Gross Salary', 'gross_pay', 'Gross_Amt', 'Total Gross'
+    ], 'Gross Salary');
+    
     const gross = cleanNum(grossRaw);
 
     // ── Min Wage ──
     const minWageRaw = getBulkField(row, [
-      'Min Wage', 'Minimum Wage', 'MinWage', 'State Min Wage', 'Min Salary', 'STATE MIN WAGE',
-      'min wage', 'minimum wage', 'Min_Wage', 'Minimum Monthly Wage'
-    ]);
+      'Min Wage', 'Minimum Wage', 'MinWage', 'State Min Wage', 'Min Salary', 
+      'STATE MIN WAGE', 'min wage', 'minimum wage', 'Min_Wage', 'Minimum Monthly Wage', 'min_wage'
+    ], 'Min Wage');
     const minWage = cleanNum(minWageRaw);
 
-    // Validate mandatory fields
+    // ── Validation with DETAILED error messages ──
     if (isNaN(gross) || gross <= 0) {
-      bulkCalcResults.push({ name, rowNum, error: `Missing/invalid Gross Salary (got: "${grossRaw}")` });
+      const availableCols = Object.keys(row).join(', ');
+      bulkCalcResults.push({ 
+        name, 
+        rowNum, 
+        error: `❌ Gross Salary not found. Got: "${grossRaw}". Available columns: ${availableCols.substring(0,100)}...` 
+      });
       errors++;
       return;
     }
     if (isNaN(minWage) || minWage <= 0) {
-      bulkCalcResults.push({ name, rowNum, error: `Missing/invalid Min Wage (got: "${minWageRaw}")` });
+      bulkCalcResults.push({ 
+        name, 
+        rowNum, 
+        error: `❌ Min Wage not found. Got: "${minWageRaw}". Check column header.` 
+      });
       errors++;
       return;
     }
 
     // ── PF ──
-    const pfRaw = getBulkField(row, ['PF', 'PF Applicable', 'PF (Y/N)', 'pf', 'PF_Applicable', 'PF Applicability']);
+    const pfRaw = getBulkField(row, ['PF', 'PF Applicable', 'PF (Y/N)', 'pf', 'PF_Applicable', 'PF Applicability', 'pf_yn']);
     const pf = pfRaw && pfRaw.toString().trim().toUpperCase() === 'N' ? 'N' : 'Y';
 
     // ── PT ──
-    const ptRaw = getBulkField(row, ['PT', 'PT Amount', 'Professional Tax', 'PT (Monthly)', 'pt', 'Prof Tax', 'ProfTax']);
+    const ptRaw = getBulkField(row, ['PT', 'PT Amount', 'Professional Tax', 'PT (Monthly)', 'pt', 'Prof Tax', 'ProfTax', 'pt_amt']);
     const pt = isNaN(cleanNum(ptRaw)) ? 0 : Math.max(0, cleanNum(ptRaw));
 
     // ── LWF ──
-    const lwfRaw = getBulkField(row, ['LWF', 'LWF Amount', 'Labour Welfare Fund', 'LWF (Monthly)', 'lwf', 'LWF_Amount']);
+    const lwfRaw = getBulkField(row, ['LWF', 'LWF Amount', 'Labour Welfare Fund', 'LWF (Monthly)', 'lwf', 'LWF_Amount', 'lwf_amt']);
     const lwf = isNaN(cleanNum(lwfRaw)) ? 0 : Math.max(0, cleanNum(lwfRaw));
 
     // ── Gratuity Override ──
-    const gratRaw = getBulkField(row, ['Gratuity', 'Gratuity Amount', 'Monthly Gratuity', 'gratuity']);
+    const gratRaw = getBulkField(row, ['Gratuity', 'Gratuity Amount', 'Monthly Gratuity', 'gratuity', 'gratuity_amt']);
     const gratuityOverride = (gratRaw && !isNaN(cleanNum(gratRaw))) ? cleanNum(gratRaw) : null;
 
     // ── Leave Override ──
-    const leaveRaw = getBulkField(row, ['Leave Encashment', 'Leave', 'Monthly Leave', 'Leave Amount', 'leave encashment', 'leave']);
+    const leaveRaw = getBulkField(row, ['Leave Encashment', 'Leave', 'Monthly Leave', 'Leave Amount', 'leave encashment', 'leave', 'leave_amt']);
     const leaveOverride = (leaveRaw && !isNaN(cleanNum(leaveRaw))) ? cleanNum(leaveRaw) : null;
 
-    // ── CALCULATE using the SAME core engine as individual calculator ──
+    // ── CALCULATE ──
     try {
       const r = computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride);
       bulkCalcResults.push({
-        name, rowNum, error: null,
-        // Spread all fields from computeCTC result
-        ...r,
-        // Aliases for bulk display compatibility
-        epfEmp: r.epfEmployer,
-        edli: r.edliEmployer,
-        esiEmp: r.esiEmployer,
-        esiEe: r.esiEmployee,
-        epfEe: r.epfEmployee,
-        gratuityUsed: r.gratuity,
-        leaveUsed: r.leaveComponent,
-        finalAnnual: r.finalCTCAnnual,
-        cash: r.cashInHand,
-        pfApplicable: pf,
+        name, rowNum, error: null, ...r,
+        epfEmp: r.epfEmployer, edli: r.edliEmployer, esiEmp: r.esiEmployer,
+        esiEe: r.esiEmployee, epfEe: r.epfEmployee, gratuityUsed: r.gratuity,
+        leaveUsed: r.leaveComponent, finalAnnual: r.finalCTCAnnual,
+        cash: r.cashInHand, pfApplicable: pf,
       });
     } catch (err) {
       bulkCalcResults.push({ name, rowNum, error: 'Calculation error: ' + err.message });
@@ -1627,14 +1661,20 @@ function processBulkFile() {
     }
   });
 
-  // Show results after a short delay to let progress bar complete
+  // Show results
   const delay = Math.min(total * 8, 1500);
   setTimeout(() => {
     if (progressWrap) progressWrap.style.display = 'none';
     renderBulkResults(errors, total);
-    showToast(`✓ Done! ${total - errors}/${total} employees calculated`);
+    
+    if (errors === 0) {
+      showToast(`✅ Success! All ${total} employees calculated.`);
+    } else {
+      showToast(`⚠️ ${total - errors}/${total} calculated. ${errors} errors — check red rows.`);
+    }
   }, delay + 200);
 }
+
 
 // ─── FORMAT HELPERS ───
 function bulkFmt(n) {
