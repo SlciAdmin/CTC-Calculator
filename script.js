@@ -1279,44 +1279,98 @@ function initBulkTab() {
 }
 
 // ─── FILE HANDLER ───
+// ─── FILE HANDLER: CSV + Excel with Smart Fallback ───
 function handleBulkFile(file, fileInputEl) {
   const ext = file.name.split('.').pop().toLowerCase();
   setBulkStatus('info', '⟳ Reading file: ' + file.name + '...');
 
+  // ─── CSV HANDLING ───
   if (ext === 'csv') {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: (result) => {
-        bulkRawData = result.data;
+        // Filter empty rows from CSV
+        bulkRawData = result.data.filter(row =>
+          row && Object.values(row).some(v => {
+            if (v === null || v === undefined) return false;
+            const s = String(v).trim().toLowerCase();
+            return s !== '' && s !== 'null' && s !== 'undefined' && s !== 'n/a' && s !== '-';
+          })
+        );
         onBulkFileReady(file.name, bulkRawData.length);
       },
       error: (err) => {
+        console.error('CSV parse error:', err);
         setBulkStatus('error', '⚠️ CSV parse failed: ' + err.message);
       }
     });
+    
+  // ─── EXCEL HANDLING (.xlsx / .xls) ───
   } else if (['xlsx', 'xls'].includes(ext)) {
     const reader = new FileReader();
+    
     reader.onload = (e) => {
       try {
         const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        // Use defval:null so empty cells don't become "null" string
-        // raw:false ensures numbers come as strings (we parse them ourselves)
-        const rawJson = XLSX.utils.sheet_to_json(ws, { defval: null, raw: false });
-        // Run smart header detection (handles Excel files with title rows above data)
-        bulkRawData = findHeaderAndData(rawJson);
-        // Filter truly empty rows
-        bulkRawData = bulkRawData.filter(row =>
-          Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== '' && String(v).trim().toLowerCase() !== 'null')
-        );
-        onBulkFileReady(file.name, bulkRawData.length);
+        
+        // ── STEP 1: Try with raw:true for accurate numeric values ──
+        let rawJson = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
+        
+        // ── STEP 2: Apply smart header detection ──
+        let processedData = findHeaderAndData(rawJson);
+        
+        // ── STEP 3: Fallback if detection failed or returned empty ──
+        if (!processedData || processedData.length === 0) {
+          // Try alternative: header:1 mode (array of arrays)
+          const rawData = XLSX.utils.sheet_to_json(ws, { defval: '', header: 1 });
+          
+          if (rawData && rawData.length > 1) {
+            const headers = rawData[0].map(h => String(h || '').trim()).filter(h => h);
+            processedData = rawData.slice(1).map(row => {
+              const obj = {};
+              headers.forEach((h, i) => {
+                const val = row[i];
+                // Keep null for empty cells, don't convert to string "null"
+                obj[h] = (val === undefined || val === null || String(val).trim() === '') ? null : val;
+              });
+              return obj;
+            }).filter(row => row && Object.keys(row).length > 0);
+          }
+        }
+        
+        // ── STEP 4: Final filter - remove truly empty/invalid rows ──
+        bulkRawData = (processedData || []).filter(row => {
+          if (!row || typeof row !== 'object') return false;
+          return Object.values(row).some(v => {
+            if (v === null || v === undefined) return false;
+            const s = String(v).trim().toLowerCase();
+            return s !== '' && s !== 'null' && s !== 'undefined' && s !== 'n/a' && s !== '-' && s !== 'na';
+          });
+        });
+        
+        // ── STEP 5: Success callback ──
+        if (bulkRawData.length > 0) {
+          onBulkFileReady(file.name, bulkRawData.length);
+        } else {
+          setBulkStatus('error', '⚠️ No valid data rows found. Check file headers & content.');
+        }
+        
       } catch (err) {
-        setBulkStatus('error', '⚠️ Excel read failed: ' + err.message);
+        console.error('Excel parse error:', err);
+        setBulkStatus('error', '⚠️ Excel read failed: ' + err.message + '. Please ensure file is valid .xlsx/.xls format.');
       }
     };
-    reader.onerror = () => setBulkStatus('error', '⚠️ File read error');
+    
+    reader.onerror = (err) => {
+      console.error('FileReader error:', err);
+      setBulkStatus('error', '⚠️ File read error - please try uploading again');
+    };
+    
     reader.readAsArrayBuffer(file);
+    
+  // ─── UNSUPPORTED FORMAT ───
   } else {
     setBulkStatus('error', '⚠️ Unsupported format. Please use .csv, .xlsx, or .xls');
   }
@@ -1335,68 +1389,130 @@ function onBulkFileReady(fileName, rowCount) {
 }
 
 // ─── NORMALIZE KEY for flexible column matching ───
+// ─── NORMALIZE KEY: More robust column matching ───
 function normKey(k) {
-  return (k || '').toString().trim().toLowerCase().replace(/[\s_\-\/\(\)\.]+/g, '');
+  if (!k && k !== 0) return '';
+  return k.toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_\-\/\(\)\.\,]+/g, '')  // Remove spaces, underscores, etc.
+    .replace(/[^a-z0-9]/g, '');            // Keep only alphanumeric
 }
 
-// ─── GET FIELD VALUE from a row using multiple alias names ───
-// Rejects: empty string, "null", "undefined", "n/a", "-"
+// ─── GET FIELD VALUE: With fallback partial matching ───
 function getBulkField(row, aliases) {
+  if (!row || typeof row !== 'object') return null;
+  
+  // Create normalized map: normalized_key -> original_value
   const normalizedRow = {};
-  for (const k in row) {
-    normalizedRow[normKey(k)] = row[k];
+  for (const [origKey, origVal] of Object.entries(row)) {
+    const nk = normKey(origKey);
+    if (nk) normalizedRow[nk] = origVal;
   }
+  
+  // Strategy 1: Exact normalized match
   for (const alias of aliases) {
     const nk = normKey(alias);
+    if (!nk) continue;
     const val = normalizedRow[nk];
     if (val === undefined || val === null) continue;
     const s = String(val).trim();
-    // Reject empty, null string, undefined string, n/a, dash
-    if (s === '' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined'
-        || s.toLowerCase() === 'n/a' || s === '-') continue;
+    if (s === '' || ['null', 'undefined', 'n/a', '-', 'na'].includes(s.toLowerCase())) continue;
     return s;
   }
+  
+  // Strategy 2: Partial/contains match (fallback)
+  for (const alias of aliases) {
+    const aliasNorm = normKey(alias);
+    if (!aliasNorm) continue;
+    
+    for (const [origKey, origVal] of Object.entries(row)) {
+      const keyNorm = normKey(origKey);
+      if (!keyNorm) continue;
+      
+      // Check if keys contain each other
+      if (keyNorm.includes(aliasNorm) || aliasNorm.includes(keyNorm)) {
+        if (origVal === undefined || origVal === null) continue;
+        const s = String(origVal).trim();
+        if (s === '' || ['null', 'undefined', 'n/a', '-', 'na'].includes(s.toLowerCase())) continue;
+        return s;
+      }
+    }
+  }
+  
   return null;
 }
 
 // ─── CLEAN NUMERIC VALUE (removes ₹, commas, spaces, rejects "null") ───
+// ─── CLEAN NUMERIC VALUE: Handles all edge cases ───
 function cleanNum(v) {
   if (v === null || v === undefined) return NaN;
-  const s = String(v).replace(/[₹,\s]/g, '').trim();
-  if (s === '' || s === '-' || s.toLowerCase() === 'null'
-      || s.toLowerCase() === 'undefined' || s.toLowerCase() === 'n/a') return NaN;
+  
+  const s = String(v)
+    .replace(/[₹,\s]/g, '')  // Remove ₹, commas, spaces
+    .trim();
+    
+  // Reject invalid string values
+  if (!s || s === '-' || ['null', 'undefined', 'n/a', 'na', ''].includes(s.toLowerCase())) {
+    return NaN;
+  }
+  
   const n = parseFloat(s);
   return isNaN(n) ? NaN : n;
 }
 
 // ─── SMART ROW SCANNER: finds actual header row in messy Excel files ───
 // Some Excel files have title rows before the actual data header
+// ─── SMART HEADER DETECTION: More reliable ───
 function findHeaderAndData(rawRows) {
-  // Keywords that indicate a real header row
-  const headerKeywords = ['gross', 'employee', 'name', 'minwage', 'min wage', 'minimum', 'salary', 'wage'];
+  if (!rawRows || !Array.isArray(rawRows) || rawRows.length === 0) return [];
   
-  for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+  // Comprehensive header keywords (case-insensitive)
+  const headerKeywords = [
+    'gross', 'employee', 'name', 'empname', 'minwage', 'minimumwage', 
+    'salary', 'wage', 'basic', 'hra', 'pf', 'pt', 'lwf', 'gratuity', 
+    'leave', 'encashment', 'monthly', 'pay'
+  ];
+  
+  // Scan first 5 rows to find header
+  for (let i = 0; i < Math.min(rawRows.length, 5); i++) {
     const row = rawRows[i];
-    const vals = Object.values(row).map(v => String(v || '').toLowerCase());
-    const isHeader = headerKeywords.some(kw => vals.some(v => v.includes(kw)));
-    if (isHeader) {
-      // This row is the header — use its values as keys for subsequent rows
-      if (i === 0) return rawRows; // Normal case, row 0 is header
+    if (!row || typeof row !== 'object') continue;
+    
+    const allText = [
+      ...Object.keys(row).map(k => String(k || '').toLowerCase()),
+      ...Object.values(row).map(v => String(v || '').toLowerCase())
+    ].join(' ');
+    
+    // Check if this row contains header keywords
+    const hasHeader = headerKeywords.some(kw => allText.includes(kw));
+    
+    if (hasHeader) {
+      // Found header at index i
+      if (i === 0) return rawRows; // Normal case - first row is header
       
-      // Remap: use this row's values as new keys
-      const headerValues = Object.values(row).map(v => String(v || '').trim());
+      // Use this row's VALUES as new headers
+      const headerValues = Object.values(row).map((v, idx) => {
+        const h = String(v || '').trim();
+        return h || `Column${idx + 1}`;
+      });
+      
+      // Remap data rows using detected headers
       const dataRows = rawRows.slice(i + 1).map(dataRow => {
         const vals = Object.values(dataRow);
         const remapped = {};
-        headerValues.forEach((h, idx) => {
-          if (h) remapped[h] = vals[idx] !== undefined ? vals[idx] : '';
+        headerValues.forEach((h, colIdx) => {
+          if (h) remapped[h] = vals[colIdx] !== undefined ? vals[colIdx] : '';
         });
         return remapped;
       });
+      
       return dataRows;
     }
   }
-  return rawRows; // fallback: use as-is
+  
+  // Fallback: Assume first row is header (default XLSX behavior)
+  return rawRows;
 }
 
 // ─── PROCESS BULK FILE — called when user clicks "Calculate All" ───
