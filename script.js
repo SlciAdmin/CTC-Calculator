@@ -1,7 +1,8 @@
 /* ============================================
    CTC CALCULATOR — FIREBASE AUTH + LOGIC
    New Labour Code | Cross-Device Login System
-   LWF + PT: State-wise Auto Calculation (v4.0)
+   LWF + PT: State-wise Auto Calculation (v5.0)
+   BULK UPLOAD: Fully Fixed & Parity with Individual
    ============================================ */
 
 // 🔥 FIREBASE CONFIG
@@ -28,8 +29,8 @@ let pfApplicable = 'Y';
 let calcResult = null;
 let gratuityMode = 'auto';
 let leaveMode = 'auto';
-let lwfMode = 'auto'; // 'auto' | 'manual'
-let ptMode = 'auto';  // 'auto' | 'manual' ← NEW
+let lwfMode = 'auto';
+let ptMode = 'auto';
 
 // ============== LWF STATE-WISE CONFIG ==============
 const LWF_STATES = {
@@ -148,7 +149,6 @@ function getLWFLabel() {
 }
 
 // ============== PROFESSIONAL TAX STATE-WISE CONFIG ==============
-// Mirrors your SQL CASE formula exactly
 const PT_STATES = {
   KA: {
     name: 'Karnataka',
@@ -251,7 +251,7 @@ const PT_STATES = {
     name: 'Madhya Pradesh',
     rules: [
       { min: 18751, max: 25000, amount: 125 },
-      { min: 25001, max: 33333, amount: (month) => month === 3 ? 166 : 166 },
+      { min: 25001, max: 33333, amount: 166 },
       { min: 33334, max: null, amount: (month) => month === 3 ? 208 : 212 }
     ]
   },
@@ -458,6 +458,7 @@ onReady(() => {
   setupAuthListener();
   setupEventListeners();
   initializeCalculator();
+  initBulkTab();
 });
 
 // ============== AUTH LISTENER ==============
@@ -526,7 +527,6 @@ function setupEventListeners() {
       if (tab !== 'admin' || isAdmin) switchTab(tab);
     });
   });
-  // Gross salary change should refresh LWF & PT auto calc
   const grossInput = document.getElementById('grossSalary');
   if (grossInput) {
     grossInput.addEventListener('input', () => {
@@ -765,14 +765,12 @@ function initializeCalculator() {
   setGratuityMode('auto');
   setLeaveMode('auto');
   setLWFMode('auto');
-  setPTMode('auto'); // ← NEW
+  setPTMode('auto');
+  const currentMonth = new Date().getMonth() + 1;
   const monthEl = document.getElementById('lwfMonth');
   const ptMonthEl = document.getElementById('ptMonth');
-  if (monthEl) {
-    const currentMonth = new Date().getMonth() + 1;
-    monthEl.value = currentMonth;
-    if (ptMonthEl) ptMonthEl.value = currentMonth;
-  }
+  if (monthEl) monthEl.value = currentMonth;
+  if (ptMonthEl) ptMonthEl.value = currentMonth;
 }
 
 // ============== CALCULATOR LOGIC ==============
@@ -817,6 +815,8 @@ function setLeaveMode(mode) {
   liveCalc();
 }
 
+// ============== CORE CTC ENGINE ==============
+// THIS IS THE SINGLE SOURCE OF TRUTH — used by both Individual & Bulk
 function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride) {
   gross = Math.round(gross);
   minWage = Math.round(minWage);
@@ -824,33 +824,48 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   let basicFromGross = Math.round(gross * basicPct);
   let basic = Math.max(basicFromGross, minWage);
   basic = Math.min(basic, gross);
+
   let hra = Math.round(basic * 0.5);
   let conv = Math.max(gross - basic - hra, 0);
   if (basic + hra > gross) { hra = gross - basic; conv = 0; }
+
   let epfEmployer = pf === 'Y' ? Math.min(Math.round(basic * 0.125), 1875) : 0;
   let edliEmployer = pf === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0;
   let bonus = basic <= 21000 ? Math.round(minWage * 0.0833) : 0;
   let initialCTC = gross + epfEmployer + edliEmployer + bonus;
-  let esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
+
+  // ESI: based on gross (as per ESI Act threshold ₹21,000/month gross)
+  let esiEmployer = gross <= 21000 ? Math.round(gross * 0.0325) : 0;
+  let esiEmployee = gross <= 21000 ? Math.round(gross * 0.0075) : 0;
+
   let gratuityAuto = Math.round((basic / 26) * 15 / 12);
-  let gratuity = (gratuityOverride !== null && gratuityOverride >= 0) ? Math.round(gratuityOverride) : gratuityAuto;
+  let gratuity = (gratuityOverride !== null && gratuityOverride !== undefined && !isNaN(gratuityOverride) && gratuityOverride >= 0)
+    ? Math.round(gratuityOverride)
+    : gratuityAuto;
+
   let leaveAuto = Math.round((basic / 26) * 1.25);
-  let leaveComponent = (leaveOverride !== null && leaveOverride >= 0) ? Math.round(leaveOverride) : leaveAuto;
+  let leaveComponent = (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0)
+    ? Math.round(leaveOverride)
+    : leaveAuto;
+
   let finalCTC = initialCTC + esiEmployer + gratuity + lwf + leaveComponent;
+
   let epfEmployee = pf === 'Y' ? Math.min(Math.round(basic * 0.12), 1800) : 0;
-  let esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
-  let lwfEmployee = lwf;
-  let ptDeduction = pt; // ← PT from calculation
-  let cashInHand = gross - epfEmployee - esiEmployee - lwfEmployee - ptDeduction;
+  let cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
+
   return {
     gross, basic, hra, conv, minWage, pfApplicable: pf,
     epfEmployer, edliEmployer, bonus, initialCTC,
-    esiEmployer, gratuity, gratuityAuto,
-    leaveComponent, leaveAuto, lwf,
+    esiEmployer, esiEmployee,
+    gratuity, gratuityAuto,
+    leaveComponent, leaveAuto, lwf, pt,
     finalCTC, finalCTCAnnual: finalCTC * 12,
-    epfEmployee, esiEmployee, lwfEmployee, ptDeduction, cashInHand,
-    gratuityMode: (gratuityOverride !== null && gratuityOverride >= 0) ? 'manual' : 'auto',
-    leaveMode: (leaveOverride !== null && leaveOverride >= 0) ? 'manual' : 'auto',
+    epfEmployee,
+    lwfEmployee: lwf,
+    ptDeduction: pt,
+    cashInHand,
+    gratuityMode: (gratuityOverride !== null && gratuityOverride !== undefined && !isNaN(gratuityOverride) && gratuityOverride >= 0) ? 'manual' : 'auto',
+    leaveMode: (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0) ? 'manual' : 'auto',
   };
 }
 
@@ -890,12 +905,8 @@ function liveCalc() {
 function calculate(silent = false) {
   const gross = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
-  
-  // ← Get PT from auto or manual (NEW)
   const pt = getPTValue();
-  // Get LWF from auto or manual
   const lwf = getLWFValue();
-  
   if (gross <= 0 || minWage <= 0) {
     if (!silent) showToast('⚠️ Please enter Gross Salary and Minimum Wage');
     return;
@@ -911,8 +922,7 @@ function calculate(silent = false) {
     if (!isNaN(val) && val >= 0) leaveOverride = val;
   }
   const r = computeCTC(gross, minWage, pfApplicable, pt, lwf, gratuityOverride, leaveOverride);
-  
-  // Store LWF mode info for display
+
   r.lwfMode = lwfMode;
   r.lwfLabel = getLWFLabel();
   r.lwfStateName = (() => {
@@ -921,8 +931,7 @@ function calculate(silent = false) {
     if (!stateEl || !stateEl.value) return 'Not Selected';
     return LWF_STATES[stateEl.value]?.name || stateEl.value;
   })();
-  
-  // ← Store PT mode info for display (NEW)
+
   r.ptMode = ptMode;
   r.ptLabel = getPTLabel();
   r.ptStateName = (() => {
@@ -931,7 +940,7 @@ function calculate(silent = false) {
     if (!stateEl || !stateEl.value) return 'Not Selected';
     return PT_STATES[stateEl.value]?.name || stateEl.value;
   })();
-  
+
   calcResult = r;
   renderSummary(r);
   renderBreakdown(r);
@@ -976,8 +985,6 @@ function renderBreakdown(r) {
   });
   setTextContent('employerTable', empHtml);
   setText('tfoot_initialCTC', fmt(r.initialCTC));
-  
-  // ← Updated deduction rows with PT (NEW)
   const dedRows = [
     ['EPF – Employee @ 12% of Basic', '12% (max ₹1,800)', r.epfEmployee, r.pfApplicable === 'Y'],
     ['ESI – Employee @ 0.75% (Gross ≤ ₹21,000)', '0.75%', r.esiEmployee, r.gross <= 21000],
@@ -991,7 +998,6 @@ function renderBreakdown(r) {
   });
   setTextContent('deductionTable', dedHtml);
   setText('tfoot_cash', fmt(r.cashInHand));
-  
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
   const gratuityLabel = r.gratuityMode === 'manual'
     ? `Gratuity <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">CUSTOM</span>`
@@ -1002,11 +1008,9 @@ function renderBreakdown(r) {
   const lwfLabel = r.lwfMode === 'manual'
     ? `LWF – Employee <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>`
     : `LWF – ${r.lwfStateName} <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>`;
-  // ← PT label (NEW)
   const ptLabel = r.ptMode === 'manual'
     ? `PT – Employee <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>`
     : `PT – ${r.ptStateName} <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>`;
-  
   const finalItemsData = [
     { label: 'Gross Salary', val: fmt(r.gross), sub: 'Monthly', cls: '' },
     { label: 'Initial CTC', val: fmt(r.initialCTC), sub: 'Gross + Employer Contributions', cls: '' },
@@ -1014,7 +1018,7 @@ function renderBreakdown(r) {
     { label: gratuityLabel, val: fmt(r.gratuity), sub: r.gratuityMode === 'manual' ? `Manual (Auto: ${fmt(r.gratuityAuto)})` : 'Basic/26 × 15 ÷ 12', cls: '' },
     { label: leaveLabel, val: fmt(r.leaveComponent), sub: r.leaveMode === 'manual' ? `Manual (Auto: ${fmt(r.leaveAuto)})` : 'Basic/26 × 1.25', cls: '' },
     { label: lwfLabel, val: r.lwf > 0 ? fmt(r.lwf) : '₹0 (N/A)', sub: r.lwfMode === 'auto' ? `${r.lwfStateName} – State-wise auto` : 'Manual override', cls: '' },
-    { label: ptLabel, val: r.ptDeduction > 0 ? fmt(r.ptDeduction) : '₹0 (N/A)', sub: r.ptMode === 'auto' ? `${r.ptStateName} – State-wise auto` : 'Manual override', cls: '' }, // ← NEW
+    { label: ptLabel, val: r.ptDeduction > 0 ? fmt(r.ptDeduction) : '₹0 (N/A)', sub: r.ptMode === 'auto' ? `${r.ptStateName} – State-wise auto` : 'Manual override', cls: '' },
     { label: 'Final CTC (Monthly)', val: fmt(r.finalCTC), sub: empName, cls: 'highlight' },
     { label: 'Final CTC (Annual)', val: fmt(r.finalCTCAnnual), sub: empName, cls: 'highlight' },
     { label: 'Cash in Hand', val: fmt(r.cashInHand), sub: 'After all deductions', cls: 'green' },
@@ -1040,7 +1044,7 @@ function renderExportPreview(r) {
     [`Gratuity (${r.gratuityMode})`, fmt(r.gratuity), false], [`Leave Component (${r.leaveMode})`, fmt(r.leaveComponent), false],
     ['EMPLOYEE DEDUCTIONS', '', true],
     ['EPF Employee (12%)', fmt(r.epfEmployee), false], ['ESI Employee (0.75%)', fmt(r.esiEmployee), false],
-    [`PT – ${r.ptStateName} (${r.ptMode})`, fmt(r.ptDeduction), false], // ← NEW
+    [`PT – ${r.ptStateName} (${r.ptMode})`, fmt(r.ptDeduction), false],
     [`LWF – ${r.lwfStateName} (${r.lwfMode})`, fmt(r.lwf), false],
     ['FINAL TOTALS', '', true],
     ['Final CTC (Monthly)', fmt(r.finalCTC), false], ['Final CTC (Annual)', fmt(r.finalCTCAnnual), false],
@@ -1065,10 +1069,8 @@ function switchTab(tab) {
 }
 
 function resetAll() {
-  const fields = ['empName', 'grossSalary', 'minWage', 'ptAmount'];
-  fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = id === 'ptAmount' ? '0' : ''; });
-  
-  // Reset LWF
+  const fields = ['empName', 'grossSalary', 'minWage'];
+  fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   lwfMode = 'auto'; setLWFMode('auto');
   const lwfStateEl = document.getElementById('lwfState');
   if (lwfStateEl) lwfStateEl.value = '';
@@ -1080,8 +1082,6 @@ function resetAll() {
   if (lwfAmountEl) lwfAmountEl.value = '0';
   const monthEl = document.getElementById('lwfMonth');
   if (monthEl) monthEl.value = new Date().getMonth() + 1;
-  
-  // ← Reset PT (NEW)
   ptMode = 'auto'; setPTMode('auto');
   const ptStateEl = document.getElementById('ptState');
   if (ptStateEl) ptStateEl.value = '';
@@ -1093,7 +1093,6 @@ function resetAll() {
   if (ptAmountEl) ptAmountEl.value = '0';
   const ptMonthEl = document.getElementById('ptMonth');
   if (ptMonthEl) ptMonthEl.value = new Date().getMonth() + 1;
-  
   setText('r_initialCTC', '—');
   gratuityMode = 'auto'; setGratuityMode('auto');
   const gratuityCustom = document.getElementById('gratuityCustom');
@@ -1102,11 +1101,16 @@ function resetAll() {
   const leaveCustom = document.getElementById('leaveCustom');
   if (leaveCustom) leaveCustom.value = '';
   pfApplicable = 'Y';
-  const pfYes = document.getElementById('pfYes'); const pfNo = document.getElementById('pfNo'); const pfHint = document.getElementById('pfHint');
-  if (pfYes) pfYes.classList.add('active'); if (pfNo) pfNo.classList.remove('active');
+  const pfYes = document.getElementById('pfYes');
+  const pfNo = document.getElementById('pfNo');
+  const pfHint = document.getElementById('pfHint');
+  if (pfYes) pfYes.classList.add('active');
+  if (pfNo) pfNo.classList.remove('active');
   if (pfHint) pfHint.textContent = '55% of Gross or Min Wage (whichever is higher) → Basic';
-  safeToggle('summaryEmpty', false); safeToggle('summaryResults', true);
-  safeToggle('breakdownEmpty', false); safeToggle('breakdownContent', true);
+  safeToggle('summaryEmpty', false);
+  safeToggle('summaryResults', true);
+  safeToggle('breakdownEmpty', false);
+  safeToggle('breakdownContent', true);
   const exportPreview = document.getElementById('exportPreview');
   if (exportPreview) exportPreview.innerHTML = '<div class="preview-empty">Calculate first to see export preview</div>';
   calcResult = null;
@@ -1187,7 +1191,7 @@ function exportCSV() {
     [`Gratuity (${r.gratuityMode})`, r.gratuity, r.gratuityMode === 'manual' ? `Custom (Auto=${r.gratuityAuto})` : 'Basic/26×15÷12'],
     [`Leave Component (${r.leaveMode})`, r.leaveComponent, r.leaveMode === 'manual' ? `Custom (Auto=${r.leaveAuto})` : 'Basic/26×1.25'],
     [`LWF – ${r.lwfStateName} (${r.lwfMode})`, r.lwf, 'State-wise Labour Welfare Fund'],
-    [`PT – ${r.ptStateName} (${r.ptMode})`, r.ptDeduction, 'State-wise Professional Tax'], // ← NEW
+    [`PT – ${r.ptStateName} (${r.ptMode})`, r.ptDeduction, 'State-wise Professional Tax'],
     ['Final CTC Monthly', r.finalCTC, ''], ['Final CTC Annual', r.finalCTCAnnual, ''],
     ['', '', ''], ['=== EMPLOYEE DEDUCTIONS ===', '', ''],
     ['EPF Employee', r.epfEmployee, '12% of Basic (max ₹1800)'],
@@ -1204,255 +1208,389 @@ function exportCSV() {
   showToast('✓ CSV Downloaded');
 }
 
-/* ============================================================
-   BULK UPLOAD — COMPLETE JS CODE
-   Add this ENTIRE block at the END of your script.js file
-   ============================================================ */
+function copyToClipboard() {
+  if (!calcResult) { showToast('⚠️ Please calculate first'); return; }
+  const r = calcResult;
+  const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
+  const text = [
+    `CTC Report — ${empName}`, `Basic\t${r.basic}`, `HRA\t${r.hra}`, `Conveyance\t${r.conv}`,
+    `Gross\t${r.gross}`, `EPF (Employer)\t${r.epfEmployer}`, `EDLI (Employer)\t${r.edliEmployer}`,
+    `Bonus\t${r.bonus}`, `ESI (Employer)\t${r.esiEmployer}`,
+    `Gratuity (${r.gratuityMode})\t${r.gratuity}`, `Leave Component (${r.leaveMode})\t${r.leaveComponent}`,
+    `LWF – ${r.lwfStateName} (${r.lwfMode})\t${r.lwf}`,
+    `PT – ${r.ptStateName} (${r.ptMode})\t${r.ptDeduction}`,
+    `Final CTC (Monthly)\t${r.finalCTC}`, `Final CTC (Annual)\t${r.finalCTCAnnual}`,
+    `Cash in Hand\t${r.cashInHand}`,
+  ].join('\n');
+  navigator.clipboard.writeText(text).then(() => { showToast('⎘ Copied to clipboard'); })
+  .catch(() => { showToast('⚠️ Copy failed — try downloading instead'); });
+}
 
-// ─── BULK STATE ───
-/* ============================================================
-   BULK UPLOAD — COMPLETELY FIXED & ROBUST (v2.0)
-   Replace this ENTIRE block in your script.js
-============================================================ */
-let bulkParsedRows = [];
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.target.matches('input[type="password"]')) {
+    const mainApp = document.getElementById('mainApp');
+    if (mainApp && !mainApp.classList.contains('hidden')) calculate();
+  }
+});
+
+/* =====================================================
+   BULK UPLOAD — COMPLETELY FIXED v5.0
+   Uses same computeCTC() as individual calculator
+   ===================================================== */
+
+let bulkRawData = [];      // ← stores parsed JSON rows from file
 let bulkCalcResults = [];
 
+// ─── INIT: Setup drag-drop & file input ───
 function initBulkTab() {
   const dropZone = document.getElementById('bulkDropZone');
   const fileInput = document.getElementById('bulkFileInput');
   if (!dropZone || !fileInput) return;
-  
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault(); dropZone.classList.remove('drag-over');
-    if (e.dataTransfer.files[0]) handleBulkFile(e.dataTransfer.files[0]);
+
+  // Remove old listeners by replacing nodes
+  const newDrop = dropZone.cloneNode(true);
+  const newInput = fileInput.cloneNode(true);
+  dropZone.parentNode.replaceChild(newDrop, dropZone);
+  fileInput.parentNode.replaceChild(newInput, fileInput);
+
+  newDrop.addEventListener('dragover', e => { e.preventDefault(); newDrop.classList.add('drag-over'); });
+  newDrop.addEventListener('dragleave', () => newDrop.classList.remove('drag-over'));
+  newDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    newDrop.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleBulkFile(file, newInput);
   });
-  dropZone.addEventListener('click', e => { if(e.target.tagName !== 'BUTTON') fileInput.click(); });
-  fileInput.addEventListener('change', e => { if(e.target.files[0]) handleBulkFile(e.target.files[0]); });
+  newDrop.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') newInput.click();
+  });
+  newInput.addEventListener('change', e => {
+    if (e.target.files[0]) handleBulkFile(e.target.files[0], newInput);
+  });
+
+  // Browse button inside dropzone
+  const browseBtn = newDrop.querySelector('.btn-browse');
+  if (browseBtn) {
+    browseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      newInput.click();
+    });
+  }
 }
 
-function handleBulkFile(file) {
+// ─── FILE HANDLER ───
+function handleBulkFile(file, fileInputEl) {
   const ext = file.name.split('.').pop().toLowerCase();
-  setBulkStatus('info', '⟳ Reading file...');
+  setBulkStatus('info', '⟳ Reading file: ' + file.name + '...');
+
   if (ext === 'csv') {
-    Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => onBulkParsed(r.data, file.name), error: () => setBulkStatus('error', '⚠️ CSV parse failed') });
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result) => {
+        bulkRawData = result.data;
+        onBulkFileReady(file.name, bulkRawData.length);
+      },
+      error: (err) => {
+        setBulkStatus('error', '⚠️ CSV parse failed: ' + err.message);
+      }
+    });
   } else if (['xlsx', 'xls'].includes(ext)) {
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = (e) => {
       try {
         const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        // header: false returns array of objects with keys like __EMPTY, __EMPTY_1, etc.
-        // We'll handle smart header detection in parseBulkData
-        const raw = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
-        onBulkParsed(raw, file.name);
-      } catch (err) { setBulkStatus('error', '⚠️ Excel read failed'); }
+        // Use defval:null so empty cells don't become "null" string
+        // raw:false ensures numbers come as strings (we parse them ourselves)
+        const rawJson = XLSX.utils.sheet_to_json(ws, { defval: null, raw: false });
+        // Run smart header detection (handles Excel files with title rows above data)
+        bulkRawData = findHeaderAndData(rawJson);
+        // Filter truly empty rows
+        bulkRawData = bulkRawData.filter(row =>
+          Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== '' && String(v).trim().toLowerCase() !== 'null')
+        );
+        onBulkFileReady(file.name, bulkRawData.length);
+      } catch (err) {
+        setBulkStatus('error', '⚠️ Excel read failed: ' + err.message);
+      }
     };
+    reader.onerror = () => setBulkStatus('error', '⚠️ File read error');
     reader.readAsArrayBuffer(file);
-  } else { setBulkStatus('error', '⚠️ Unsupported format. Use .csv, .xlsx, or .xls'); }
-}
-
-// 🔍 SMART HEADER & DATA EXTRACTOR (Skips titles, finds real columns)
-function parseBulkData(rawJson) {
-  if (!rawJson || rawJson.length === 0) return { normMap: {}, rows: [] };
-  let headerRow = null, startIdx = 0;
-  
-  // Scan first 15 rows to find actual header
-  for (let i = 0; i < Math.min(rawJson.length, 15); i++) {
-    const keys = Object.keys(rawJson[i] || {}).map(k => k.toString().toLowerCase().replace(/[^a-z0-9]/g, ''));
-    if (keys.some(k => k.includes('gross') || k.includes('employeename') || k.includes('minwage') || k.includes('pf'))) {
-      headerRow = rawJson[i]; startIdx = i + 1; break;
-    }
+  } else {
+    setBulkStatus('error', '⚠️ Unsupported format. Please use .csv, .xlsx, or .xls');
   }
-  if (!headerRow) { headerRow = rawJson[0]; startIdx = 1; } // Fallback
-  
-  const normMap = {};
-  Object.keys(headerRow).forEach(k => { normMap[k.toLowerCase().replace(/[\s_\-\/\(\)]+/g, '')] = k; });
-  
-  const rows = [];
-  for (let i = startIdx; i < rawJson.length; i++) {
-    if (!rawJson[i] || Object.values(rawJson[i]).every(v => !v || String(v).trim() === '')) continue;
-    rows.push(rawJson[i]);
-  }
-  return { normMap, rows };
 }
 
-function getBulkField(row, normMap, aliases) {
-  for (const alias of aliases) {
-    const nk = alias.toString().toLowerCase().replace(/[\s_\-\/\(\)]+/g, '');
-    const orig = normMap[nk];
-    if (orig && row[orig] !== undefined) {
-      const v = String(row[orig]).trim();
-      if (v && v !== 'null') return v;
-    }
-  }
-  return null;
+// ─── CALLED AFTER FILE IS PARSED SUCCESSFULLY ───
+function onBulkFileReady(fileName, rowCount) {
+  // Show file info and action buttons
+  const actionRow = document.getElementById('bulkActionRow');
+  const fileNameEl = document.getElementById('bulkFileName');
+  const rowCountEl = document.getElementById('bulkRowCount');
+  if (actionRow) actionRow.style.display = 'flex';
+  if (fileNameEl) fileNameEl.textContent = fileName;
+  if (rowCountEl) rowCountEl.textContent = `${rowCount} rows found`;
+  setBulkStatus('success', `✓ File loaded: "${fileName}" — ${rowCount} rows detected. Click "Calculate All" to process.`);
 }
 
-// ⚙️ EXACT CALCULATOR (100% Parity with Individual Calculator)
-function bulkComputeCTC(gross, minWage, pf, pt, lwf, gratuityOv, leaveOv) {
-  gross = Math.round(gross); minWage = Math.round(minWage);
-  const basicPct = pf === 'Y' ? 0.55 : 0.53;
-  let basic = Math.max(Math.round(gross * basicPct), minWage);
-  basic = Math.min(basic, gross);
-  
-  let hra = Math.round(basic * 0.5);
-  let conv = Math.max(gross - basic - hra, 0);
-  if (basic + hra > gross) { hra = gross - basic; conv = 0; }
-  
-  const epfEmp = pf === 'Y' ? Math.min(Math.round(basic * 0.125), 1875) : 0;
-  const edli = pf === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0;
-  const bonus = basic <= 21000 ? Math.round(minWage * 0.0833) : 0;
-  const initialCTC = gross + epfEmp + edli + bonus;
-  
-  // ✅ FIXED: ESI now checks Basic (matches individual calculator)
-  const esiEmp = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
-  const esiEe = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
-  
-  const gratuityAuto = Math.round((basic / 26) * 15 / 12);
-  const gratuity = (gratuityOv !== null && !isNaN(gratuityOv) && gratuityOv >= 0) ? Math.round(gratuityOv) : gratuityAuto;
-  
-  const leaveAuto = Math.round((basic / 26) * 1.25);
-  const leaveComp = (leaveOv !== null && !isNaN(leaveOv) && leaveOv >= 0) ? Math.round(leaveOv) : leaveAuto;
-  
-  const finalCTC = initialCTC + esiEmp + gratuity + lwf + leaveComp;
-  const epfEe = pf === 'Y' ? Math.min(Math.round(basic * 0.12), 1800) : 0;
-  
-  const cash = gross - epfEe - esiEe - lwf - pt;
-  
-  return { gross, basic, hra, conv, minWage, pf, epfEmp, edli, bonus, esiEmp, gratuity, gratuityAuto, leaveComp, leaveAuto, lwf, pt, initialCTC, finalCTC, finalAnnual: finalCTC * 12, epfEe, esiEe, cash, pfApplicable: pf };
+// ─── NORMALIZE KEY for flexible column matching ───
+function normKey(k) {
+  return (k || '').toString().trim().toLowerCase().replace(/[\s_\-\/\(\)\.]+/g, '');
 }
 
-function processBulkFile() {
-  if (!bulkParsedRows.length) { showToast('⚠️ No file loaded'); return; }
-  const { normMap, rows } = parseBulkData(bulkParsedRows);
-  if (rows.length === 0) { showToast('⚠️ No valid employee data found'); return; }
-
-  const progressWrap = document.getElementById('bulkProgressWrap');
-  const progressFill = document.getElementById('bulkProgressFill');
-  progressWrap.style.display = 'block'; progressFill.style.width = '0%';
-
-  bulkCalcResults = []; let errors = 0; const total = rows.length;
-
-  rows.forEach((row, i) => {
-    setTimeout(() => { progressFill.style.width = Math.round(((i + 1) / total) * 100) + '%'; }, i * 10);
-    
-    const name = getBulkField(row, normMap, ['Employee Name', 'Name', 'Emp Name', 'Employee', 'EmpName']) || `Employee ${i + 1}`;
-    const cleanNum = v => { if (!v) return NaN; return parseFloat(v.toString().replace(/[₹,\s]/g, '')); };
-    
-    const grossRaw = getBulkField(row, normMap, ['Gross Salary', 'Gross', 'Monthly Gross', 'GrossSalary', 'gross']);
-    const minwRaw = getBulkField(row, normMap, ['Min Wage', 'Minimum Wage', 'MinWage', 'State Min Wage', 'Min Salary', 'minwage']);
-    const gross = cleanNum(grossRaw); const minWage = cleanNum(minwRaw);
-
-    if (isNaN(gross) || isNaN(minWage) || gross <= 0 || minWage <= 0) {
-      bulkCalcResults.push({ name, error: `Invalid Gross/MinWage (Got: ${grossRaw}, ${minwRaw})`, rowNum: i + 1 }); errors++; return;
-    }
-
-    const pfRaw = getBulkField(row, normMap, ['PF', 'PF Applicable', 'PF (Y/N)', 'pf']);
-    const pf = pfRaw && pfRaw.toString().trim().toUpperCase() === 'N' ? 'N' : 'Y';
-    
-    const pt = cleanNum(getBulkField(row, normMap, ['PT', 'PT Amount', 'Professional Tax', 'PT (Monthly)'])) || 0;
-    const lwf = cleanNum(getBulkField(row, normMap, ['LWF', 'LWF Amount', 'Labour Welfare Fund', 'LWF (Monthly)'])) || 0;
-    const gratRaw = getBulkField(row, normMap, ['Gratuity', 'Gratuity Amount', 'Monthly Gratuity']);
-    const leaveRaw = getBulkField(row, normMap, ['Leave Encashment', 'Leave', 'Monthly Leave']);
-    
-    const gratuityOv = gratRaw ? cleanNum(gratRaw) : null;
-    const leaveOv = leaveRaw ? cleanNum(leaveRaw) : null;
-
-    try {
-      const r = bulkComputeCTC(gross, minWage, pf, pt, lwf, gratuityOv, leaveOv);
-      bulkCalcResults.push({ name, ...r, rowNum: i + 1, error: null });
-    } catch (e) { bulkCalcResults.push({ name, error: e.message, rowNum: i + 1 }); errors++; }
-  });
-
-  setTimeout(() => {
-    progressWrap.style.display = 'none';
-    renderBulkResults(errors);
-    showToast(`✓ Bulk done: ${total - errors}/${total} calculated`);
-  }, total * 15 + 300);
-}
-
-// ✅ KEEP YOUR EXISTING renderBulkResults, bulkExportCSV, bulkExportTXT, bulkCopyClipboard, resetBulk AS IS.
-// They already use the correct property names from the updated bulkComputeCTC.
-// ─── NORMALIZE & EXTRACT FIELD (ROBUST) ───
-function normKey(k) { 
-  return (k || '').toString().trim().toLowerCase().replace(/[\s_\-\/\(\)]+/g, ''); 
-}
-
-function getField(row, aliases) {
-  const nRow = {};
+// ─── GET FIELD VALUE from a row using multiple alias names ───
+// Rejects: empty string, "null", "undefined", "n/a", "-"
+function getBulkField(row, aliases) {
+  const normalizedRow = {};
   for (const k in row) {
-    nRow[normKey(k)] = row[k];
+    normalizedRow[normKey(k)] = row[k];
   }
   for (const alias of aliases) {
     const nk = normKey(alias);
-    const val = nRow[nk];
-    if (val !== undefined && val !== null && val.toString().trim() !== '') {
-      return val.toString().trim();
-    }
+    const val = normalizedRow[nk];
+    if (val === undefined || val === null) continue;
+    const s = String(val).trim();
+    // Reject empty, null string, undefined string, n/a, dash
+    if (s === '' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined'
+        || s.toLowerCase() === 'n/a' || s === '-') continue;
+    return s;
   }
   return null;
 }
 
-// ─── RENDER RESULTS ───
-function bulkFmt(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
+// ─── CLEAN NUMERIC VALUE (removes ₹, commas, spaces, rejects "null") ───
+function cleanNum(v) {
+  if (v === null || v === undefined) return NaN;
+  const s = String(v).replace(/[₹,\s]/g, '').trim();
+  if (s === '' || s === '-' || s.toLowerCase() === 'null'
+      || s.toLowerCase() === 'undefined' || s.toLowerCase() === 'n/a') return NaN;
+  const n = parseFloat(s);
+  return isNaN(n) ? NaN : n;
+}
 
-function renderBulkResults(errors) {
+// ─── SMART ROW SCANNER: finds actual header row in messy Excel files ───
+// Some Excel files have title rows before the actual data header
+function findHeaderAndData(rawRows) {
+  // Keywords that indicate a real header row
+  const headerKeywords = ['gross', 'employee', 'name', 'minwage', 'min wage', 'minimum', 'salary', 'wage'];
+  
+  for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+    const row = rawRows[i];
+    const vals = Object.values(row).map(v => String(v || '').toLowerCase());
+    const isHeader = headerKeywords.some(kw => vals.some(v => v.includes(kw)));
+    if (isHeader) {
+      // This row is the header — use its values as keys for subsequent rows
+      if (i === 0) return rawRows; // Normal case, row 0 is header
+      
+      // Remap: use this row's values as new keys
+      const headerValues = Object.values(row).map(v => String(v || '').trim());
+      const dataRows = rawRows.slice(i + 1).map(dataRow => {
+        const vals = Object.values(dataRow);
+        const remapped = {};
+        headerValues.forEach((h, idx) => {
+          if (h) remapped[h] = vals[idx] !== undefined ? vals[idx] : '';
+        });
+        return remapped;
+      });
+      return dataRows;
+    }
+  }
+  return rawRows; // fallback: use as-is
+}
+
+// ─── PROCESS BULK FILE — called when user clicks "Calculate All" ───
+function processBulkFile() {
+  if (!bulkRawData || bulkRawData.length === 0) {
+    showToast('⚠️ No file loaded. Please upload a file first.');
+    setBulkStatus('error', '⚠️ No file loaded. Please upload a CSV or Excel file first.');
+    return;
+  }
+
+  // Filter out completely empty rows
+  const rows = bulkRawData.filter(row =>
+    Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== '')
+  );
+
+  if (rows.length === 0) {
+    setBulkStatus('error', '⚠️ File has no valid data rows.');
+    return;
+  }
+
+  setBulkStatus('info', `⟳ Processing ${rows.length} employees...`);
+
+  const progressWrap = document.getElementById('bulkProgressWrap');
+  const progressFill = document.getElementById('bulkProgressFill');
+  if (progressWrap) progressWrap.style.display = 'block';
+  if (progressFill) progressFill.style.width = '0%';
+
+  bulkCalcResults = [];
+  let errors = 0;
+  const total = rows.length;
+
+  rows.forEach((row, i) => {
+    // Update progress
+    setTimeout(() => {
+      if (progressFill) progressFill.style.width = Math.round(((i + 1) / total) * 100) + '%';
+    }, i * 5);
+
+    const rowNum = i + 1;
+
+    // ── Employee Name ──
+    const name = getBulkField(row, [
+      'Employee Name', 'EmployeeName', 'Name', 'Emp Name', 'EmpName', 'Employee', 'EMPLOYEE NAME', 'employee name'
+    ]) || `Employee ${rowNum}`;
+
+    // ── Gross Salary ──
+    const grossRaw = getBulkField(row, [
+      'Gross Salary', 'Gross', 'Monthly Gross', 'GrossSalary', 'GROSS', 'gross salary', 'Gross Pay', 'Monthly Gross Salary'
+    ]);
+    const gross = cleanNum(grossRaw);
+
+    // ── Min Wage ──
+    const minWageRaw = getBulkField(row, [
+      'Min Wage', 'Minimum Wage', 'MinWage', 'State Min Wage', 'Min Salary', 'STATE MIN WAGE',
+      'min wage', 'minimum wage', 'Min_Wage', 'Minimum Monthly Wage'
+    ]);
+    const minWage = cleanNum(minWageRaw);
+
+    // Validate mandatory fields
+    if (isNaN(gross) || gross <= 0) {
+      bulkCalcResults.push({ name, rowNum, error: `Missing/invalid Gross Salary (got: "${grossRaw}")` });
+      errors++;
+      return;
+    }
+    if (isNaN(minWage) || minWage <= 0) {
+      bulkCalcResults.push({ name, rowNum, error: `Missing/invalid Min Wage (got: "${minWageRaw}")` });
+      errors++;
+      return;
+    }
+
+    // ── PF ──
+    const pfRaw = getBulkField(row, ['PF', 'PF Applicable', 'PF (Y/N)', 'pf', 'PF_Applicable', 'PF Applicability']);
+    const pf = pfRaw && pfRaw.toString().trim().toUpperCase() === 'N' ? 'N' : 'Y';
+
+    // ── PT ──
+    const ptRaw = getBulkField(row, ['PT', 'PT Amount', 'Professional Tax', 'PT (Monthly)', 'pt', 'Prof Tax', 'ProfTax']);
+    const pt = isNaN(cleanNum(ptRaw)) ? 0 : Math.max(0, cleanNum(ptRaw));
+
+    // ── LWF ──
+    const lwfRaw = getBulkField(row, ['LWF', 'LWF Amount', 'Labour Welfare Fund', 'LWF (Monthly)', 'lwf', 'LWF_Amount']);
+    const lwf = isNaN(cleanNum(lwfRaw)) ? 0 : Math.max(0, cleanNum(lwfRaw));
+
+    // ── Gratuity Override ──
+    const gratRaw = getBulkField(row, ['Gratuity', 'Gratuity Amount', 'Monthly Gratuity', 'gratuity']);
+    const gratuityOverride = (gratRaw && !isNaN(cleanNum(gratRaw))) ? cleanNum(gratRaw) : null;
+
+    // ── Leave Override ──
+    const leaveRaw = getBulkField(row, ['Leave Encashment', 'Leave', 'Monthly Leave', 'Leave Amount', 'leave encashment', 'leave']);
+    const leaveOverride = (leaveRaw && !isNaN(cleanNum(leaveRaw))) ? cleanNum(leaveRaw) : null;
+
+    // ── CALCULATE using the SAME core engine as individual calculator ──
+    try {
+      const r = computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride);
+      bulkCalcResults.push({
+        name, rowNum, error: null,
+        // Spread all fields from computeCTC result
+        ...r,
+        // Aliases for bulk display compatibility
+        epfEmp: r.epfEmployer,
+        edli: r.edliEmployer,
+        esiEmp: r.esiEmployer,
+        esiEe: r.esiEmployee,
+        epfEe: r.epfEmployee,
+        gratuityUsed: r.gratuity,
+        leaveUsed: r.leaveComponent,
+        finalAnnual: r.finalCTCAnnual,
+        cash: r.cashInHand,
+        pfApplicable: pf,
+      });
+    } catch (err) {
+      bulkCalcResults.push({ name, rowNum, error: 'Calculation error: ' + err.message });
+      errors++;
+    }
+  });
+
+  // Show results after a short delay to let progress bar complete
+  const delay = Math.min(total * 8, 1500);
+  setTimeout(() => {
+    if (progressWrap) progressWrap.style.display = 'none';
+    renderBulkResults(errors, total);
+    showToast(`✓ Done! ${total - errors}/${total} employees calculated`);
+  }, delay + 200);
+}
+
+// ─── FORMAT HELPERS ───
+function bulkFmt(n) {
+  if (n === null || n === undefined || isNaN(n)) return '₹0';
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+
+// ─── RENDER RESULTS TABLE ───
+function renderBulkResults(errors, total) {
   const valid = bulkCalcResults.filter(r => !r.error);
-  const totalMonthly = valid.reduce((s, r) => s + r.finalCTC, 0);
-  const totalAnnual = valid.reduce((s, r) => s + r.finalAnnual, 0);
-  const avgCash = valid.length ? Math.round(valid.reduce((s, r) => s + r.cash, 0) / valid.length) : 0;
+
+  // Summary stats
+  const totalMonthly = valid.reduce((s, r) => s + (r.finalCTC || 0), 0);
+  const totalAnnual = valid.reduce((s, r) => s + (r.finalAnnual || 0), 0);
+  const avgCash = valid.length ? Math.round(valid.reduce((s, r) => s + (r.cash || 0), 0) / valid.length) : 0;
   const avgCTC = valid.length ? Math.round(totalMonthly / valid.length) : 0;
-  const minCTC = valid.length ? Math.min(...valid.map(r => r.finalCTC)) : 0;
-  const maxCTC = valid.length ? Math.max(...valid.map(r => r.finalCTC)) : 0;
+  const minCTC = valid.length ? Math.min(...valid.map(r => r.finalCTC || 0)) : 0;
+  const maxCTC = valid.length ? Math.max(...valid.map(r => r.finalCTC || 0)) : 0;
 
   // Summary Cards
-  document.getElementById('bulkSummaryCards').innerHTML = `
-    <div class="bulk-sum-card"><div class="bsc-label">Total Employees</div><div class="bsc-val">${bulkCalcResults.length}</div></div>
-    <div class="bulk-sum-card"><div class="bsc-label">Calculated</div><div class="bsc-val green">${valid.length}</div></div>
-    <div class="bulk-sum-card"><div class="bsc-label">Errors</div><div class="bsc-val ${errors > 0 ? 'danger' : ''}">${errors}</div></div>
-    <div class="bulk-sum-card"><div class="bsc-label">Total Monthly CTC</div><div class="bsc-val accent">${bulkFmt(totalMonthly)}</div></div>
-    <div class="bulk-sum-card"><div class="bsc-label">Total Annual CTC</div><div class="bsc-val accent">${bulkFmt(totalAnnual)}</div></div>
-    <div class="bulk-sum-card"><div class="bsc-label">Avg Monthly CTC</div><div class="bsc-val">${bulkFmt(avgCTC)}</div></div>
-    <div class="bulk-sum-card"><div class="bsc-label">Avg Cash in Hand</div><div class="bsc-val green">${bulkFmt(avgCash)}</div></div>
-    <div class="bulk-sum-card"><div class="bsc-label">Min CTC</div><div class="bsc-val amber">${minCTC ? bulkFmt(minCTC) : '—'}</div></div>
-    <div class="bulk-sum-card"><div class="bsc-label">Max CTC</div><div class="bsc-val amber">${maxCTC ? bulkFmt(maxCTC) : '—'}</div></div>
-  `;
+  const summaryEl = document.getElementById('bulkSummaryCards');
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <div class="bulk-sum-card"><div class="bsc-label">Total Employees</div><div class="bsc-val">${total}</div></div>
+      <div class="bulk-sum-card"><div class="bsc-label">Calculated</div><div class="bsc-val green">${valid.length}</div></div>
+      <div class="bulk-sum-card"><div class="bsc-label">Errors</div><div class="bsc-val ${errors > 0 ? 'danger' : ''}">${errors}</div></div>
+      <div class="bulk-sum-card"><div class="bsc-label">Total Monthly CTC</div><div class="bsc-val accent">${bulkFmt(totalMonthly)}</div></div>
+      <div class="bulk-sum-card"><div class="bsc-label">Total Annual CTC</div><div class="bsc-val accent">${bulkFmt(totalAnnual)}</div></div>
+      <div class="bulk-sum-card"><div class="bsc-label">Avg Monthly CTC</div><div class="bsc-val">${bulkFmt(avgCTC)}</div></div>
+      <div class="bulk-sum-card"><div class="bsc-label">Avg Cash in Hand</div><div class="bsc-val green">${bulkFmt(avgCash)}</div></div>
+      <div class="bulk-sum-card"><div class="bsc-label">Min CTC</div><div class="bsc-val amber">${minCTC ? bulkFmt(minCTC) : '—'}</div></div>
+      <div class="bulk-sum-card"><div class="bsc-label">Max CTC</div><div class="bsc-val amber">${maxCTC ? bulkFmt(maxCTC) : '—'}</div></div>
+    `;
+  }
 
   // Table Header
-  document.getElementById('bulkTableHead').innerHTML = `<tr>
-    <th>#</th><th>Employee Name</th><th>PF</th>
-    <th>Gross</th><th>Basic</th><th>HRA</th><th>Conv.</th>
-    <th>EPF Emp</th><th>EDLI</th><th>Bonus</th><th>ESI Emp</th>
-    <th>Gratuity</th><th>Leave Enc.</th><th>LWF</th><th>PT</th>
-    <th>Initial CTC</th><th>Final CTC/Mo</th><th>Annual CTC</th>
-    <th>EPF Ee</th><th>ESI Ee</th><th>Cash in Hand</th><th>Status</th>
-  </tr>`;
+  const headEl = document.getElementById('bulkTableHead');
+  if (headEl) {
+    headEl.innerHTML = `<tr>
+      <th>#</th><th>Employee Name</th><th>PF</th>
+      <th>Gross</th><th>Basic</th><th>HRA</th><th>Conv.</th>
+      <th>EPF Emp</th><th>EDLI</th><th>Bonus</th><th>ESI Emp</th>
+      <th>Gratuity</th><th>Leave Enc.</th><th>LWF</th><th>PT</th>
+      <th>Initial CTC</th><th>Final CTC/Mo</th><th>Annual CTC</th>
+      <th>EPF Ee</th><th>ESI Ee</th><th>Cash in Hand</th><th>Status</th>
+    </tr>`;
+  }
 
-  // Table Body
+  // Totals accumulator
+  const tot = { gross:0, basic:0, hra:0, conv:0, epfEmp:0, edli:0, bonus:0, esiEmp:0,
+    gratuityUsed:0, leaveUsed:0, lwf:0, pt:0, initialCTC:0, finalCTC:0,
+    finalAnnual:0, epfEe:0, esiEe:0, cash:0 };
+
   let bodyHtml = '';
-  let validCount = 0;
-
-  // Totals accumulators
-  let tot = { gross:0, basic:0, hra:0, conv:0, epfEmp:0, edli:0, bonus:0, esiEmp:0, gratuity:0, leaveComp:0, lwf:0, pt:0, initialCTC:0, finalCTC:0, finalAnnual:0, epfEe:0, esiEe:0, cash:0 };
-
   bulkCalcResults.forEach((r, i) => {
-    const altClass = i % 2 === 0 ? '' : 'alt-row';
+    const alt = i % 2 === 0 ? '' : 'alt-row';
     if (r.error) {
-      bodyHtml += `<tr class="error-row ${altClass}">
-        <td>${r.rowNum}</td>
+      bodyHtml += `<tr class="error-row ${alt}">
+        <td style="color:var(--text-muted)">${r.rowNum}</td>
         <td class="td-name">${escapeHtml(r.name)}</td>
-        <td colspan="19" style="font-size:11px;opacity:0.8">${r.error}</td>
+        <td colspan="19" style="font-size:11px;color:var(--danger);padding:8px 12px">${escapeHtml(r.error)}</td>
         <td class="td-err">⚠ Error</td>
       </tr>`;
       return;
     }
-    validCount++;
-    // Add to totals
-    ['gross','basic','hra','conv','epfEmp','edli','bonus','esiEmp','gratuity','leaveComp','lwf','pt','initialCTC','finalCTC','finalAnnual','epfEe','esiEe','cash'].forEach(k => { tot[k] += r[k] || 0; });
 
-    bodyHtml += `<tr class="${altClass}">
+    // Accumulate totals
+    ['gross','basic','hra','conv','epfEmp','edli','bonus','esiEmp','gratuityUsed','leaveUsed','lwf','pt','initialCTC','finalCTC','finalAnnual','epfEe','esiEe','cash'].forEach(k => {
+      tot[k] = (tot[k] || 0) + (r[k] || 0);
+    });
+
+    bodyHtml += `<tr class="${alt}">
       <td style="color:var(--text-muted)">${r.rowNum}</td>
       <td class="td-name">${escapeHtml(r.name)}</td>
       <td class="${r.pfApplicable === 'Y' ? 'td-pf-y' : 'td-pf-n'}">${r.pfApplicable}</td>
@@ -1464,8 +1602,8 @@ function renderBulkResults(errors) {
       <td class="td-right">${bulkFmt(r.edli)}</td>
       <td class="td-right">${r.bonus > 0 ? bulkFmt(r.bonus) : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td class="td-right">${r.esiEmp > 0 ? bulkFmt(r.esiEmp) : '<span style="color:var(--text-muted)">—</span>'}</td>
-      <td class="td-right">${bulkFmt(r.gratuity)}</td>
-      <td class="td-right">${bulkFmt(r.leaveComp)}</td>
+      <td class="td-right">${bulkFmt(r.gratuityUsed)}</td>
+      <td class="td-right">${bulkFmt(r.leaveUsed)}</td>
       <td class="td-right">${r.lwf > 0 ? bulkFmt(r.lwf) : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td class="td-right">${r.pt > 0 ? bulkFmt(r.pt) : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td class="td-right">${bulkFmt(r.initialCTC)}</td>
@@ -1478,10 +1616,10 @@ function renderBulkResults(errors) {
     </tr>`;
   });
 
-  // TOTAL ROW
-  if (validCount > 0) {
+  // Total row
+  if (valid.length > 0) {
     bodyHtml += `<tr class="total-row">
-      <td colspan="3">TOTAL (${validCount} employees)</td>
+      <td colspan="3">TOTAL (${valid.length} employees)</td>
       <td class="td-right">${bulkFmt(tot.gross)}</td>
       <td class="td-right">${bulkFmt(tot.basic)}</td>
       <td class="td-right">${bulkFmt(tot.hra)}</td>
@@ -1490,8 +1628,8 @@ function renderBulkResults(errors) {
       <td class="td-right">${bulkFmt(tot.edli)}</td>
       <td class="td-right">${bulkFmt(tot.bonus)}</td>
       <td class="td-right">${bulkFmt(tot.esiEmp)}</td>
-      <td class="td-right">${bulkFmt(tot.gratuity)}</td>
-      <td class="td-right">${bulkFmt(tot.leaveComp)}</td>
+      <td class="td-right">${bulkFmt(tot.gratuityUsed)}</td>
+      <td class="td-right">${bulkFmt(tot.leaveUsed)}</td>
       <td class="td-right">${bulkFmt(tot.lwf)}</td>
       <td class="td-right">${bulkFmt(tot.pt)}</td>
       <td class="td-right">${bulkFmt(tot.initialCTC)}</td>
@@ -1504,43 +1642,46 @@ function renderBulkResults(errors) {
     </tr>`;
   }
 
-  document.getElementById('bulkTableBody').innerHTML = bodyHtml;
-  document.getElementById('bulkResultsSection').style.display = 'block';
-  setBulkStatus('success', `✓ Done! ${validCount} employees calculated${errors > 0 ? ', ' + errors + ' error(s)' : ''}. Scroll right to see all columns.`);
+  const bodyEl = document.getElementById('bulkTableBody');
+  if (bodyEl) bodyEl.innerHTML = bodyHtml;
+
+  const resultsSection = document.getElementById('bulkResultsSection');
+  if (resultsSection) resultsSection.style.display = 'block';
+
+  const statusMsg = `✓ Done! ${valid.length} calculated${errors > 0 ? `, ${errors} error(s) — check red rows` : ''}.`;
+  setBulkStatus(errors > 0 ? 'info' : 'success', statusMsg);
 }
 
-// ─── EXPORT CSV (FULL) ───
+// ─── EXPORT CSV ───
 function bulkExportCSV() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const headers = [
-    'Row','Employee Name','PF Applicable',
+    'Row','Employee Name','PF',
     'Gross Salary','Basic','HRA','Conveyance',
     'EPF Employer','EDLI Employer','Bonus','ESI Employer',
-    'Gratuity (Auto)','Gratuity (Used)','Leave Encashment (Auto)','Leave Encashment (Used)',
+    'Gratuity (Auto)','Gratuity (Used)','Leave Auto','Leave Used',
     'LWF','PT','Initial CTC',
     'Final CTC Monthly','Final CTC Annual',
     'EPF Employee','ESI Employee','Cash in Hand','Status','Notes'
   ];
-
   const rows = bulkCalcResults.map(r => {
     if (r.error) return [r.rowNum, r.name, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Error', r.error];
     return [
       r.rowNum, r.name, r.pfApplicable,
       r.gross, r.basic, r.hra, r.conv,
       r.epfEmp, r.edli, r.bonus, r.esiEmp,
-      r.gratuityAuto, r.gratuity, r.leaveAuto, r.leaveComp,
+      r.gratuityAuto, r.gratuityUsed, r.leaveAuto, r.leaveUsed,
       r.lwf, r.pt, r.initialCTC,
       r.finalCTC, r.finalAnnual,
       r.epfEe, r.esiEe, r.cash, 'Calculated',
       `Basic=${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross or MinWage`
     ];
   });
-
   const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = `Bulk_CTC_Report_${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `Bulk_CTC_Report_${new Date().toISOString().slice(0,10)}.csv`;
   link.click();
   showBulkExportStatus('✓ CSV Downloaded!');
   showToast('✓ Bulk CSV Downloaded');
@@ -1550,40 +1691,30 @@ function bulkExportCSV() {
 function bulkExportTXT() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const valid = bulkCalcResults.filter(r => !r.error);
-  const now = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
-  const totalMonthly = valid.reduce((s, r) => s + r.finalCTC, 0);
-  const totalAnnual = valid.reduce((s, r) => s + r.finalAnnual, 0);
-
-  let txt = `BULK CTC CALCULATION REPORT — NEW LABOUR CODE
-${'='.repeat(60)}
-Date: ${now}
-Total Employees: ${bulkCalcResults.length}  |  Processed: ${valid.length}  |  Errors: ${bulkCalcResults.length - valid.length}
-Total Monthly CTC Payout: ${bulkFmt(totalMonthly)}
-Total Annual CTC Payout:  ${bulkFmt(totalAnnual)}
-${'='.repeat(60)}\n\n`;
-
+  const now = new Date().toLocaleDateString('en-IN', { year:'numeric', month:'long', day:'numeric' });
+  const totalMonthly = valid.reduce((s, r) => s + (r.finalCTC || 0), 0);
+  const totalAnnual = valid.reduce((s, r) => s + (r.finalAnnual || 0), 0);
+  let txt = `BULK CTC CALCULATION REPORT — NEW LABOUR CODE\n${'='.repeat(60)}\nDate: ${now}\nTotal Employees: ${bulkCalcResults.length}  |  Processed: ${valid.length}  |  Errors: ${bulkCalcResults.length - valid.length}\nTotal Monthly CTC Payout: ${bulkFmt(totalMonthly)}\nTotal Annual CTC Payout:  ${bulkFmt(totalAnnual)}\n${'='.repeat(60)}\n\n`;
   valid.forEach((r, i) => {
-    txt += `${i + 1}. ${r.name}  (PF: ${r.pfApplicable})\n`;
+    txt += `${i+1}. ${r.name}  (PF: ${r.pfApplicable})\n`;
     txt += `   Gross: ${bulkFmt(r.gross)} | Basic: ${bulkFmt(r.basic)} | HRA: ${bulkFmt(r.hra)} | Conv: ${bulkFmt(r.conv)}\n`;
     txt += `   EPF Emp: ${bulkFmt(r.epfEmp)} | EDLI: ${bulkFmt(r.edli)} | Bonus: ${r.bonus > 0 ? bulkFmt(r.bonus) : 'N/A'} | ESI Emp: ${r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A'}\n`;
-    txt += `   Gratuity: ${bulkFmt(r.gratuity)} | Leave: ${bulkFmt(r.leaveComp)} | LWF: ${r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A'} | PT: ${r.pt > 0 ? bulkFmt(r.pt) : 'N/A'}\n`;
+    txt += `   Gratuity: ${bulkFmt(r.gratuityUsed)} | Leave: ${bulkFmt(r.leaveUsed)} | LWF: ${r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A'} | PT: ${r.pt > 0 ? bulkFmt(r.pt) : 'N/A'}\n`;
     txt += `   Initial CTC: ${bulkFmt(r.initialCTC)}\n`;
     txt += `   ► Final CTC: ${bulkFmt(r.finalCTC)}/month  |  ${bulkFmt(r.finalAnnual)}/year\n`;
     txt += `   ► Cash in Hand: ${bulkFmt(r.cash)}\n`;
     txt += `${'—'.repeat(55)}\n`;
   });
-
-  if (bulkCalcResults.filter(r => r.error).length > 0) {
+  if (bulkCalcResults.some(r => r.error)) {
     txt += `\nERRORS:\n`;
     bulkCalcResults.filter(r => r.error).forEach(r => {
       txt += `  Row ${r.rowNum}: ${r.name} — ${r.error}\n`;
     });
   }
-
   const blob = new Blob([txt], { type: 'text/plain;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = `Bulk_CTC_Summary_${new Date().toISOString().slice(0, 10)}.txt`;
+  link.download = `Bulk_CTC_Summary_${new Date().toISOString().slice(0,10)}.txt`;
   link.click();
   showBulkExportStatus('✓ TXT Downloaded!');
   showToast('✓ Summary TXT Downloaded');
@@ -1595,14 +1726,13 @@ function bulkCopyClipboard() {
   const valid = bulkCalcResults.filter(r => !r.error);
   const headers = ['#','Name','PF','Gross','Basic','HRA','Conv','EPF Emp','EDLI','Bonus','ESI Emp','Gratuity','Leave','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Ee','ESI Ee','Cash in Hand'];
   const rows = valid.map((r, i) => [
-    i + 1, r.name, r.pfApplicable,
+    i+1, r.name, r.pfApplicable,
     r.gross, r.basic, r.hra, r.conv,
     r.epfEmp, r.edli, r.bonus, r.esiEmp,
-    r.gratuity, r.leaveComp, r.lwf, r.pt,
+    r.gratuityUsed, r.leaveUsed, r.lwf, r.pt,
     r.initialCTC, r.finalCTC, r.finalAnnual,
     r.epfEe, r.esiEe, r.cash
   ].join('\t'));
-
   const text = [headers.join('\t'), ...rows].join('\n');
   navigator.clipboard.writeText(text)
     .then(() => { showBulkExportStatus('✓ Copied!'); showToast('⎘ Bulk data copied to clipboard'); })
@@ -1632,14 +1762,20 @@ Kavita Nair,15000,14858,Y,0,0,,`;
 
 // ─── RESET BULK ───
 function resetBulk() {
-  bulkParsedRows = [];
+  bulkRawData = [];
   bulkCalcResults = [];
-  document.getElementById('bulkActionRow').style.display = 'none';
-  document.getElementById('bulkResultsSection').style.display = 'none';
-  document.getElementById('bulkProgressWrap').style.display = 'none';
-  document.getElementById('bulkStatus').style.display = 'none';
-  const fi = document.getElementById('bulkFileInput');
-  if (fi) fi.value = '';
+  const actionRow = document.getElementById('bulkActionRow');
+  const resultsSection = document.getElementById('bulkResultsSection');
+  const progressWrap = document.getElementById('bulkProgressWrap');
+  const statusEl = document.getElementById('bulkStatus');
+  const progressFill = document.getElementById('bulkProgressFill');
+  if (actionRow) actionRow.style.display = 'none';
+  if (resultsSection) resultsSection.style.display = 'none';
+  if (progressWrap) progressWrap.style.display = 'none';
+  if (statusEl) statusEl.style.display = 'none';
+  if (progressFill) progressFill.style.width = '0%';
+  // Re-init to restore fresh event listeners
+  initBulkTab();
   showToast('↺ Bulk upload reset');
 }
 
@@ -1657,53 +1793,3 @@ function showBulkExportStatus(msg) {
   el.textContent = msg;
   setTimeout(() => { el.textContent = ''; }, 3000);
 }
-
-// ─── HOOK INTO EXISTING INIT ───
-// Find your existing onReady() block and ADD initBulkTab() inside it
-// OR simply call it here after DOM is ready:
-if (document.readyState !== 'loading') {
-  initBulkTab();
-} else {
-  document.addEventListener('DOMContentLoaded', initBulkTab);
-}
-
-// ============ BULK UPLOAD TAB ============
-// Script tag mein XLSX aur PapaParse CDN add karein HTML mein
-// Phir ye functions add karein script.js ke end mein:
-
-function initBulkTab() {
-  const dropZone = document.getElementById('bulkDropZone');
-  const fileInput = document.getElementById('bulkFileInput');
-  if(!dropZone || !fileInput) return;
-  
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if(e.dataTransfer.files[0]) handleBulkFile(e.dataTransfer.files[0]); });
-  dropZone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', e => { if(e.target.files[0]) handleBulkFile(e.target.files[0]); });
-}
-
-function copyToClipboard() {
-  if (!calcResult) { showToast('⚠️ Please calculate first'); return; }
-  const r = calcResult;
-  const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
-  const text = [
-    `CTC Report — ${empName}`, `Basic\t${r.basic}`, `HRA\t${r.hra}`, `Conveyance\t${r.conv}`,
-    `Gross\t${r.gross}`, `EPF (Employer)\t${r.epfEmployer}`, `EDLI (Employer)\t${r.edliEmployer}`,
-    `Bonus\t${r.bonus}`, `ESI (Employer)\t${r.esiEmployer}`,
-    `Gratuity (${r.gratuityMode})\t${r.gratuity}`, `Leave Component (${r.leaveMode})\t${r.leaveComponent}`,
-    `LWF – ${r.lwfStateName} (${r.lwfMode})\t${r.lwf}`,
-    `PT – ${r.ptStateName} (${r.ptMode})\t${r.ptDeduction}`, // ← NEW
-    `Final CTC (Monthly)\t${r.finalCTC}`, `Final CTC (Annual)\t${r.finalCTCAnnual}`,
-    `Cash in Hand\t${r.cashInHand}`,
-  ].join('\n');
-  navigator.clipboard.writeText(text).then(() => { showToast('⎘ Copied to clipboard'); })
-  .catch(() => { showToast('⚠️ Copy failed — try downloading instead'); });
-}
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.target.matches('input[type="password"]')) {
-    const mainApp = document.getElementById('mainApp');
-    if (mainApp && !mainApp.classList.contains('hidden')) calculate();
-  }
-});
