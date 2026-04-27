@@ -1310,8 +1310,31 @@ function liveCalc() {
   updateGratuityPlaceholder();
   updateLeavePlaceholder();
   updatePFHint();
-  const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
-  const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
+  const gross    = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+  const minWage  = parseFloat(document.getElementById('minWage')?.value) || 0;
+  const warnEl   = document.getElementById('minWageWarning');
+  const warnAmtEl = document.getElementById('minWageWarningAmt');
+
+  // ── Minimum Wage Validation ──
+  if (gross > 0 && minWage > 0 && gross < minWage) {
+    // Show warning
+    if (warnEl)    warnEl.classList.remove('hidden');
+    if (warnAmtEl) warnAmtEl.textContent = minWage.toLocaleString('en-IN');
+    // Clear results — calculation nahi hogi
+    setText('r_initialCTC', '—');
+    safeToggle('summaryEmpty', false);
+    safeToggle('summaryResults', true);
+    safeToggle('breakdownEmpty', false);
+    safeToggle('breakdownContent', true);
+    const exportPreview = document.getElementById('exportPreview');
+    if (exportPreview) exportPreview.innerHTML = '<div class="preview-empty">Gross salary minimum wages se kam hai — calculation nahi ho sakti</div>';
+    calcResult = null;
+    return; // ← Calculation rok do
+  } else {
+    // Hide warning
+    if (warnEl) warnEl.classList.add('hidden');
+  }
+
   if (gross > 0 && minWage > 0) calculate(true);
 }
 
@@ -1322,6 +1345,15 @@ function calculate(silent) {
   const lwf     = getLWFValue();
   if (gross <= 0 || minWage <= 0) {
     if (!silent) showToast('⚠️ Please enter Gross Salary and Minimum Wage');
+    return;
+  }
+  // ── Minimum Wage Check ──
+  if (gross < minWage) {
+    if (!silent) showToast('⚠️ Gross Salary minimum wages (Rs.' + minWage.toLocaleString('en-IN') + ') se kam hai!');
+    const warnEl    = document.getElementById('minWageWarning');
+    const warnAmtEl = document.getElementById('minWageWarningAmt');
+    if (warnEl)    warnEl.classList.remove('hidden');
+    if (warnAmtEl) warnAmtEl.textContent = minWage.toLocaleString('en-IN');
     return;
   }
   let gratuityOverride = null;
