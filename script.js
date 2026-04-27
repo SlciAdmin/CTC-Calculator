@@ -1,23 +1,24 @@
 /* ============================================
    CTC CALCULATOR — FIREBASE AUTH + LOGIC
    New Labour Code | Cross-Device Login System
-   LWF + PT: State-wise Auto Calculation (v8.0)
+   LWF + PT: State-wise Auto Calculation (v9.0)
    
    ✅ PF MODES — MULTI-SELECT + VOLUNTARY (EMPLOYEE ONLY):
    ┌─────────────────────────────────────────┐
    │  BASE MODE (pick one):                  │
-   │    • Standard     → PF Wages = min(Basic, ₹15,000)        │
-   │    • Full Basic   → PF Wages = Full Basic (no cap)        │
-   │    • Specific Amt → PF Wages = Fixed Amount entered       │
+   │    • Standard     → PF Wages = min(Basic, Rs.15,000)        │
+   │    • Full Basic   → PF Wages = Full Basic (no cap)          │
+   │    • Specific Amt → PF Wages = Fixed Amount entered         │
    │                                         │
    │  ADD-ON (optional, combinable):         │
-   │    + Voluntary % → extra % on PF Wages  │
+   │    + Voluntary % → extra % on PF Wages (Employee only)      │
    │                                         │
-   │  ✅ EMPLOYEE PF = 12% of PF Wages + Voluntary% of PF Wages│
-   │  ✅ EMPLOYER PF = 12.5% of PF Wages ONLY (NO Voluntary)   │
+   │  ✅ EMPLOYEE PF = 12% of PF Wages + Voluntary%              │
+   │  ✅ EMPLOYER PF = 12.5% OR 12% of PF Wages (toggle)         │
+   │  ✅ EDLI = 0.5% of Basic (max Rs.75) OR 0 (if Employer=12%) │
    └─────────────────────────────────────────┘
 
-   GROSS > ₹1,00,000: Defray Expenses (10%)
+   GROSS > Rs.1,00,000: Defray Expenses (10%)
    + Conveyance (residual ~7.5%)
    ============================================ */
 
@@ -48,17 +49,19 @@ let leaveMode    = 'auto';
 let lwfMode      = 'auto';
 let ptMode       = 'auto';
 
-// ============== PF MODE STATE (MULTI-SELECT + VOLUNTARY EMPLOYEE ONLY) ==============
+// ============== PF MODE STATE (v9.0 - Employer 12% + EDLI Toggle) ==============
 //
 //  pfBaseMode     : 'standard' | 'full_basic' | 'specific_amt'
-//  pfAddVoluntary : true/false  (can be combined with ANY base mode) - EMPLOYEE SIDE ONLY
-//  pfVoluntaryPct : extra % on PF Wages (applies to EMPLOYEE only)
-//  pfSpecificAmt  : fixed PF Wages amount (used when base = specific_amt)
+//  pfAddVoluntary : true/false (Employee side only)
+//  pfVoluntaryPct : extra % on PF Wages (Employee only)
+//  pfSpecificAmt  : fixed PF Wages amount
+//  pfEmployerRate : '12.5' | '12' (NEW: Employer PF rate toggle)
 //
-let pfBaseMode     = 'standard';   // base selection
-let pfAddVoluntary = false;        // voluntary add-on toggle (Employee only)
-let pfVoluntaryPct = 0;            // voluntary percentage (e.g., 5 = 5%) - Employee only
-let pfSpecificAmt  = 0;            // specific PF wages amount
+let pfBaseMode     = 'standard';
+let pfAddVoluntary = false;
+let pfVoluntaryPct = 0;
+let pfSpecificAmt  = 0;
+let pfEmployerRate = '12.5';  // NEW: Default 12.5%, can toggle to 12%
 
 // ============== LWF STATE-WISE CONFIG ==============
 const LWF_STATES = {
@@ -401,7 +404,7 @@ function getPTLabel() {
 }
 
 // ============================================================
-//  ✅ PF MODE FUNCTIONS — MULTI-SELECT + VOLUNTARY (EMPLOYEE ONLY v8.0)
+//  ✅ PF MODE FUNCTIONS — v9.0 (Employer 12% + EDLI Toggle)
 //
 //  BASE MODE (mutually exclusive):
 //    standard     → PF Wages = min(Basic, 15000)
@@ -411,8 +414,12 @@ function getPTLabel() {
 //  ADD-ON (combinable with any base):
 //    pfAddVoluntary = true → adds extra % on PF Wages (EMPLOYEE SIDE ONLY)
 //
+//  ✅ NEW: pfEmployerRate = '12.5' | '12' (toggle button)
+//    → When '12': Employer PF = 12%, EDLI = 0
+//    → When '12.5': Employer PF = 12.5%, EDLI = 0.5% of Basic (max Rs.75)
+//
 //  ✅ EMPLOYEE PF = 12% of PF Wages + Voluntary% of PF Wages
-//  ✅ EMPLOYER PF = 12.5% of PF Wages ONLY (NO Voluntary - EVER)
+//  ✅ EMPLOYER PF = pfEmployerRate% of PF Wages ONLY (NO Voluntary)
 //
 // ============================================================
 
@@ -431,6 +438,7 @@ function setPFApplicable(val) {
     if (hint) hint.textContent = '53% of Gross or Min Wage (whichever is higher) -> Basic. No PF deducted.';
     pfBaseMode     = 'standard';
     pfAddVoluntary = false;
+    pfEmployerRate = '12.5';  // Reset to default
     _syncPFUI();
   } else {
     updatePFHint();
@@ -456,6 +464,14 @@ function togglePFVoluntary() {
   liveCalc();
 }
 
+// ✅ NEW: Toggle Employer PF Rate (12.5% ↔ 12%)
+function togglePFEmployerRate() {
+  pfEmployerRate = pfEmployerRate === '12.5' ? '12' : '12.5';
+  _syncPFUI();
+  updatePFHint();
+  liveCalc();
+}
+
 // Sync all button states & wrapper visibility
 function _syncPFUI() {
   // Base mode buttons
@@ -467,6 +483,15 @@ function _syncPFUI() {
   // Voluntary add-on button
   const volBtn = document.getElementById('pfAddon_voluntary');
   if (volBtn) volBtn.classList.toggle('active', pfAddVoluntary);
+
+  // ✅ NEW: Employer Rate toggle button
+  const empRateBtn = document.getElementById('pfEmployerRateToggle');
+  if (empRateBtn) {
+    empRateBtn.classList.toggle('active', pfEmployerRate === '12');
+    empRateBtn.querySelector('.pfm-sub').textContent = pfEmployerRate === '12' 
+      ? 'Employer: 12% | EDLI: Rs.0' 
+      : 'Employer: 12.5% | EDLI: 0.5% (max Rs.75)';
+  }
 
   // Input wrappers
   const voluntaryWrapper = document.getElementById('pfVoluntaryWrapper');
@@ -486,16 +511,20 @@ function updatePFHint() {
   const vpct    = parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0;
   const sAmt    = parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0;
   const addText = pfAddVoluntary ? ' + Voluntary ' + vpct + '% (Employee Only)' : '';
+  
+  const empRateText = pfEmployerRate === '12' 
+    ? 'Employer: 12% of PF Wages ONLY | EDLI: Rs.0' 
+    : 'Employer: 12.5% of PF Wages ONLY | EDLI: 0.5% of Basic (max Rs.75)';
 
   switch (pfBaseMode) {
     case 'standard':
-      hint.textContent = basicPct + ' of Gross/MinWage -> Basic. PF Wages = min(Basic, Rs.15,000). Employee: 12% + Vol% of PF Wages. Employer: 12.5% of PF Wages ONLY.' + addText;
+      hint.textContent = basicPct + ' of Gross/MinWage -> Basic. PF Wages = min(Basic, Rs.15,000). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText;
       break;
     case 'full_basic':
-      hint.textContent = basicPct + ' of Gross/MinWage -> Basic. PF Wages = Full Basic. Employee: 12% + Vol% of Basic. Employer: 12.5% of Basic ONLY.' + addText;
+      hint.textContent = basicPct + ' of Gross/MinWage -> Basic. PF Wages = Full Basic. Employee: 12% + Vol% of Basic. ' + empRateText + '.' + addText;
       break;
     case 'specific_amt':
-      hint.textContent = basicPct + ' of Gross/MinWage -> Basic. PF Wages = Rs.' + sAmt.toLocaleString('en-IN') + ' (fixed). Employee: 12% + Vol% of PF Wages. Employer: 12.5% of PF Wages ONLY.' + addText;
+      hint.textContent = basicPct + ' of Gross/MinWage -> Basic. PF Wages = Rs.' + sAmt.toLocaleString('en-IN') + ' (fixed). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText;
       break;
   }
 }
@@ -506,13 +535,10 @@ function getPFBaseWages(basic) {
   
   switch (pfBaseMode) {
     case 'standard':
-      // PF Wages = min(Basic, 15000)
       return Math.min(basic, 15000);
     case 'full_basic':
-      // PF Wages = Full Basic
       return basic;
     case 'specific_amt': {
-      // PF Wages = Specific Amount entered
       const sAmt = parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0;
       return Math.max(0, sAmt);
     }
@@ -522,46 +548,59 @@ function getPFBaseWages(basic) {
 }
 
 // ── Compute EMPLOYEE PF ──────────────────────────────────────
-// Employee PF = 12% of PF Wages + Voluntary% of PF Wages (if enabled)
 function computeEmployeePF(basic) {
   if (pfApplicable !== 'Y') return 0;
 
   const pfWages = getPFBaseWages(basic);
   const vpct = pfAddVoluntary ? (parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0) : 0;
 
-  // Base PF: 12% of PF Wages
   const basePF = Math.round(pfWages * 0.12);
-  
-  // Voluntary Extra: Voluntary% of PF Wages (Employee side only)
   const voluntaryExtra = pfAddVoluntary ? Math.round(pfWages * vpct / 100) : 0;
   
   return basePF + voluntaryExtra;
 }
 
 // ── Compute EMPLOYER PF ──────────────────────────────────────
-// ✅ Employer PF = 12.5% of PF Wages ONLY - NO VOLUNTARY EVER
+// ✅ Employer PF = pfEmployerRate% of PF Wages ONLY (NO Voluntary)
 function computeEmployerPF(basic) {
   if (pfApplicable !== 'Y') return 0;
 
   const pfWages = getPFBaseWages(basic);
+  const rate = parseFloat(pfEmployerRate) / 100;  // '12' -> 0.12, '12.5' -> 0.125
   
-  // Base Employer PF: 12.5% of PF Wages ONLY - NO VOLUNTARY ADDED
-  return Math.round(pfWages * 0.125);
+  return Math.round(pfWages * rate);
+}
+
+// ── Compute EDLI ─────────────────────────────────────────────
+// ✅ EDLI = 0.5% of Basic (max Rs.75) OR 0 (if Employer PF = 12%)
+function computeEDLI(basic) {
+  if (pfApplicable !== 'Y') return 0;
+  
+  // ✅ If Employer PF rate is 12%, EDLI = 0
+  if (pfEmployerRate === '12') {
+    return 0;
+  }
+  
+  // Default: 0.5% of Basic, capped at Rs.75
+  return Math.min(Math.round(basic * 0.005), 75);
 }
 
 // ── PF Mode Label ────────────────────────────────────────────
-function getPFModeLabel(overrideBase, overrideVoluntary, overrideVolPct, overrideSpecAmt) {
+function getPFModeLabel(overrideBase, overrideVoluntary, overrideVolPct, overrideSpecAmt, overrideEmpRate) {
   if (pfApplicable !== 'Y') return 'No PF';
   const base      = overrideBase      ?? pfBaseMode;
   const hasVol    = overrideVoluntary ?? pfAddVoluntary;
   const vpct      = overrideVolPct    ?? (parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0);
   const sAmt      = overrideSpecAmt   ?? (parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0);
+  const empRate   = overrideEmpRate   ?? pfEmployerRate;
+  
   const volSuffix = hasVol ? ' + Voluntary ' + vpct + '% (Emp Only)' : '';
+  const rateSuffix = empRate === '12' ? ' | Empl@12% | EDLI=0' : '';
 
   switch (base) {
-    case 'standard':     return 'Standard (PF Wages=min(Basic,Rs.15k))' + volSuffix;
-    case 'full_basic':   return 'Full Basic (PF Wages=Basic)' + volSuffix;
-    case 'specific_amt': return 'Specific PF Wages Rs.' + Math.round(sAmt).toLocaleString('en-IN') + volSuffix;
+    case 'standard':     return 'Standard (PF Wages=min(Basic,Rs.15k))' + volSuffix + rateSuffix;
+    case 'full_basic':   return 'Full Basic (PF Wages=Basic)' + volSuffix + rateSuffix;
+    case 'specific_amt': return 'Specific PF Wages Rs.' + Math.round(sAmt).toLocaleString('en-IN') + volSuffix + rateSuffix;
     default:             return 'Standard';
   }
 }
@@ -599,7 +638,7 @@ function _insertPFModeAfter(pfField) {
   <div id="pfModeSection" class="pf-mode-section" style="margin-top:12px;">
     <label class="pf-mode-main-label">
       PF Contribution Mode
-      <span class="formula-badge">Multi-Select + Voluntary (Employee Only)</span>
+      <span class="formula-badge">Multi-Select + Voluntary (Emp Only) + Employer Rate Toggle</span>
     </label>
 
     <!-- BASE MODE: pick one -->
@@ -632,6 +671,16 @@ function _insertPFModeAfter(pfField) {
       </button>
     </div>
 
+    <!-- ✅ NEW: Employer Rate Toggle (12.5% ↔ 12%) -->
+    <div class="pf-group-label" style="margin-top:10px;">Employer Settings <span style="font-size:10px;color:var(--text-muted)">(toggle rate)</span></div>
+    <div class="pf-addon-grid">
+      <button class="pf-addon-btn" id="pfEmployerRateToggle" onclick="togglePFEmployerRate()" type="button">
+        <span class="pfm-icon">⚙️</span>
+        <span class="pfm-title">Employer PF Rate</span>
+        <span class="pfm-sub">Employer: 12.5% | EDLI: 0.5% (max Rs.75)</span>
+      </button>
+    </div>
+
     <!-- Specific Amount Input -->
     <div id="pfSpecificWrapper" class="hidden pf-extra-input" style="margin-top:10px;">
       <label class="pt-sub-label">PF Wages Amount (Fixed)</label>
@@ -641,7 +690,7 @@ function _insertPFModeAfter(pfField) {
                oninput="updatePFHint(); liveCalc();" />
       </div>
       <div class="field-hint" style="margin-top:4px;">
-        Fixed PF Wages used for calculation. Employee PF = 12% + Vol% of this amount. Employer PF = 12.5% of this amount ONLY (no voluntary).
+        Fixed PF Wages used for calculation. Employee PF = 12% + Vol% of this amount. Employer PF = selected rate of this amount ONLY (no voluntary).
       </div>
     </div>
 
@@ -654,7 +703,7 @@ function _insertPFModeAfter(pfField) {
                oninput="updatePFHint(); liveCalc();" style="padding-left:36px;" />
       </div>
       <div class="field-hint" style="margin-top:4px;">
-        Extra % added to Employee (12%) contribution on PF Wages ONLY. Employer remains at fixed 12.5%. E.g., 5% voluntary -> Employee: 17%, Employer: 12.5% of PF Wages.
+        Extra % added to Employee (12%) contribution on PF Wages ONLY. Employer remains at fixed rate. E.g., 5% voluntary -> Employee: 17%, Employer: 12.5% (or 12%) of PF Wages.
       </div>
     </div>
 
@@ -665,8 +714,12 @@ function _insertPFModeAfter(pfField) {
         <span class="pf-prev-val danger" id="pfPreviewEmpVal">—</span>
       </div>
       <div class="pf-preview-row">
-        <span class="pf-prev-label">Employer PF (12.5% ONLY)</span>
+        <span class="pf-prev-label">Employer PF (<span id="pfPreviewEmrRate">12.5</span>%)</span>
         <span class="pf-prev-val accent" id="pfPreviewEmrVal">—</span>
+      </div>
+      <div class="pf-preview-row">
+        <span class="pf-prev-label">EDLI</span>
+        <span class="pf-prev-val" id="pfPreviewEdliVal" style="color:var(--text-dim);font-size:11px;">—</span>
       </div>
       <div class="pf-preview-row">
         <span class="pf-prev-label">PF Wages Used</span>
@@ -717,6 +770,8 @@ function updatePFPreview(basic) {
   const previewEl = document.getElementById('pfLivePreview');
   const empValEl  = document.getElementById('pfPreviewEmpVal');
   const emrValEl  = document.getElementById('pfPreviewEmrVal');
+  const emrRateEl = document.getElementById('pfPreviewEmrRate');
+  const edliValEl = document.getElementById('pfPreviewEdliVal');
   const baseValEl = document.getElementById('pfPreviewBaseVal');
   const modeEl    = document.getElementById('pfPreviewMode');
   
@@ -725,11 +780,14 @@ function updatePFPreview(basic) {
   
   previewEl.style.display = 'block';
   const pfWages = getPFBaseWages(basic);
-  const empPF = computeEmployeePF(basic);  // Has voluntary if enabled
-  const emrPF = computeEmployerPF(basic);  // NO voluntary - only 12.5%
+  const empPF = computeEmployeePF(basic);
+  const emrPF = computeEmployerPF(basic);
+  const edli = computeEDLI(basic);
   
   if (empValEl) empValEl.textContent = 'Rs.' + Math.round(empPF).toLocaleString('en-IN');
   if (emrValEl) emrValEl.textContent = 'Rs.' + Math.round(emrPF).toLocaleString('en-IN');
+  if (emrRateEl) emrRateEl.textContent = pfEmployerRate;
+  if (edliValEl) edliValEl.textContent = edli > 0 ? 'Rs.' + edli : 'Rs.0 (N/A)';
   if (baseValEl) baseValEl.textContent = 'Rs.' + Math.round(pfWages).toLocaleString('en-IN');
   if (modeEl)   modeEl.textContent   = getPFModeLabel();
 }
@@ -1032,6 +1090,7 @@ function initializeCalculator() {
   setPFApplicable('Y');
   pfBaseMode     = 'standard';
   pfAddVoluntary = false;
+  pfEmployerRate = '12.5';  // Reset to default
   _syncPFUI();
   setGratuityMode('auto');
   setLeaveMode('auto');
@@ -1076,13 +1135,13 @@ function setLeaveMode(mode) {
 }
 
 // ============================================================
-//  ✅ CORE CTC ENGINE — v8.0 (PF: Voluntary for EMPLOYEE ONLY)
-//  PF: Multi-select base+addon, Employer = 12.5% ONLY (no voluntary)
-//  Gross ≤ ₹1,00,000 : Basic + HRA (50%) + Conveyance (residual)
-//  Gross > ₹1,00,000 : Basic + HRA + Defray (10%) + Conveyance (residual)
+//  ✅ CORE CTC ENGINE — v9.0 (Employer 12% + EDLI Toggle)
+//  PF: Multi-select base+addon, Employer = 12.5% OR 12%, EDLI = 0 if Employer=12%
+//  Gross ≤ Rs.1,00,000 : Basic + HRA (50%) + Conveyance (residual)
+//  Gross > Rs.1,00,000 : Basic + HRA + Defray (10%) + Conveyance (residual)
 // ============================================================
 function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride,
-                    pfBaseModeOverride, pfVoluntaryOverride, pfVolPctOverride, pfSpecAmtOverride) {
+                    pfBaseModeOverride, pfVoluntaryOverride, pfVolPctOverride, pfSpecAmtOverride, pfEmpRateOverride) {
   gross   = Math.round(gross);
   minWage = Math.round(minWage);
 
@@ -1118,6 +1177,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   const resolvedHasVol  = pfVoluntaryOverride     ?? pfAddVoluntary;
   const resolvedVolPct  = pfVolPctOverride        ?? (parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0);
   const resolvedSpecAmt = pfSpecAmtOverride       ?? (parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0);
+  const resolvedEmpRate = pfEmpRateOverride       ?? pfEmployerRate;  // ✅ NEW
 
   // ── Get PF Wages based on mode ──
   let pfWages = 0;
@@ -1145,15 +1205,15 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
     epfEmployee = basePF + voluntaryExtra;
   }
 
-  // ── Employer PF = 12.5% of PF Wages ONLY (NO Voluntary) ──
+  // ── Employer PF = resolvedEmpRate% of PF Wages ONLY (NO Voluntary) ──
   let epfEmployer = 0;
   if (pf === 'Y') {
-    // Employer gets ONLY 12.5% of PF Wages - NO VOLUNTARY ADDED
-    epfEmployer = Math.round(pfWages * 0.125);
+    const rate = parseFloat(resolvedEmpRate) / 100;
+    epfEmployer = Math.round(pfWages * rate);
   }
 
-  // ── EDLI ──
-  const edliEmployer = pf === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0;
+  // ── EDLI = 0.5% of Basic (max Rs.75) OR 0 (if Employer PF = 12%) ──
+  const edliEmployer = (pf === 'Y' && resolvedEmpRate === '12') ? 0 : (pf === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0);
 
   // ── Bonus ──
   const bonus = basic <= 21000 ? Math.round(minWage * 0.0833) : 0;
@@ -1181,10 +1241,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   const pfModeLabel = (function() {
     if (pf !== 'Y') return 'No PF';
     const volSuffix = resolvedHasVol ? ' + Voluntary ' + resolvedVolPct + '% (Emp Only)' : '';
+    const rateSuffix = resolvedEmpRate === '12' ? ' | Empl@12% | EDLI=0' : '';
     switch (resolvedBase) {
-      case 'standard':     return 'Standard (PF Wages=min(Basic,Rs.15k))' + volSuffix;
-      case 'full_basic':   return 'Full Basic (PF Wages=Basic)' + volSuffix;
-      case 'specific_amt': return 'Specific PF Wages Rs.' + Math.round(resolvedSpecAmt).toLocaleString('en-IN') + volSuffix;
+      case 'standard':     return 'Standard (PF Wages=min(Basic,Rs.15k))' + volSuffix + rateSuffix;
+      case 'full_basic':   return 'Full Basic (PF Wages=Basic)' + volSuffix + rateSuffix;
+      case 'specific_amt': return 'Specific PF Wages Rs.' + Math.round(resolvedSpecAmt).toLocaleString('en-IN') + volSuffix + rateSuffix;
       default:             return 'Standard';
     }
   })();
@@ -1196,7 +1257,8 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
     isHighGross    : gross > 100000,
     minWage: minWage,
     pfApplicable   : pf,
-    pfWages: pfWages,  // ✅ Return PF Wages used
+    pfWages: pfWages,
+    pfEmployerRate: resolvedEmpRate,  // ✅ NEW: Return employer rate used
     epfEmployer: epfEmployer, edliEmployer: edliEmployer, bonus: bonus, initialCTC: initialCTC,
     esiEmployer: esiEmployer, esiEmployee: esiEmployee,
     gratuity: gratuity, gratuityAuto: gratuityAuto,
@@ -1346,10 +1408,12 @@ function renderBreakdown(r) {
     ? '<span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">' + r.pfModeLabel + '</span>'
     : '';
 
+  const edliNote = r.pfEmployerRate === '12' ? ' (Rs.0 - Employer@12%)' : ' (0.5% of Basic, max Rs.75)';
+  
   const empRows = [
-    ['EPF – Employer @ 12.5% of PF Wages ' + pfModeBadge, '12.5% ONLY (No Voluntary)', r.epfEmployer],
-    ['EDLI – Employer @ 0.5% upto Rs.15,000',          '0.5% (max Rs.75)',     r.edliEmployer],
-    ['Bonus (8.33% of Min Wage, if Basic <= Rs.21,000)','8.33%',              r.bonus],
+    ['EPF – Employer @ ' + r.pfEmployerRate + '% of PF Wages ' + pfModeBadge, r.pfEmployerRate + '% ONLY (No Voluntary)', r.epfEmployer],
+    ['EDLI – Employer' + edliNote, r.pfEmployerRate === '12' ? 'N/A' : '0.5% (max Rs.75)', r.edliEmployer],
+    ['Bonus (8.33% of Min Wage, if Basic <= Rs.21,000)','8.33%', r.bonus],
   ];
   let empHtml = '';
   empRows.forEach(function(item) {
@@ -1393,19 +1457,22 @@ function renderBreakdown(r) {
     ? 'PF Mode: <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;">' + r.pfModeLabel + '</span>'
     : 'PF: <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;">Not Applicable</span>';
 
+  const edliDisplay = r.edliEmployer > 0 ? fmt(r.edliEmployer) : 'Rs.0 (N/A)';
+  const edliSub = r.pfEmployerRate === '12' ? 'Employer PF @12% → EDLI not applicable' : '0.5% of Basic (capped at Rs.75)';
+
   const finalItemsData = [
     { label: 'Gross Salary',         val: fmt(r.gross),          sub: 'Monthly',                         cls: '' },
     { label: 'Initial CTC',          val: fmt(r.initialCTC),     sub: 'Gross + Employer Contributions',  cls: '' },
     { label: 'ESI – Employer',        val: r.esiEmployer > 0 ? fmt(r.esiEmployer) : 'N/A', sub: '3.25% of Gross (if <= Rs.21k)', cls: '' },
     { label: gratuityLabel,           val: fmt(r.gratuity),       sub: r.gratuityMode === 'manual' ? 'Manual (Auto: ' + fmt(r.gratuityAuto) + ')' : 'Basic/26 x 15 / 12', cls: '' },
-    { label: leaveLabel,              val: fmt(r.leaveComponent),  sub: r.leaveMode === 'manual' ? 'Manual (Auto: ' + fmt(r.leaveAuto) + ')' : 'Basic/26 x 1.25', cls: '' },
+    { label: leaveLabel,              val: fmt(r.leaveComponent),  sub: r.leaveMode === 'manual' ? 'Manual (Auto: ' + fmt(r.leaveAuto) + ')' : 'Basic/26 x .25', cls: '' },
     { label: lwfLabel,                val: r.lwf > 0 ? fmt(r.lwf) : 'Rs.0 (N/A)', sub: r.lwfMode === 'auto' ? r.lwfStateName + ' – State-wise auto' : 'Manual override', cls: '' },
     { label: ptLabel,                 val: r.ptDeduction > 0 ? fmt(r.ptDeduction) : 'Rs.0 (N/A)', sub: r.ptMode === 'auto' ? r.ptStateName + ' – State-wise auto' : 'Manual override', cls: '' },
     { label: 'Final CTC (Monthly)',   val: fmt(r.finalCTC),       sub: empName, cls: 'highlight' },
     { label: 'Final CTC (Annual)',    val: fmt(r.finalCTCAnnual), sub: empName, cls: 'highlight' },
     { label: 'Cash in Hand',          val: fmt(r.cashInHand),     sub: 'After all deductions', cls: 'green' },
     { label: pfModeDisplayLabel,      val: r.pfApplicable === 'Y' ? fmt(r.epfEmployee) : 'Rs.0',
-      sub: r.pfApplicable === 'Y' ? 'Employee: 12%+Vol% | Employer: 12.5% ONLY of PF Wages (Rs.' + Math.round(r.pfWages).toLocaleString('en-IN') + ')' : 'No PF applicable', cls: 'purple' },
+      sub: r.pfApplicable === 'Y' ? 'Employee: 12%+Vol% | Employer: ' + r.pfEmployerRate + '% ONLY | EDLI: ' + edliDisplay + ' of PF Wages (Rs.' + Math.round(r.pfWages).toLocaleString('en-IN') + ')' : 'No PF applicable', cls: 'purple' },
   ];
 
   if (r.isHighGross) {
@@ -1435,8 +1502,8 @@ function renderExportPreview(r) {
   rows.push(
     ['Gross Salary', fmt(r.gross), false],
     ['EMPLOYER CONTRIBUTIONS', '', true],
-    ['EPF Employer (12.5% of PF Wages)', fmt(r.epfEmployer), false],
-    ['EDLI Employer', fmt(r.edliEmployer), false],
+    ['EPF Employer (' + r.pfEmployerRate + '% of PF Wages)', fmt(r.epfEmployer), false],
+    ['EDLI Employer' + (r.pfEmployerRate === '12' ? ' (N/A)' : ' (0.5% of Basic, max Rs.75)'), r.edliEmployer > 0 ? fmt(r.edliEmployer) : 'Rs.0', false],
     ['Bonus (8.33% of Min Wage)', fmt(r.bonus), false],
     ['Initial CTC', fmt(r.initialCTC), false],
     ['ESI Employer (3.25%)', fmt(r.esiEmployer), false],
@@ -1509,6 +1576,7 @@ function resetAll() {
   pfApplicable   = 'Y';
   pfBaseMode     = 'standard';
   pfAddVoluntary = false;
+  pfEmployerRate = '12.5';  // ✅ Reset employer rate to default
   setPFApplicable('Y');
   _syncPFUI();
   const pfVolEl  = document.getElementById('pfVoluntaryPct');
@@ -1538,6 +1606,9 @@ function exportPDF() {
   const allowanceLines = r.isHighGross
     ? 'Defray Expenses (10%) : ' + fmt(r.deferAllowance) + '\nConveyance (Residual)  : ' + fmt(r.conv)
     : 'Conveyance     : ' + fmt(r.conv);
+  const edliNote = r.pfEmployerRate === '12' 
+    ? 'EDLI Employer     : Rs.0 (Not applicable - Employer PF @12%)'
+    : 'EDLI Employer     : ' + fmt(r.edliEmployer) + ' (0.5% of Basic, max Rs.75)';
   const content = `
 CTC CALCULATION REPORT — NEW LABOUR LAW 2024
 ============================================
@@ -1546,6 +1617,7 @@ Employee: ${empName}
 PF Applicable: ${r.pfApplicable === 'Y' ? 'Yes' : 'No'}
 PF Mode: ${r.pfModeLabel}
 PF Wages Used: ${fmt(r.pfWages)}
+Employer PF Rate: ${r.pfEmployerRate}%
 State Min Wage: ${fmt(r.minWage)}
 LWF: ${r.lwfStateName} (${r.lwfMode}) = ${fmt(r.lwf)}
 PT: ${r.ptStateName} (${r.ptMode}) = ${fmt(r.ptDeduction)}
@@ -1561,8 +1633,8 @@ ${r.isHighGross ? '\n⚠ Gross > Rs.1,00,000: Defray Expenses (10% fixed) + Conv
 
 EMPLOYER CONTRIBUTIONS
 —————————————————————
-EPF Employer      : ${fmt(r.epfEmployer)} (12.5% of PF Wages ONLY - No Voluntary)
-EDLI Employer     : ${fmt(r.edliEmployer)}
+EPF Employer      : ${fmt(r.epfEmployer)} (${r.pfEmployerRate}% of PF Wages ONLY - No Voluntary)
+${edliNote}
 Bonus             : ${fmt(r.bonus)}
 ESI Employer      : ${fmt(r.esiEmployer)}
 Gratuity (${r.gratuityMode === 'manual' ? 'Custom' : 'Auto: Basic/26x15/12'}) : ${fmt(r.gratuity)}${r.gratuityMode === 'manual' ? ' (Auto would be ' + fmt(r.gratuityAuto) + ')' : ''}
@@ -1584,6 +1656,7 @@ NET CASH IN HAND  : ${fmt(r.cashInHand)}
 Formula: As per New Labour Code — Basic = MAX(${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross, Min Wage)
 PF Mode: ${r.pfModeLabel}
 PF Wages: ${r.pfBaseUsed === 'standard' ? 'min(Basic, Rs.15,000)' : r.pfBaseUsed === 'full_basic' ? 'Full Basic' : 'Fixed Amount'} = ${fmt(r.pfWages)}
+Employer PF Rate: ${r.pfEmployerRate}% ${r.pfEmployerRate === '12' ? '(EDLI not applicable)' : '(EDLI = 0.5% of Basic, max Rs.75)'}
 ${r.isHighGross
   ? 'Defray Expenses = 10% of Gross (Gross > Rs.1,00,000). Conveyance = Residual after Basic+HRA+Defray Expenses.'
   : 'Conveyance = Residual after Basic + HRA'}
@@ -1604,11 +1677,9 @@ function exportCSV() {
   const r = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
   
-  // Helper function to safely convert value to string for CSV
   function toCsvCell(val) {
     if (val === null || val === undefined) return '';
     var str = String(val);
-    // Escape double quotes by doubling them (CSV standard)
     str = str.replace(/"/g, '""');
     return str;
   }
@@ -1619,6 +1690,7 @@ function exportCSV() {
     ['PF Applicable', r.pfApplicable, ''],
     ['PF Mode', r.pfModeLabel, ''],
     ['PF Wages Used', r.pfWages, ''],
+    ['Employer PF Rate', r.pfEmployerRate + '%', ''],
     ['State Min Wage', r.minWage, ''],
     ['', '', ''],
     ['=== SALARY STRUCTURE ===', '', ''],
@@ -1637,8 +1709,8 @@ function exportCSV() {
     ['Gross Salary', r.gross, ''], 
     ['', '', ''],
     ['=== EMPLOYER CONTRIBUTIONS ===', '', ''],
-    ['EPF Employer', r.epfEmployer, '12.5% of PF Wages ONLY (No Voluntary)'],
-    ['EDLI Employer', r.edliEmployer, '0.5% of Basic (max Rs.75)'],
+    ['EPF Employer', r.epfEmployer, r.pfEmployerRate + '% of PF Wages ONLY (No Voluntary)'],
+    ['EDLI Employer', r.edliEmployer, r.pfEmployerRate === '12' ? 'N/A (Employer@12%)' : '0.5% of Basic (max Rs.75)'],
     ['Bonus', r.bonus, '8.33% of Min Wage (if Basic <= Rs.21000)'],
     ['Initial CTC', r.initialCTC, ''],
     ['ESI Employer', r.esiEmployer, '3.25% of Gross (if <= Rs.21000)'],
@@ -1657,7 +1729,6 @@ function exportCSV() {
     ['Cash in Hand', r.cashInHand, '']
   );
   
-  // ✅ Convert rows to proper CSV format with escaping
   var csvLines = [];
   for (var i = 0; i < rows.length; i++) {
     var row = rows[i];
@@ -1670,7 +1741,6 @@ function exportCSV() {
   }
   var csv = csvLines.join('\n');
   
-  // ✅ Create and trigger download
   var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   var link = document.createElement('a');
   var url = URL.createObjectURL(blob);
@@ -1696,6 +1766,7 @@ function copyToClipboard() {
     'CTC Report — ' + empName,
     'PF Mode\t' + r.pfModeLabel,
     'PF Wages\t' + r.pfWages,
+    'Employer PF Rate\t' + r.pfEmployerRate + '%',
     'Basic\t' + r.basic, 'HRA\t' + r.hra,
   ].concat(allowanceLines).concat([
     'Gross\t' + r.gross,
@@ -1725,10 +1796,11 @@ document.addEventListener('keydown', function(e) {
 });
 
 /* =====================================================
-   BULK UPLOAD — v8.0
+   BULK UPLOAD — v9.0
    Uses same computeCTC() as individual calculator.
    Supports: standard / full_basic / specific_amt base
-   + voluntary add-on (applies to EMPLOYEE ONLY)
+   + voluntary add-on (Employee only)
+   + Employer PF Rate toggle (12.5% or 12%)
    ===================================================== */
 
 let bulkRawData     = [];
@@ -1989,6 +2061,10 @@ function processBulkFile() {
     const pfSpecAmtRaw = getBulkField(row, ['Specific PF Amount','PF Specific Amt','Fixed PF Amount','pf_specific_amt','pf_fixed_amt','SpecificPFAmount']);
     const bulkSpecAmt  = isNaN(cleanNum(pfSpecAmtRaw)) ? 0 : cleanNum(pfSpecAmtRaw);
 
+    // ✅ NEW: Employer PF Rate for bulk (default '12.5', can be '12')
+    const pfEmpRateRaw = getBulkField(row, ['Employer PF Rate','PF Employer Rate','Emp PF Rate','pf_employer_rate','employer_pf_rate']);
+    const bulkEmpRate = pfEmpRateRaw && ['12','12.5'].includes(pfEmpRateRaw.toString().trim()) ? pfEmpRateRaw.toString().trim() : '12.5';
+
     const ptRaw = getBulkField(row, ['PT','PT Amount','Professional Tax','PT (Monthly)','pt','Prof Tax','ProfTax','pt_amt']);
     const pt    = isNaN(cleanNum(ptRaw)) ? 0 : Math.max(0, cleanNum(ptRaw));
 
@@ -2003,11 +2079,11 @@ function processBulkFile() {
 
     try {
       const r = computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride,
-                           bulkPfBase, bulkHasVol, bulkVolPct, bulkSpecAmt);
+                           bulkPfBase, bulkHasVol, bulkVolPct, bulkSpecAmt, bulkEmpRate);
       bulkCalcResults.push({
         name: name, rowNum: rowNum, error: null, gross: r.gross, basic: r.basic, hra: r.hra, conv: r.conv,
         convLabel: r.convLabel, deferAllowance: r.deferAllowance, isHighGross: r.isHighGross,
-        minWage: r.minWage, pfApplicable: r.pfApplicable, pfWages: r.pfWages,
+        minWage: r.minWage, pfApplicable: r.pfApplicable, pfWages: r.pfWages, pfEmployerRate: r.pfEmployerRate,
         epfEmployer: r.epfEmployer, edliEmployer: r.edliEmployer, bonus: r.bonus, initialCTC: r.initialCTC,
         esiEmployer: r.esiEmployer, esiEmployee: r.esiEmployee,
         gratuity: r.gratuity, gratuityAuto: r.gratuityAuto,
@@ -2066,7 +2142,7 @@ function renderBulkResults(errors, total) {
   const headEl = document.getElementById('bulkTableHead');
   if (headEl) {
     headEl.innerHTML = '<tr>' +
-      '<th>#</th><th>Employee Name</th><th>PF</th><th>PF Mode</th><th>PF Wages</th>' +
+      '<th>#</th><th>Employee Name</th><th>PF</th><th>PF Mode</th><th>PF Wages</th><th>Emp Rate</th>' +
       '<th>Gross</th><th>Basic</th><th>HRA</th>' +
       '<th>Defray Expenses (10%)</th><th>Conveyance</th>' +
       '<th>EPF Employer</th><th>EDLI</th><th>Bonus</th><th>ESI Employer</th>' +
@@ -2085,7 +2161,7 @@ function renderBulkResults(errors, total) {
       bodyHtml += '<tr class="error-row ' + alt + '">' +
         '<td style="color:var(--text-muted)">' + r.rowNum + '</td>' +
         '<td class="td-name">' + escapeHtml(r.name) + '</td>' +
-        '<td colspan="22" style="font-size:11px;color:var(--danger);padding:8px 12px">' + escapeHtml(r.error) + '</td>' +
+        '<td colspan="23" style="font-size:11px;color:var(--danger);padding:8px 12px">' + escapeHtml(r.error) + '</td>' +
         '<td class="td-err">⚠ Error</td>' +
       '</tr>';
       return;
@@ -2103,19 +2179,22 @@ function renderBulkResults(errors, total) {
       ? '<span style="font-size:9px;padding:2px 5px;border-radius:4px;background:rgba(99,179,237,0.12);color:var(--accent)">' + (r.pfModeLabel || 'Standard') + '</span>'
       : '<span style="color:var(--text-muted);font-size:10px">N/A</span>';
 
+    const edliCell = r.edliEmployer > 0 ? bulkFmt(r.edliEmployer) : '<span style="color:var(--text-muted)">Rs.0</span>';
+
     bodyHtml += '<tr class="' + alt + '">' +
       '<td style="color:var(--text-muted)">' + r.rowNum + '</td>' +
       '<td class="td-name">' + escapeHtml(r.name) + '</td>' +
       '<td class="' + (r.pfApplicable === 'Y' ? 'td-pf-y' : 'td-pf-n') + '">' + r.pfApplicable + '</td>' +
       '<td style="min-width:160px">' + pfModeCellBadge + '</td>' +
       '<td class="td-right">' + bulkFmt(r.pfWages) + '</td>' +
+      '<td class="td-right">' + r.pfEmployerRate + '%</td>' +
       '<td class="td-right">' + bulkFmt(r.gross) + '</td>' +
       '<td class="td-right">' + bulkFmt(r.basic) + '</td>' +
       '<td class="td-right">' + bulkFmt(r.hra) + '</td>' +
       '<td class="td-right">' + deferCell + '</td>' +
       '<td class="td-right">' + bulkFmt(r.conv) + '</td>' +
       '<td class="td-right">' + bulkFmt(r.epfEmp) + '</td>' +
-      '<td class="td-right">' + bulkFmt(r.edli) + '</td>' +
+      '<td class="td-right">' + edliCell + '</td>' +
       '<td class="td-right">' + (r.bonus > 0 ? bulkFmt(r.bonus) : '<span style="color:var(--text-muted)">—</span>') + '</td>' +
       '<td class="td-right">' + (r.esiEmp > 0 ? bulkFmt(r.esiEmp) : '<span style="color:var(--text-muted)">—</span>') + '</td>' +
       '<td class="td-right">' + bulkFmt(r.gratuityUsed) + '</td>' +
@@ -2134,7 +2213,7 @@ function renderBulkResults(errors, total) {
 
   if (valid.length > 0) {
     bodyHtml += '<tr class="total-row">' +
-      '<td colspan="5">TOTAL (' + valid.length + ' employees)</td>' +
+      '<td colspan="6">TOTAL (' + valid.length + ' employees)</td>' +
       '<td class="td-right">' + bulkFmt(tot.gross) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.basic) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.hra) + '</td>' +
@@ -2172,7 +2251,7 @@ function renderBulkResults(errors, total) {
 function bulkExportCSV() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const headers = [
-    'Row','Employee Name','PF','PF Mode','PF Wages',
+    'Row','Employee Name','PF','PF Mode','PF Wages','Employer PF Rate',
     'Gross Salary','Basic','HRA',
     'Defray Expenses (10%)','Conveyance (Residual)',
     'EPF Employer','EDLI Employer','Bonus','ESI Employer',
@@ -2182,19 +2261,19 @@ function bulkExportCSV() {
     'EPF Employee','ESI Employee','Cash in Hand','Status','Notes'
   ];
   const rows = bulkCalcResults.map(function(r) {
-    if (r.error) return [r.rowNum, r.name, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Error', r.error];
+    if (r.error) return [r.rowNum, r.name, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Error', r.error];
     return [
-      r.rowNum, r.name, r.pfApplicable, r.pfModeLabel || 'Standard', r.pfWages,
+      r.rowNum, r.name, r.pfApplicable, r.pfModeLabel || 'Standard', r.pfWages, r.pfEmployerRate + '%',
       r.gross, r.basic, r.hra,
       r.isHighGross ? r.deferAllowance : 0, r.conv,
-      r.epfEmp, r.edli, r.bonus, r.esiEmp,
+      r.epfEmp, r.edliEmployer, r.bonus, r.esiEmp,
       r.gratuityAuto, r.gratuityUsed, r.leaveAuto, r.leaveUsed,
       r.lwf, r.pt, r.initialCTC,
       r.finalCTC, r.finalAnnual,
       r.epfEe, r.esiEe, r.cash, 'Calculated',
       r.isHighGross
-        ? 'PF Wages=' + (r.pfBaseUsed==='standard'?'min(Basic,15k)':r.pfBaseUsed==='full_basic'?'Full Basic':'Fixed') + ' | Defray=10% | Conv=Residual'
-        : 'PF Wages=' + (r.pfBaseUsed==='standard'?'min(Basic,15k)':r.pfBaseUsed==='full_basic'?'Full Basic':'Fixed') + ' | Conv=Residual'
+        ? 'PF Wages=' + (r.pfBaseUsed==='standard'?'min(Basic,15k)':r.pfBaseUsed==='full_basic'?'Full Basic':'Fixed') + ' | EmpRate=' + r.pfEmployerRate + '% | Defray=10% | Conv=Residual'
+        : 'PF Wages=' + (r.pfBaseUsed==='standard'?'min(Basic,15k)':r.pfBaseUsed==='full_basic'?'Full Basic':'Fixed') + ' | EmpRate=' + r.pfEmployerRate + '% | Conv=Residual'
     ];
   });
   const csv  = [headers].concat(rows).map(function(row) { return row.map(function(c) { return '"' + String(c !== null && c !== undefined ? c : '').replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
@@ -2216,11 +2295,11 @@ function bulkExportTXT() {
   const totalAnnual  = valid.reduce(function(s, r) { return s + (r.finalAnnual || 0); }, 0);
   let txt = 'BULK CTC CALCULATION REPORT — NEW LABOUR CODE\n' + '='.repeat(60) + '\nDate: ' + now + '\nTotal Employees: ' + bulkCalcResults.length + '  |  Processed: ' + valid.length + '  |  Errors: ' + (bulkCalcResults.length - valid.length) + '\nTotal Monthly CTC Payout: ' + bulkFmt(totalMonthly) + '\nTotal Annual CTC Payout:  ' + bulkFmt(totalAnnual) + '\n' + '='.repeat(60) + '\n\n';
   valid.forEach(function(r, i) {
-    txt += (i+1) + '. ' + r.name + '  (PF: ' + r.pfApplicable + ' | Mode: ' + (r.pfModeLabel || 'Standard') + ' | PF Wages: ' + bulkFmt(r.pfWages) + ')\n';
+    txt += (i+1) + '. ' + r.name + '  (PF: ' + r.pfApplicable + ' | Mode: ' + (r.pfModeLabel || 'Standard') + ' | PF Wages: ' + bulkFmt(r.pfWages) + ' | EmpRate: ' + r.pfEmployerRate + '%)\n';
     txt += '   Gross: ' + bulkFmt(r.gross) + ' | Basic: ' + bulkFmt(r.basic) + ' | HRA: ' + bulkFmt(r.hra) + '\n';
     if (r.isHighGross) txt += '   Defray (10%): ' + bulkFmt(r.deferAllowance) + ' | Conveyance: ' + bulkFmt(r.conv) + '\n';
     else txt += '   Conveyance: ' + bulkFmt(r.conv) + '\n';
-    txt += '   EPF Emp: ' + bulkFmt(r.epfEmp) + ' | EDLI: ' + bulkFmt(r.edli) + ' | Bonus: ' + (r.bonus > 0 ? bulkFmt(r.bonus) : 'N/A') + ' | ESI Emp: ' + (r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A') + '\n';
+    txt += '   EPF Emp: ' + bulkFmt(r.epfEmp) + ' | EDLI: ' + (r.edliEmployer > 0 ? bulkFmt(r.edliEmployer) : 'Rs.0') + ' | Bonus: ' + (r.bonus > 0 ? bulkFmt(r.bonus) : 'N/A') + ' | ESI Emp: ' + (r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A') + '\n';
     txt += '   Gratuity: ' + bulkFmt(r.gratuityUsed) + ' | Leave: ' + bulkFmt(r.leaveUsed) + ' | LWF: ' + (r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A') + ' | PT: ' + (r.pt > 0 ? bulkFmt(r.pt) : 'N/A') + '\n';
     txt += '   EPF Employee (' + (r.pfModeLabel || 'Standard') + '): ' + bulkFmt(r.epfEe) + ' | Employer: ' + bulkFmt(r.epfEmp) + '\n';
     txt += '   Initial CTC: ' + bulkFmt(r.initialCTC) + '\n';
@@ -2245,13 +2324,13 @@ function bulkExportTXT() {
 function bulkCopyClipboard() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const valid   = bulkCalcResults.filter(function(r) { return !r.error; });
-  const headers = ['#','Name','PF','PF Mode','PF Wages','Gross','Basic','HRA','Defray Expenses (10%)','Conveyance','EPF Employer','EDLI','Bonus','ESI Employer','Gratuity','Leave','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Employee','ESI Employee','Cash in Hand'];
+  const headers = ['#','Name','PF','PF Mode','PF Wages','Emp Rate','Gross','Basic','HRA','Defray Expenses (10%)','Conveyance','EPF Employer','EDLI','Bonus','ESI Employer','Gratuity','Leave','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Employee','ESI Employee','Cash in Hand'];
   const rows = valid.map(function(r, i) {
     return [
-      i+1, r.name, r.pfApplicable, r.pfModeLabel || 'Standard', r.pfWages,
+      i+1, r.name, r.pfApplicable, r.pfModeLabel || 'Standard', r.pfWages, r.pfEmployerRate + '%',
       r.gross, r.basic, r.hra,
       r.isHighGross ? r.deferAllowance : 0, r.conv,
-      r.epfEmp, r.edli, r.bonus, r.esiEmp,
+      r.epfEmp, r.edliEmployer, r.bonus, r.esiEmp,
       r.gratuityUsed, r.leaveUsed, r.lwf, r.pt,
       r.initialCTC, r.finalCTC, r.finalAnnual,
       r.epfEe, r.esiEe, r.cash
@@ -2263,25 +2342,25 @@ function bulkCopyClipboard() {
     .catch(function() { showToast('⚠️ Copy failed'); });
 }
 
-// ── Bulk Template — updated with PF Wages column ──
+// ── Bulk Template — updated with Employer PF Rate column ──
 function bulkDownloadTemplate() {
-  const csv = 'Employee Name,Gross Salary,Min Wage,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,PT Amount,LWF Amount,Gratuity,Leave Encashment\n' +
-'Rahul Sharma,30000,16868,Y,standard,N,,0,200,20,,\n' +
-'Priya Verma,45000,16868,Y,full_basic,N,,0,200,0,,\n' +
-'Amit Patel,18000,16868,N,standard,N,,0,0,0,,\n' +
-'Neha Singh,60000,16868,Y,standard,Y,5,0,300,25,,\n' +
-'Vikram Gupta,25000,16868,Y,specific_amt,N,,15000,200,20,,\n' +
-'Sunita Kumar,50000,14000,Y,full_basic,Y,3,0,200,0,,\n' +
-'Rajesh Mehta,120000,15860,Y,full_basic,N,,0,200,20,,\n' +
-'Pooja Joshi,150000,16868,Y,specific_amt,Y,10,20000,200,0,,\n' +
-'Arun Rao,80000,16868,N,standard,N,,0,208,0,,\n' +
-'Kavita Nair,15000,14858,Y,standard,N,,0,0,0,,';
+  const csv = 'Employee Name,Gross Salary,Min Wage,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,PT Amount,LWF Amount,Gratuity,Leave Encashment\n' +
+'Rahul Sharma,30000,16868,Y,standard,N,,0,12.5,200,20,,\n' +
+'Priya Verma,45000,16868,Y,full_basic,N,,0,12,200,0,,\n' +
+'Amit Patel,18000,16868,N,standard,N,,0,12.5,0,0,,\n' +
+'Neha Singh,60000,16868,Y,standard,Y,5,0,12.5,300,25,,\n' +
+'Vikram Gupta,25000,16868,Y,specific_amt,N,,15000,12,200,20,,\n' +
+'Sunita Kumar,50000,14000,Y,full_basic,Y,3,0,12.5,200,0,,\n' +
+'Rajesh Mehta,120000,15860,Y,full_basic,N,,0,12,200,20,,\n' +
+'Pooja Joshi,150000,16868,Y,specific_amt,Y,10,20000,12.5,200,0,,\n' +
+'Arun Rao,80000,16868,N,standard,N,,0,12.5,208,0,,\n' +
+'Kavita Nair,15000,14858,Y,standard,N,,0,12,0,0,,';
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = 'CTC_Bulk_Upload_Template_v8.csv';
+  link.download = 'CTC_Bulk_Upload_Template_v9.csv';
   link.click();
-  showToast('✓ Template Downloaded (v8 — PF Wages + Voluntary Employee Only)');
+  showToast('✓ Template Downloaded (v9 — Employer PF Rate Toggle + EDLI Auto)');
 }
 
 function resetBulk() {
