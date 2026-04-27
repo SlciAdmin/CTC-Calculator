@@ -3,7 +3,7 @@
    New Labour Code | Cross-Device Login System
    LWF + PT: State-wise Auto Calculation (v5.2)
    BULK UPLOAD: Fully Fixed & Parity with Individual
-   Gross > ₹1,00,000: Defer Allowance (10%) + Conveyance (residual ~7.5%)
+   Gross > ₹1,00,000: Defray Expenses (10%) + Conveyance (residual ~7.5%)
    ============================================ */
 
 // 🔥 FIREBASE CONFIG
@@ -823,8 +823,8 @@ function setLeaveMode(mode) {
 //
 //  Gross > ₹1,00,000 : Split Allowance mode
 //    Basic + HRA (50% of Basic)
-//    + Defer Allowance  = 10% of Gross  (fixed)
-//    + Conveyance       = residual after Basic + HRA + Defer
+//    + Defray Expenses (10%) = 10% of Gross  (fixed)
+//    + Conveyance       = residual after Basic + HRA + Defray Expenses
 //
 //  Result object carries BOTH conv & deferAllowance fields.
 //  convLabel  → used for the single-row (≤1L) display
@@ -845,12 +845,12 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   if (basic + hra > gross) hra = Math.max(gross - basic, 0);
 
   // ── Allowances: split logic ──
-  let deferAllowance = 0;   // 10% of Gross — only when gross > 1L
+  let deferAllowance = 0;   // 10% of Gross — only when gross > 1L (Defray Expenses)
   let conv           = 0;   // Conveyance (residual always)
   let convLabel      = '';
 
   if (gross > 100000) {
-    // ── HIGH-GROSS MODE: Defer Allowance (10%) + Conveyance (residual) ──
+    // ── HIGH-GROSS MODE: Defray Expenses (10%) + Conveyance (residual) ──
     deferAllowance = Math.round(gross * 0.10);
     const usedSoFar = basic + hra + deferAllowance;
 
@@ -897,7 +897,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
 
   return {
     gross, basic, hra, conv, convLabel,
-    deferAllowance,                        // ← NEW: 10% when gross > 1L, else 0
+    deferAllowance,                        // ← NEW: 10% when gross > 1L, else 0 (Defray Expenses)
     isHighGross: gross > 100000,           // ← NEW: flag for template/export logic
     minWage, pfApplicable: pf,
     epfEmployer, edliEmployer, bonus, initialCTC,
@@ -1013,7 +1013,7 @@ function renderSummary(r) {
   setText('r_cash',       fmt(r.cashInHand));
   setText('r_bonus',      r.bonus > 0 ? fmt(r.bonus) : 'N/A');
 
-  // Show / hide Defer Allowance mini-card in summary
+  // Show / hide Defray Expenses mini-card in summary
   const deferCard = document.getElementById('summary-defer-card');
   if (deferCard) {
     if (r.isHighGross) {
@@ -1033,14 +1033,14 @@ function renderBreakdown(r) {
   safeToggle('breakdownContent', false);
 
   // ── Salary structure rows ──
-  // When gross > 1L: Basic | HRA | Defer Allowance (10%) | Conveyance (residual)
+  // When gross > 1L: Basic | HRA | Defray Expenses (10%) | Conveyance (residual)
   // When gross ≤ 1L: Basic | HRA | Conveyance / Other (residual)
   let salRows;
   if (r.isHighGross) {
     salRows = [
       ['Basic',                                       r.basic],
       ['HRA (50% of Basic)',                          r.hra],
-      [`Defer Allowance `,              r.deferAllowance],
+      [`Defray Expenses (10%)`,              r.deferAllowance],
       [`${r.convLabel} (Residual)`,                   r.conv],
     ];
   } else {
@@ -1100,7 +1100,7 @@ function renderBreakdown(r) {
     ? `PT – Employee <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>`
     : `PT – ${r.ptStateName} <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>`;
 
-  // ── Final items: insert Defer Allowance row when applicable ──
+  // ── Final items: insert Defray Expenses row when applicable ──
   const finalItemsData = [
     { label: 'Gross Salary',      val: fmt(r.gross),      sub: 'Monthly',                           cls: '' },
     { label: 'Initial CTC',       val: fmt(r.initialCTC), sub: 'Gross + Employer Contributions',    cls: '' },
@@ -1115,10 +1115,10 @@ function renderBreakdown(r) {
     { label: 'PF Applicable',     val: r.pfApplicable === 'Y' ? 'Yes' : 'No',                       sub: r.pfApplicable === 'Y' ? '55% Basic Rule' : '53% Basic Rule', cls: 'purple' },
   ];
 
-  // Insert Defer Allowance info row just after Gross Salary when applicable
+  // Insert Defray Expenses info row just after Gross Salary when applicable
   if (r.isHighGross) {
     finalItemsData.splice(1, 0, {
-      label: 'Defer Allowance ',
+      label: 'Defray Expenses (10%)',
       val: fmt(r.deferAllowance),
       sub: `Gross > ₹1,00,000 | Conveyance (Residual): ${fmt(r.conv)}`,
       cls: 'purple'
@@ -1142,7 +1142,7 @@ function renderExportPreview(r) {
   ];
 
   if (r.isHighGross) {
-    rows.push(['Defer Allowance ', fmt(r.deferAllowance), false]);
+    rows.push(['Defray Expenses (10%)', fmt(r.deferAllowance), false]);
     rows.push(['Conveyance ', fmt(r.conv), false]);
   } else {
     rows.push([r.convLabel, fmt(r.conv), false]);
@@ -1244,7 +1244,7 @@ function exportPDF() {
   const now     = new Date().toLocaleDateString('en-IN');
 
   const allowanceLines = r.isHighGross
-    ? `Defer Allowance (10%) : ${fmt(r.deferAllowance)}\nConveyance (Residual)  : ${fmt(r.conv)}`
+    ? `Defray Expenses (10%) : ${fmt(r.deferAllowance)}\nConveyance (Residual)  : ${fmt(r.conv)}`
     : `Conveyance     : ${fmt(r.conv)}`;
 
   const content = `
@@ -1264,7 +1264,7 @@ HRA               : ${fmt(r.hra)}    (50% of Basic)
 ${allowanceLines}
 ────────────────────────
 Gross Salary      : ${fmt(r.gross)}
-${r.isHighGross ? '\n⚠ Gross > ₹1,00,000: Defer Allowance (10% fixed) + Conveyance (Residual) applied.' : ''}
+${r.isHighGross ? '\n⚠ Gross > ₹1,00,000: Defray Expenses (10% fixed) + Conveyance (Residual) applied.' : ''}
 
 EMPLOYER CONTRIBUTIONS
 —————————————————————
@@ -1290,7 +1290,7 @@ NET CASH IN HAND  : ${fmt(r.cashInHand)}
 
 Formula: As per New Labour Code — Basic = MAX(${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross, Min Wage)
 ${r.isHighGross
-  ? 'Defer Allowance = 10% of Gross (Gross > ₹1,00,000). Conveyance = Residual after Basic+HRA+Defer.'
+  ? 'Defray Expenses = 10% of Gross (Gross > ₹1,00,000). Conveyance = Residual after Basic+HRA+Defray Expenses.'
   : 'Conveyance = Residual after Basic + HRA'}
 LWF & PT computed as per state-wise New Labour Code rules.
 `;
@@ -1319,8 +1319,8 @@ function exportCSV() {
   ];
 
   if (r.isHighGross) {
-    rows.push(['Defer Allowance ', r.deferAllowance, 'Fixed 10% — Gross > ₹1,00,000']);
-    rows.push(['Conveyance', r.conv, 'Residual after Basic+HRA+Defer']);
+    rows.push(['Defray Expenses (10%)', r.deferAllowance, 'Fixed 10% — Gross > ₹1,00,000']);
+    rows.push(['Conveyance', r.conv, 'Residual after Basic+HRA+Defray Expenses']);
   } else {
     rows.push([r.convLabel, r.conv, 'Residual after Basic + HRA']);
   }
@@ -1365,7 +1365,7 @@ function copyToClipboard() {
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
 
   const allowanceLines = r.isHighGross
-    ? [`Defer Allowance (10%)\t${r.deferAllowance}`, `Conveyance (Residual)\t${r.conv}`]
+    ? [`Defray Expenses (10%)\t${r.deferAllowance}`, `Conveyance (Residual)\t${r.conv}`]
     : [`${r.convLabel}\t${r.conv}`];
 
   const lines = [
@@ -1746,13 +1746,13 @@ function renderBulkResults(errors, total) {
     `;
   }
 
-  // ── Table header: separate Defer Allowance + Conveyance columns ──
+  // ── Table header: separate Defray Expenses + Conveyance columns ──
   const headEl = document.getElementById('bulkTableHead');
   if (headEl) {
     headEl.innerHTML = `<tr>
       <th>#</th><th>Employee Name</th><th>PF</th>
       <th>Gross</th><th>Basic</th><th>HRA</th>
-      <th>Defer Allow. (10%)</th><th>Conveyance</th>
+      <th>Defray Expenses (10%)</th><th>Conveyance</th>
       <th>EPF Emp</th><th>EDLI</th><th>Bonus</th><th>ESI Emp</th>
       <th>Gratuity</th><th>Leave Enc.</th><th>LWF</th><th>PT</th>
       <th>Initial CTC</th><th>Final CTC/Mo</th><th>Annual CTC</th>
@@ -1784,7 +1784,7 @@ function renderBulkResults(errors, total) {
       tot[k] = (tot[k] || 0) + (r[k] || 0);
     });
 
-    // Defer Allowance cell: show value with badge when high-gross, else show —
+    // Defray Expenses cell: show value with badge when high-gross, else show —
     const deferCell = r.isHighGross
       ? `${bulkFmt(r.deferAllowance)} <span style="font-size:9px;color:var(--accent2)">10%</span>`
       : `<span style="color:var(--text-muted)">—</span>`;
@@ -1858,7 +1858,7 @@ function bulkExportCSV() {
   const headers = [
     'Row','Employee Name','PF',
     'Gross Salary','Basic','HRA',
-    'Defer Allowance ','Conveyance (Residual)',
+    'Defray Expenses (10%)','Conveyance (Residual)',
     'EPF Employer','EDLI Employer','Bonus','ESI Employer',
     'Gratuity (Auto)','Gratuity (Used)','Leave Auto','Leave Used',
     'LWF','PT','Initial CTC',
@@ -1870,7 +1870,7 @@ function bulkExportCSV() {
     return [
       r.rowNum, r.name, r.pfApplicable,
       r.gross, r.basic, r.hra,
-      r.isHighGross ? r.deferAllowance : 0,   // Defer Allowance (10%) — 0 if ≤ 1L
+      r.isHighGross ? r.deferAllowance : 0,   // Defray Expenses (10%) — 0 if ≤ 1L
       r.conv,                                  // Conveyance (residual)
       r.epfEmp, r.edli, r.bonus, r.esiEmp,
       r.gratuityAuto, r.gratuityUsed, r.leaveAuto, r.leaveUsed,
@@ -1878,7 +1878,7 @@ function bulkExportCSV() {
       r.finalCTC, r.finalAnnual,
       r.epfEe, r.esiEe, r.cash, 'Calculated',
       r.isHighGross
-        ? `Basic=${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross or MinWage | Defer=10% of Gross | Conv=Residual`
+        ? `Basic=${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross or MinWage | Defray Expenses=10% of Gross | Conv=Residual`
         : `Basic=${r.pfApplicable === 'Y' ? '55%' : '53%'} of Gross or MinWage | Conv=Residual`
     ];
   });
@@ -1904,7 +1904,7 @@ function bulkExportTXT() {
     txt += `${i+1}. ${r.name}  (PF: ${r.pfApplicable})\n`;
     txt += `   Gross: ${bulkFmt(r.gross)} | Basic: ${bulkFmt(r.basic)} | HRA: ${bulkFmt(r.hra)}\n`;
     if (r.isHighGross) {
-      txt += `   Defer Allowance (10%): ${bulkFmt(r.deferAllowance)} | Conveyance (Residual): ${bulkFmt(r.conv)}\n`;
+      txt += `   Defray Expenses (10%): ${bulkFmt(r.deferAllowance)} | Conveyance (Residual): ${bulkFmt(r.conv)}\n`;
     } else {
       txt += `   Conveyance: ${bulkFmt(r.conv)}\n`;
     }
@@ -1934,7 +1934,7 @@ function bulkExportTXT() {
 function bulkCopyClipboard() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const valid = bulkCalcResults.filter(r => !r.error);
-  const headers = ['#','Name','PF','Gross','Basic','HRA','Defer Allow.(10%)','Conveyance','EPF Emp','EDLI','Bonus','ESI Emp','Gratuity','Leave','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Ee','ESI Ee','Cash in Hand'];
+  const headers = ['#','Name','PF','Gross','Basic','HRA','Defray Expenses (10%)','Conveyance','EPF Emp','EDLI','Bonus','ESI Emp','Gratuity','Leave','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Ee','ESI Ee','Cash in Hand'];
   const rows = valid.map((r, i) => [
     i+1, r.name, r.pfApplicable,
     r.gross, r.basic, r.hra,
