@@ -1222,8 +1222,8 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   const initialCTC = gross + epfEmployer + edliEmployer + bonus;
 
   // ── ESI ──
-  const esiEmployer = gross <= 21000 ? Math.round(gross * 0.0325) : 0;
-  const esiEmployee = gross <= 21000 ? Math.round(gross * 0.0075) : 0;
+  const esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
+  const esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
 
   // ── Gratuity & Leave ──
   const gratuityAuto = Math.round((basic / 26) * 15 / 12);
