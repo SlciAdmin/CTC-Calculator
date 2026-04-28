@@ -1702,98 +1702,345 @@ function resetAll() {
 // ═══════════════════════════════════════════════════════════════
 //  ✅ EXPORT PDF
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+//  ✅ EXPORT PDF - FIXED WITH PROPER BORDERS & ALIGNMENT
+//  All values inside tables • No overlap • Professional borders
+// ═══════════════════════════════════════════════════════════════
 function exportPDF() {
-  if (!calcResult) { showToast('⚠️ Please calculate first'); return; }
-  const r       = calcResult;
+  if (!calcResult) { showToast('Please calculate first'); return; }
+  
+  const r = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
-  const now     = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
-  const pfStatus = r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable';
-  const edliAmt  = r.edliEmployer > 0 ? fmt(r.edliEmployer) : 'N/A';
-
-  // ✅ Calculate leave count for infoBlock (reuse same logic as preview)
-  const leaveLeaves = (r.leaveMode === 'manual') 
-    ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15) 
-    : 15;
-
-  function tableSection(title, rows) {
-    const SEP   = '+' + '-'.repeat(38) + '+' + '-'.repeat(18) + '+';
-    const HEAD  = '|' + ' ' + padR(title, 37) + '|' + padR(' Amount', 18) + '|';
-    let out = SEP + '\n' + HEAD + '\n' + SEP + '\n';
-    rows.forEach(function(row) {
-      out += '|  ' + padR(row[0], 36) + '|' + padL(row[1], 17) + ' |\n';
-    });
-    out += SEP + '\n';
-    return out;
+  const now = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+  
+  // Initialize jsPDF
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  
+  // ── CONSTANTS ──
+  const PW = 210;           // A4 width mm
+  const PH = 297;           // A4 height mm
+  const M = 12;             // Margin
+  const CW = PW - (M * 2);  // Content width
+  const HH = 25;            // Header height
+  const FH = 15;            // Footer space
+  
+  let Y = HH + 10;          // Start position
+  
+  // ── HELPER: Format Amount ──
+  function fmt(n) {
+    if (n == null || isNaN(n)) return 'Rs. 0';
+    return 'Rs. ' + Math.round(n).toLocaleString('en-IN');
   }
-
-  function padR(s, n) { s = String(s); return s.length >= n ? s.slice(0, n) : s + ' '.repeat(n - s.length); }
-  function padL(s, n) { s = String(s); return s.length >= n ? s.slice(0, n) : ' '.repeat(n - s.length) + s; }
-
-  const infoBlock =
-    '  Employee Name   : ' + empName + '\n' +
-    '  Date            : ' + now + '\n' +
-    '  PF              : ' + pfStatus + '\n' +
-    '  PF Mode         : ' + (r.pfApplicable === 'Y' ? (r.pfBaseUsed === 'standard' ? 'Standard' : r.pfBaseUsed === 'full_basic' ? 'Full Basic' : 'Specific Amount') : 'N/A') + '\n' +
-    // ✅ Added Leave Leaves/yr line after PF Mode
-    '  Leave Leaves/yr : ' + leaveLeaves + '\n' +
-    '  Employer PF Rate: ' + (r.pfApplicable === 'Y' ? r.pfEmployerRate + '%' : 'N/A') + '\n' +
-    '  State Min Wage  : ' + fmt(r.minWage) + '\n' +
-    '  LWF State       : ' + (r.lwfStateName||'N/A') + '\n' +
-    '  PT State        : ' + (r.ptStateName||'N/A') + '\n';
-
-  const salaryRows = [['Basic Salary', fmt(r.basic)], ['HRA', fmt(r.hra)]];
-  if (r.isHighGross) { salaryRows.push(['Defray Expenses (10%)', fmt(r.deferAllowance)]); salaryRows.push(['Conveyance', fmt(r.conv)]); }
-  else { salaryRows.push(['Conveyance', fmt(r.conv)]); }
-  salaryRows.push(['─────────────────────────────────────', '──────────────']);
-  salaryRows.push(['GROSS SALARY', fmt(r.gross)]);
-
-  const employerRows = [
-    ['EPF – Employer (' + r.pfEmployerRate + '%)',  r.pfApplicable === 'Y' ? fmt(r.epfEmployer)  : 'N/A'],
-    ['EDLI – Employer',                             edliAmt],
-    ['Bonus',                                       r.bonus > 0 ? fmt(r.bonus) : 'N/A'],
-    ['─────────────────────────────────────',       '──────────────'],
-    ['Initial CTC',                                 fmt(r.initialCTC)],
-    ['ESI – Employer (3.25%)',                      r.esiEmployer > 0 ? fmt(r.esiEmployer) : 'N/A'],
-    ['Gratuity',                                    fmt(r.gratuity)],
-    // ✅ Also update this line to match preview (optional but recommended for consistency)
-    ['Leave Encashment (' + leaveLeaves + ' leaves/yr)', fmt(r.leaveComponent)],
-    ['LWF',                                         r.lwf > 0 ? fmt(r.lwf) : 'N/A'],
+  
+  // ── HELPER: Check & Add New Page ──
+  function needPage(need) {
+    if (Y + need > PH - FH - 10) {
+      doc.addPage();
+      Y = 18;
+      addMiniHeader();
+      return true;
+    }
+    return false;
+  }
+  
+  // ── HEADER (First Page) ──
+  function addMainHeader() {
+    doc.setFillColor(28, 58, 108);
+    doc.rect(0, 0, PW, HH, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('CTC SALARY REPORT', PW/2, 12, {align:'center'});
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('New Labour Code Compliance - Gross Based', PW/2, 18, {align:'center'});
+    doc.text('SLCI Solutions', PW/2, 23, {align:'center'});
+  }
+  
+  // ── MINI HEADER (Other Pages) ──
+  function addMiniHeader() {
+    doc.setFillColor(28, 58, 108);
+    doc.rect(0, 0, PW, 10, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('CTC Report - ' + empName.substring(0,20), PW/2, 6.5, {align:'center'});
+    Y = 15;
+  }
+  
+  // ── FOOTER ──
+  function addFooter(pn, tp) {
+    const fy = PH - 10;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(M, fy, PW-M, fy);
+    
+    doc.setTextColor(120, 120, 120);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text('Generated: ' + now, M, fy + 4);
+    doc.text('Page ' + pn + ' of ' + tp, PW-M, fy + 4, {align:'right'});
+  }
+  
+  // ── INFO SECTION ──
+  function addInfo() {
+    needPage(35);
+    doc.setTextColor(35, 35, 35);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    
+    const info = [
+      ['Employee Name', empName],
+      ['Report Date', now],
+      ['PF Status', r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable'],
+      ['Minimum Wage', fmt(r.minWage)],
+      ['LWF State', r.lwfStateName || 'Not Selected'],
+      ['PT State', r.ptStateName || 'Not Selected']
+    ];
+    
+    info.forEach(function(it, i) {
+      doc.setFont('helvetica', 'bold');
+      doc.text(it[0] + ':', M, Y + (i * 5));
+      doc.setFont('helvetica', 'normal');
+      doc.text(it[1], M + 42, Y + (i * 5));
+    });
+    Y += (info.length * 5) + 12;
+  }
+  
+  // ── SECTION TITLE ──
+  function addTitle(txt) {
+    needPage(20);
+    
+    // Title bar
+    doc.setFillColor(240, 240, 240);
+    doc.rect(M, Y-2, CW, 8, 'F');
+    doc.setDrawColor(28, 58, 108);
+    doc.setLineWidth(0.3);
+    doc.line(M, Y-2, M+CW, Y-2);
+    doc.line(M, Y+6, M+CW, Y+6);
+    
+    doc.setTextColor(28, 58, 108);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(txt, M+5, Y+3);
+    
+    Y += 16;
+  }
+  
+  // ── TABLE WITH BORDERS (2 columns) ──
+  function addBorderedTable(headers, rows, highlightLast) {
+    const col1W = CW * 0.62;  // 62% for label
+    const col2W = CW - col1W; // 38% for amount
+    const RH = 7;             // Row height
+    
+    needPage((rows.length + 1) * RH + 15);
+    
+    doc.setFontSize(8);
+    
+    // ── TABLE HEADER ──
+    doc.setFillColor(28, 58, 108);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    
+    // Header background
+    doc.rect(M, Y, col1W, RH, 'F');
+    doc.rect(M+col1W, Y, col2W, RH, 'F');
+    
+    // Header text
+    doc.text(headers[0], M+3, Y+4.5);
+    doc.text(headers[1], M+col1W+3, Y+4.5, {align:'right'});
+    
+    // Header borders
+    doc.setDrawColor(28, 58, 108);
+    doc.setLineWidth(0.4);
+    doc.rect(M, Y, CW, RH, 'S');
+    
+    Y += RH;
+    
+    // ── TABLE ROWS ──
+    doc.setTextColor(35, 35, 35);
+    doc.setFont('helvetica', 'normal');
+    
+    rows.forEach(function(row, ri) {
+      needPage(RH + 5);
+      
+      // Alternating background
+      if (ri % 2 === 0) {
+        doc.setFillColor(250, 250, 250);
+        doc.rect(M, Y, CW, RH, 'F');
+      }
+      
+      // Highlight last row
+      if (highlightLast && ri === rows.length-1) {
+        doc.setTextColor(0, 95, 60);
+        doc.setFont('helvetica', 'bold');
+      }
+      
+      // Cell borders
+      doc.setDrawColor(180, 180, 180);
+      doc.setLineWidth(0.2);
+      doc.rect(M, Y, col1W, RH, 'S');
+      doc.rect(M+col1W, Y, col2W, RH, 'S');
+      
+      // Text - truncate if too long
+      let label = String(row[0]);
+      if (label.length > 38) label = label.substring(0, 35) + '...';
+      
+      doc.text(label, M+3, Y+4.5);
+      doc.text(String(row[1]), M+col1W+3, Y+4.5, {align:'right'});
+      
+      // Reset style
+      doc.setTextColor(35, 35, 35);
+      doc.setFont('helvetica', 'normal');
+      
+      Y += RH;
+    });
+    
+    // Bottom border
+    doc.setDrawColor(28, 58, 108);
+    doc.setLineWidth(0.4);
+    doc.rect(M, Y-RH, CW, RH, 'S');
+    
+    Y += 8;
+  }
+  
+  // ── 3-COLUMN TABLE WITH BORDERS ──
+  function addBorderedTable3(headers, rows) {
+    const W1 = CW * 0.42;     // 42% first col
+    const W2 = CW * 0.29;     // 29% second col
+    const W3 = CW - W1 - W2;  // Rest third col
+    const RH = 7;
+    
+    needPage((rows.length + 1) * RH + 15);
+    
+    doc.setFontSize(8);
+    
+    // Header
+    doc.setFillColor(28, 58, 108);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    
+    doc.rect(M, Y, W1, RH, 'F');
+    doc.rect(M+W1, Y, W2, RH, 'F');
+    doc.rect(M+W1+W2, Y, W3, RH, 'F');
+    
+    doc.text(headers[0], M+3, Y+4.5);
+    doc.text(headers[1], M+W1+3, Y+4.5, {align:'right'});
+    doc.text(headers[2], M+W1+W2+3, Y+4.5, {align:'right'});
+    
+    doc.setDrawColor(28, 58, 108);
+    doc.setLineWidth(0.4);
+    doc.rect(M, Y, CW, RH, 'S');
+    
+    Y += RH;
+    
+    // Rows
+    doc.setTextColor(35, 35, 35);
+    doc.setFont('helvetica', 'normal');
+    
+    rows.forEach(function(row, ri) {
+      needPage(RH + 5);
+      
+      if (ri % 2 === 0) {
+        doc.setFillColor(250, 250, 250);
+        doc.rect(M, Y, CW, RH, 'F');
+      }
+      
+      doc.setDrawColor(180, 180, 180);
+      doc.setLineWidth(0.2);
+      doc.rect(M, Y, W1, RH, 'S');
+      doc.rect(M+W1, Y, W2, RH, 'S');
+      doc.rect(M+W1+W2, Y, W3, RH, 'S');
+      
+      let label = String(row[0]);
+      if (label.length > 32) label = label.substring(0, 29) + '...';
+      
+      doc.text(label, M+3, Y+4.5);
+      doc.text(String(row[1]), M+W1+3, Y+4.5, {align:'right'});
+      doc.text(String(row[2]), M+W1+W2+3, Y+4.5, {align:'right'});
+      
+      Y += RH;
+    });
+    
+    doc.setDrawColor(28, 58, 108);
+    doc.setLineWidth(0.4);
+    doc.rect(M, Y-RH, CW, RH, 'S');
+    
+    Y += 8;
+  }
+  
+  // ═══════════════════════════════════════════════════════════
+  //  BUILD PDF CONTENT
+  // ═══════════════════════════════════════════════════════════
+  
+  // 1. Main Header
+  addMainHeader();
+  
+  // 2. Employee Info
+  addInfo();
+  
+  // 3. Salary Structure
+  addTitle('SALARY STRUCTURE (Monthly)');
+  const salRows = [
+    ['Basic Salary', fmt(r.basic)],
+    ['HRA', fmt(r.hra)],
+    [r.convLabel || 'Conveyance', fmt(r.conv)],
+    ['-------------------------', '--------------'],
+    ['GROSS SALARY', fmt(r.gross)]
   ];
-
-  const deductionRows = [
-    ['EPF – Employee (12%' + (r.pfHasVoluntary ? ' + ' + r.pfVolPct + '% Voluntary)' : ')'), r.pfApplicable === 'Y' ? fmt(r.epfEmployee) : 'N/A'],
-    ['ESI – Employee (0.75%)',                      r.esiEmployee > 0 ? fmt(r.esiEmployee) : 'N/A'],
-    ['Professional Tax – ' + (r.ptStateName||'N/A'), r.ptDeduction > 0 ? fmt(r.ptDeduction) : 'N/A'],
-    ['LWF – ' + (r.lwfStateName||'N/A'),           r.lwf > 0 ? fmt(r.lwf) : 'N/A'],
+  addBorderedTable(['Component', 'Amount'], salRows);
+  
+  // 4. Employer Contributions
+  addTitle('EMPLOYER CONTRIBUTIONS');
+  const empRows = [
+    ['EPF - Employer', r.pfApplicable === 'Y' ? fmt(r.epfEmployer) : 'N/A'],
+    ['EDLI - Employer', r.edliEmployer > 0 ? fmt(r.edliEmployer) : 'Rs. 0'],
+    ['Bonus', r.bonus > 0 ? fmt(r.bonus) : 'N/A'],
+    ['-------------------------', '--------------'],
+    ['Initial CTC', fmt(r.initialCTC)],
+    ['ESI - Employer', r.esiEmployer > 0 ? fmt(r.esiEmployer) : 'N/A'],
+    ['Gratuity', fmt(r.gratuity)],
+    ['Leave Encashment', fmt(r.leaveComponent)],
+    ['LWF', r.lwf > 0 ? fmt(r.lwf) : 'Rs. 0']
   ];
-
-  const summaryRows = [
-    ['Final CTC (Monthly)',  fmt(r.finalCTC)],
-    ['Final CTC (Annual)',   fmt(r.finalCTCAnnual)],
-    ['─────────────────────────────────────', '──────────────'],
-    ['NET CASH IN HAND',     fmt(r.cashInHand)],
+  addBorderedTable(['Component', 'Amount'], empRows);
+  
+  // 5. Employee Deductions
+  addTitle('EMPLOYEE DEDUCTIONS');
+  const dedRows = [
+    ['EPF - Employee', r.pfApplicable === 'Y' ? fmt(r.epfEmployee) : 'N/A'],
+    ['ESI - Employee', r.esiEmployee > 0 ? fmt(r.esiEmployee) : 'N/A'],
+    ['Professional Tax', r.ptDeduction > 0 ? fmt(r.ptDeduction) : 'Rs. 0'],
+    ['LWF', r.lwf > 0 ? fmt(r.lwf) : 'Rs. 0']
   ];
-
-  const BORDER = '═'.repeat(58);
-  const content =
-    BORDER + '\n' +
-    '   CTC SALARY REPORT — NEW LABOUR CODE 2024\n' +
-    BORDER + '\n\n' +
-    infoBlock + '\n' +
-    tableSection('SALARY STRUCTURE', salaryRows) + '\n' +
-    tableSection('EMPLOYER CONTRIBUTIONS', employerRows) + '\n' +
-    tableSection('EMPLOYEE DEDUCTIONS', deductionRows) + '\n' +
-    tableSection('FINAL SUMMARY', summaryRows) + '\n' +
-    BORDER + '\n' +
-    '  Generated on ' + now + ' via CTC Calculator (New Labour Code)\n' +
-    BORDER + '\n';
-
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = 'CTC_Report_' + empName.replace(/\s+/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.txt';
-  link.click();
-  showToast('✓ Report Downloaded');
+  addBorderedTable(['Deduction', 'Amount'], dedRows);
+  
+  // 6. Final Summary
+  addTitle('FINAL SUMMARY');
+  const finalRows = [
+    ['Final CTC', fmt(r.finalCTC), fmt(r.finalCTCAnnual)],
+    ['Net Cash in Hand', fmt(r.cashInHand), fmt(r.cashInHand * 12)]
+  ];
+  addBorderedTable3(['Particulars', 'Monthly', 'Annual'], finalRows);
+  
+  // ═══════════════════════════════════════════════════════════
+  //  ADD FOOTERS & DOWNLOAD
+  // ═══════════════════════════════════════════════════════════
+  
+  const tp = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= tp; p++) {
+    doc.setPage(p);
+    addFooter(p, tp);
+  }
+  
+  // Download
+  const safe = empName.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 22);
+  const fn = 'CTC_Report_' + safe + '_' + new Date().toISOString().slice(0,10) + '.pdf';
+  
+  doc.save(fn);
+  showToast('PDF downloaded successfully');
 }
 
 function exportCSV() {
