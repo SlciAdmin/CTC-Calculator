@@ -2104,6 +2104,10 @@ function processBulkFile() {
     // ── Employee Name ──
     const name = getBulkField(row, ['Employee Name','EmployeeName','Name','Emp Name','EmpName','Employee','EMPLOYEE NAME']) || 'Employee ' + rowNum;
 
+    // ── Employee Code & Branch (NEW) ──
+    const empCode = getBulkField(row, ['Employee Code','Emp Code','EmployeeCode','EmpCode','Code','ID','Employee ID','EmpID']) || '';
+    const branch  = getBulkField(row, ['Branch','Office','Location','Site','Branch Name','BranchName','Unit','Department']) || '';
+
     // ── Previous Basic ──
     const prevBasicRaw = getBulkField(row, ['Previous Basic','Prev Basic','PrevBasic','Old Basic','OldBasic','Last Basic','Previous Basic Salary']);
     const previousBasic = isNaN(cleanNum(prevBasicRaw)) ? null : cleanNum(prevBasicRaw);
@@ -2245,7 +2249,7 @@ function processBulkFile() {
       );
 
       bulkCalcResults.push({
-        name, rowNum, error: null,
+        name, rowNum, empCode, branch, error: null,  // ✅ empCode & branch added here
         previousBasic,
         salaryMonth    : bulkMonth,
         gender         : bulkGender,
@@ -2273,7 +2277,7 @@ function processBulkFile() {
         ptDeduction: r.ptDeduction, cash: r.cashInHand,
       });
     } catch (err) {
-      bulkCalcResults.push({ name, rowNum, error: 'Calculation error: ' + err.message });
+      bulkCalcResults.push({ name, rowNum, empCode, branch, error: 'Calculation error: ' + err.message }); // ✅ also added for error case
       errors++;
     }
   });
@@ -2329,12 +2333,14 @@ function renderBulkResults(errors, total) {
     `;
   }
 
-  // ── Table Header — all individual-level columns ──
+  // ── Table Header — UPDATED with Emp Code & Branch ──
   const headEl = document.getElementById('bulkTableHead');
   if (headEl) {
     headEl.innerHTML = `<tr>
       <th>#</th>
       <th>Employee Name</th>
+      <th>Emp Code</th>
+      <th>Branch</th>
       <th>Month</th>
       <th>Gender</th>
       <th>Prev Basic</th>
@@ -2381,10 +2387,11 @@ function renderBulkResults(errors, total) {
     const alt = i % 2 === 0 ? '' : 'alt-row';
 
     if (r.error) {
+      // ── Error Row — UPDATED colspan to 32 ──
       bodyHtml += '<tr class="error-row ' + alt + '">' +
         '<td style="color:var(--text-muted)">' + r.rowNum + '</td>' +
         '<td class="td-name">' + escapeHtml(r.name) + '</td>' +
-        '<td colspan="30" style="font-size:11px;color:var(--danger);padding:8px 12px;">' + escapeHtml(r.error) + '</td>' +
+        '<td colspan="32" style="font-size:11px;color:var(--danger);padding:8px 12px;">' + escapeHtml(r.error) + '</td>' +
         '<td class="td-err">⚠ Error</td>' +
         '</tr>';
       return;
@@ -2433,9 +2440,12 @@ function renderBulkResults(errors, total) {
       ? bulkFmt(r.leaveUsed) + ' <span style="font-size:9px;color:var(--accent2)">M</span>'
       : bulkFmt(r.leaveUsed);
 
+    // ── Valid Row — UPDATED with empCode & branch cells ──
     bodyHtml += '<tr class="' + alt + '">' +
       '<td style="color:var(--text-muted)">' + r.rowNum + '</td>' +
       '<td class="td-name">' + escapeHtml(r.name) + '</td>' +
+      '<td class="td-name" style="font-size:11px;color:var(--accent)">' + escapeHtml(r.empCode || '—') + '</td>' +
+      '<td>' + escapeHtml(r.branch || '—') + '</td>' +
       '<td style="text-align:center;font-size:11px;color:var(--text-dim)">' + (monthNames[r.salaryMonth] || '—') + '</td>' +
       '<td style="text-align:center;font-size:10px;color:var(--text-dim)">' + (r.gender || 'M') + '</td>' +
       '<td class="td-right">' + prevBasicCell + '</td>' +
@@ -2470,10 +2480,10 @@ function renderBulkResults(errors, total) {
       '</tr>';
   });
 
-  // ── Total Row ──
+  // ── Total Row — UPDATED colspan to 12 ──
   if (valid.length > 0) {
     bodyHtml += '<tr class="total-row">' +
-      '<td colspan="10">TOTAL (' + valid.length + ' employees)</td>' +
+      '<td colspan="12">TOTAL (' + valid.length + ' employees)</td>' +
       '<td class="td-right">' + bulkFmt(tot.gross) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.basic) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.hra) + '</td>' +
@@ -2760,55 +2770,29 @@ function bulkCopyClipboard() {
 }
 
 // ── Bulk Template Download — Complete with all columns ──
+// REPLACE the existing bulkDownloadTemplate function with this:
 function bulkDownloadTemplate() {
-  const csv = [
-    // All columns including new ones
-    'Employee Name,Gross Salary,Min Wage,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,PT State,LWF State,Salary Month,Gender,Previous Basic,Gratuity,Leave Encashment Amount,Leaves per Year',
-
-    // Standard PF + Auto PT (Karnataka) + Auto LWF (Karnataka) + Dec + 15 leaves
-    'Rahul Sharma,30000,16868,Y,standard,N,,0,12.5,KA,FKL,12,Male,25000,,,15',
-
-    // Full Basic PF + Auto PT (Maharashtra Male) + Auto LWF (MH) + Dec + 18 leaves
-    'Priya Verma,45000,16868,Y,full_basic,N,,0,12,MH,MH,12,Male,40000,,500,18',
-
-    // No PF (Gross>21k so basic>15k) + Manual PT + No LWF + 15 leaves
-    'Amit Patel,55000,16868,N,standard,N,,0,12.5,,OTHER,12,Male,,,,15',
-
-    // Standard PF + Voluntary + Auto PT (Gujarat) + No LWF + 20 leaves
-    'Neha Singh,60000,16868,Y,standard,Y,5,0,12.5,GJ,OTHER,6,Female,55000,,,20',
-
-    // Specific PF Amount + Auto PT (AP) + Auto LWF (AP) + 15 leaves
-    'Vikram Gupta,25000,16868,Y,specific_amt,N,,15000,12,AP,AP,12,Male,22000,,,15',
-
-    // Full Basic + Voluntary + Auto PT (Telangana) + Manual Gratuity + 12 leaves
-    'Sunita Kumar,50000,14000,Y,full_basic,Y,3,0,12.5,TS,OTHER,12,Female,,500,200,12',
-
-    // High Gross + Full Basic + Auto PT (Karnataka) + Auto LWF (KA) + 15 leaves
-    'Rajesh Mehta,120000,15860,Y,full_basic,N,,0,12,KA,FKL,12,Male,110000,,,15',
-
-    // High Gross + Specific PF + Voluntary + Auto PT (WB) + 18 leaves
-    'Pooja Joshi,150000,16868,Y,specific_amt,Y,10,20000,12.5,WB,WB,6,Female,,800,,18',
-
-    // No PF (high gross) + Auto PT (Tamil Nadu) + No LWF + 15 leaves
-    'Arun Rao,80000,16868,N,standard,N,,0,12.5,TN,TN,12,Male,75000,,,15',
-
-    // Standard PF + Auto PT (Telangana) + 15 leaves
-    'Kavita Nair,15000,14858,Y,standard,N,,0,12,TS,,12,Male,13000,,,15',
-
-    // Standard PF + Auto PT (Kerala June) + Auto LWF (Kerala) + 21 leaves
-    'Mohan Das,35000,16000,Y,standard,N,,0,12.5,KL,SKL,6,Male,30000,,,21',
-
-    // Full Basic + Employer@12% + Auto PT (Odisha) + Auto LWF (Odisha) + 15 leaves
-    'Ritu Sharma,42000,16868,Y,full_basic,N,,0,12,OD,OD,12,Female,38000,,,15',
-
-  ].join('\n');
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = 'CTC_Bulk_Upload_Template_v12.csv';
-  link.click();
-  showToast('✓ Template v12 Downloaded — All columns included');
+	const csv = [
+		'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,PT State,LWF State,Salary Month,Gender,Previous Basic,Gratuity,Leave Encashment Amount,Leaves per Year',
+		'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,Y,standard,N,,0,12.5,KA,FKL,12,Male,25000,,,15',
+		'Priya Verma,EMP002,Delhi-Branch,45000,16868,Y,full_basic,N,,0,12,MH,MH,12,Male,40000,,500,18',
+		'Amit Patel,EMP003,Bangalore-Site,55000,16868,N,standard,N,,0,12.5,,OTHER,12,Male,,,,15',
+		'Neha Singh,EMP004,Chennai-Branch,60000,16868,Y,standard,Y,5,0,12.5,GJ,OTHER,6,Female,55000,,,20',
+		'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,Y,specific_amt,N,,15000,12,AP,AP,12,Male,22000,,,15',
+		'Sunita Kumar,EMP006,Pune-Branch,50000,14000,Y,full_basic,Y,3,0,12.5,TS,OTHER,12,Female,,500,200,12',
+		'Rajesh Mehta,EMP007,Mumbai-HO,120000,15860,Y,full_basic,N,,0,12,KA,FKL,12,Male,110000,,,15',
+		'Pooja Joshi,EMP008,Kolkata-Branch,150000,16868,Y,specific_amt,Y,10,20000,12.5,WB,WB,6,Female,,800,,18',
+		'Arun Rao,EMP009,Coimbatore-Site,80000,16868,N,standard,N,,0,12.5,TN,TN,12,Male,75000,,,15',
+		'Kavita Nair,EMP010,Tirupati-Branch,15000,14858,Y,standard,N,,0,12,TS,,12,Male,13000,,,15',
+		'Mohan Das,EMP011,Thiruvananthapuram,35000,16000,Y,standard,N,,0,12.5,KL,SKL,6,Male,30000,,,21',
+		'Ritu Sharma,EMP012,Jaipur-Branch,42000,16868,Y,full_basic,N,,0,12,OD,OD,12,Female,38000,,,15',
+	].join('\n');
+	const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+	const link = document.createElement('a');
+	link.href = URL.createObjectURL(blob);
+	link.download = 'CTC_Bulk_Upload_Template_v13.csv';
+	link.click();
+	showToast('✓ Template v13 Downloaded — Branch & Emp Code included');
 }
 
 function resetBulk() {
