@@ -27,6 +27,7 @@ const db   = firebase.firestore();
 let currentUser   = null;
 let isAdmin       = false;
 let currentUserId = null;
+let leaveCountManual = 15; // Default leaves per year
 
 let pfApplicable = 'Y';
 let calcResult   = null;
@@ -1156,12 +1157,59 @@ function setLeaveMode(mode) {
   const manualBtn   = document.getElementById('leaveManual');
   const manualInput = document.getElementById('leaveManualWrapper');
   const hint        = document.getElementById('leaveHint');
+  const badge       = document.getElementById('leaveFormulaBadge');
+  
   if (autoBtn)     autoBtn.classList.toggle('active', mode === 'auto');
   if (manualBtn)   manualBtn.classList.toggle('active', mode === 'manual');
   if (manualInput) manualInput.classList.toggle('hidden', mode !== 'manual');
-  if (hint) hint.textContent = mode === 'manual'
-    ? 'Enter custom monthly leave encashment amount'
-    : 'Formula: Basic / 26 x 1.25 (monthly provision for 15 leaves/yr)';
+  
+  if (hint) {
+    hint.textContent = mode === 'manual'
+      ? 'Formula: Basic ÷ 26 × (Your Leaves) ÷ 12 = Monthly Provision'
+      : 'Formula: Basic ÷ 26 × 15 ÷ 12 (15 leaves/year default)';
+  }
+  if (badge) {
+    badge.textContent = mode === 'manual' 
+      ? 'Basic ÷ 26 × Leaves ÷ 12' 
+      : 'Basic ÷ 26 × 15 ÷ 12';
+  }
+  
+  if (mode === 'manual') {
+    updateLeaveCalc();
+  }
+  liveCalc();
+}
+
+function updateLeaveCalc() {
+  const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+  const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
+  const leaveInput = document.getElementById('leaveCountInput');
+  const previewBasic = document.getElementById('leavePreviewBasic');
+  const previewLeaves = document.getElementById('leavePreviewLeaves');
+  const previewAmount = document.getElementById('leavePreviewAmount');
+  
+  if (!leaveInput || !previewBasic || !previewLeaves || !previewAmount) return;
+  
+  // Get user input for leaves
+  let leaves = parseInt(leaveInput.value) || 15;
+  if (leaves < 0) leaves = 0;
+  if (leaves > 30) leaves = 30; // Reasonable max limit
+  leaveCountManual = leaves;
+  leaveInput.value = leaves; // Update display
+  
+  // Calculate basic for preview
+  const basicPct = pfApplicable === 'Y' ? 0.55 : 0.53;
+  const basicFromGross = Math.round(gross * basicPct);
+  const basic = Math.min(Math.max(basicFromGross, minWage), gross);
+  
+  // Calculate leave encashment: (Basic/26) * (leaves/12)
+  const leaveAmount = basic > 0 ? Math.round((basic / 26) * (leaves / 12)) : 0;
+  
+  // Update preview
+  if (previewBasic) previewBasic.textContent = basic > 0 ? Math.round(basic).toLocaleString('en-IN') : '—';
+  if (previewLeaves) previewLeaves.textContent = leaves;
+  if (previewAmount) previewAmount.textContent = leaveAmount > 0 ? leaveAmount.toLocaleString('en-IN') : '0';
+  
   liveCalc();
 }
 
@@ -1246,9 +1294,14 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   const gratuity     = (gratuityOverride !== null && gratuityOverride !== undefined && !isNaN(gratuityOverride) && gratuityOverride >= 0)
                          ? Math.round(gratuityOverride) : gratuityAuto;
 
-  const leaveAuto      = Math.round((basic / 26) * 1.25);
-  const leaveComponent = (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0)
-                           ? Math.round(leaveOverride) : leaveAuto;
+  const defaultLeaves = 15;
+  const userLeaves = (leaveMode === 'manual') 
+  ? (parseInt(document.getElementById('leaveCountInput')?.value) || defaultLeaves)
+  : defaultLeaves;
+
+const leaveAuto = Math.round((basic / 26) * (userLeaves / 12));
+const leaveComponent = (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0)
+  ? Math.round(leaveOverride) : leaveAuto;
 
   const finalCTC   = initialCTC + esiEmployer + gratuity + lwf + leaveComponent;
   const cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
@@ -1311,13 +1364,24 @@ function updateLeavePlaceholder() {
   const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
   const input   = document.getElementById('leaveCustom');
+  const leaveCountInput = document.getElementById('leaveCountInput');
+  
   if (!input) return;
+  
   if (gross > 0 && minWage > 0) {
     const basicPct = pfApplicable === 'Y' ? 0.55 : 0.53;
     const basic    = Math.min(Math.max(Math.round(gross * basicPct), minWage), gross);
-    const autoVal  = Math.round((basic / 26) * 1.25);
-    input.placeholder = 'Auto = Rs.' + autoVal.toLocaleString('en-IN');
-  } else { input.placeholder = 'e.g. 200'; }
+    
+    // Use manual leave count if in manual mode, else default 15
+    const leaves = (leaveMode === 'manual' && leaveCountInput) 
+      ? (parseInt(leaveCountInput.value) || 15) 
+      : 15;
+    
+    const autoVal  = Math.round((basic / 26) * (leaves / 12));
+    input.placeholder = 'Auto = Rs.' + autoVal.toLocaleString('en-IN') + ' (' + leaves + ' leaves)';
+  } else { 
+    input.placeholder = 'e.g. 500'; 
+  }
 }
 
 function liveCalc() {
@@ -1478,9 +1542,14 @@ function renderBreakdown(r) {
   const gratuityLabel = r.gratuityMode === 'manual'
     ? 'Gratuity <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">CUSTOM</span>'
     : 'Gratuity <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>';
-  const leaveLabel = r.leaveMode === 'manual'
-    ? 'Leave Component <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">CUSTOM</span>'
-    : 'Leave Component <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>';
+  // ✅ UPDATED LEAVE LABEL WITH LEAVES COUNT
+const userLeavesDisplay = (leaveMode === 'manual') 
+  ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15) 
+  : 15;
+
+const leaveLabel = r.leaveMode === 'manual'
+  ? 'Leave Component <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">' + userLeavesDisplay + ' LEAVES</span>'
+  : 'Leave Component <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;">' + userLeavesDisplay + ' LEAVES (Auto)</span>';
   const lwfLabel = r.lwfMode === 'manual'
     ? 'LWF – Employee <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>'
     : 'LWF – ' + (r.lwfStateName||'N/A') + ' <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>';
@@ -1527,10 +1596,19 @@ function setTextContent(elementId, html) { const el = document.getElementById(el
 
 function renderExportPreview(r) {
   const rows = [['SALARY STRUCTURE', '', true], ['Basic', fmt(r.basic), false], ['HRA', fmt(r.hra), false]];
+  
   if (r.isHighGross) {
     rows.push(['Defray Expenses (10%)', fmt(r.deferAllowance), false]);
     rows.push(['Conveyance', fmt(r.conv), false]);
-  } else { rows.push([r.convLabel, fmt(r.conv), false]); }
+  } else { 
+    rows.push([r.convLabel, fmt(r.conv), false]); 
+  }
+  
+  // ✅ Calculate leave count dynamically
+  const leaveLeaves = (r.leaveMode === 'manual') 
+    ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15) 
+    : 15;
+  
   rows.push(
     ['Gross Salary', fmt(r.gross), false],
     ['EMPLOYER CONTRIBUTIONS', '', true],
@@ -1540,7 +1618,8 @@ function renderExportPreview(r) {
     ['Initial CTC', fmt(r.initialCTC), false],
     ['ESI – Employer', fmt(r.esiEmployer), false],
     ['Gratuity', fmt(r.gratuity), false],
-    ['Leave Encashment', fmt(r.leaveComponent), false],
+    // ✅ Updated line with dynamic leave count in label
+    ['Leave Encashment (' + leaveLeaves + ' leaves/yr)', fmt(r.leaveComponent), false],
     ['EMPLOYEE DEDUCTIONS', '', true],
     ['EPF – Employee', fmt(r.epfEmployee), false],
     ['ESI – Employee', fmt(r.esiEmployee), false],
@@ -1551,6 +1630,7 @@ function renderExportPreview(r) {
     ['Final CTC (Annual)', fmt(r.finalCTCAnnual), false],
     ['Cash in Hand', fmt(r.cashInHand), false]
   );
+  
   let html = '<table class="preview-table">';
   rows.forEach(function(item) {
     const label = item[0], val = item[1], isHead = item[2];
@@ -1591,8 +1671,12 @@ function resetAll() {
 
   gratuityMode = 'auto'; setGratuityMode('auto');
   const gratuityCustom = document.getElementById('gratuityCustom'); if (gratuityCustom) gratuityCustom.value = '';
+  
+  // ✅ Leave Mode Reset + Leave Count Input Reset
   leaveMode = 'auto'; setLeaveMode('auto');
   const leaveCustom = document.getElementById('leaveCustom'); if (leaveCustom) leaveCustom.value = '';
+  const leaveCountInput = document.getElementById('leaveCountInput'); if (leaveCountInput) leaveCountInput.value = '15';
+  leaveCountManual = 15; // Reset global variable
 
   pfApplicable   = 'Y';
   pfBaseMode     = 'standard';
@@ -1626,6 +1710,11 @@ function exportPDF() {
   const pfStatus = r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable';
   const edliAmt  = r.edliEmployer > 0 ? fmt(r.edliEmployer) : 'N/A';
 
+  // ✅ Calculate leave count for infoBlock (reuse same logic as preview)
+  const leaveLeaves = (r.leaveMode === 'manual') 
+    ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15) 
+    : 15;
+
   function tableSection(title, rows) {
     const SEP   = '+' + '-'.repeat(38) + '+' + '-'.repeat(18) + '+';
     const HEAD  = '|' + ' ' + padR(title, 37) + '|' + padR(' Amount', 18) + '|';
@@ -1645,6 +1734,8 @@ function exportPDF() {
     '  Date            : ' + now + '\n' +
     '  PF              : ' + pfStatus + '\n' +
     '  PF Mode         : ' + (r.pfApplicable === 'Y' ? (r.pfBaseUsed === 'standard' ? 'Standard' : r.pfBaseUsed === 'full_basic' ? 'Full Basic' : 'Specific Amount') : 'N/A') + '\n' +
+    // ✅ Added Leave Leaves/yr line after PF Mode
+    '  Leave Leaves/yr : ' + leaveLeaves + '\n' +
     '  Employer PF Rate: ' + (r.pfApplicable === 'Y' ? r.pfEmployerRate + '%' : 'N/A') + '\n' +
     '  State Min Wage  : ' + fmt(r.minWage) + '\n' +
     '  LWF State       : ' + (r.lwfStateName||'N/A') + '\n' +
@@ -1664,7 +1755,8 @@ function exportPDF() {
     ['Initial CTC',                                 fmt(r.initialCTC)],
     ['ESI – Employer (3.25%)',                      r.esiEmployer > 0 ? fmt(r.esiEmployer) : 'N/A'],
     ['Gratuity',                                    fmt(r.gratuity)],
-    ['Leave Encashment',                            fmt(r.leaveComponent)],
+    // ✅ Also update this line to match preview (optional but recommended for consistency)
+    ['Leave Encashment (' + leaveLeaves + ' leaves/yr)', fmt(r.leaveComponent)],
     ['LWF',                                         r.lwf > 0 ? fmt(r.lwf) : 'N/A'],
   ];
 
@@ -2150,6 +2242,23 @@ function processBulkFile() {
     const leaveRaw      = getBulkField(row, ['Leave Encashment','Leave','Monthly Leave','Leave Amount','leave encashment','leave','leave_amt']);
     const leaveOverride = (leaveRaw && !isNaN(cleanNum(leaveRaw))) ? cleanNum(leaveRaw) : null;
 
+    // ✅ NEW: ── Leaves per Year for Leave Calculation ──
+    const leavesRaw = getBulkField(row, ['Leaves per Year','Leaves','Leave Count','leaves_per_year','Leaves Count','No of Leaves']);
+    let bulkLeaves = 15; // default
+    if (leavesRaw) {
+      const parsed = parseInt(leavesRaw);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 30) {
+        bulkLeaves = parsed;
+      }
+    }
+
+    // ✅ Set global leave count before computeCTC call (if different from default)
+    if (bulkLeaves !== 15) {
+      leaveCountManual = bulkLeaves;
+      const leaveInput = document.getElementById('leaveCountInput');
+      if (leaveInput) leaveInput.value = bulkLeaves;
+    }
+
     try {
       const r = computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride, bulkPfBase, bulkHasVol, bulkVolPct, bulkSpecAmt, bulkEmpRate);
       bulkCalcResults.push({
@@ -2170,6 +2279,8 @@ function processBulkFile() {
         pfModeLabel: r.pfModeLabel, pfBaseUsed: r.pfBaseUsed, pfHasVoluntary: r.pfHasVoluntary,
         pfVolPct: r.pfVolPct, pfSpecAmt: r.pfSpecAmt,
         gratuityMode: r.gratuityMode, leaveMode: r.leaveMode,
+        // ✅ Add leaves per year to result object for export/display
+        leavesPerYear: bulkLeaves,
       });
     } catch (err) {
       bulkCalcResults.push({ name, rowNum, error: 'Calculation error: ' + err.message });
@@ -2601,39 +2712,53 @@ function bulkCopyClipboard() {
 // ── Bulk Template — Updated with new columns ──
 function bulkDownloadTemplate() {
   const csv = [
-    'Employee Name,Gross Salary,Min Wage,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,PT State,LWF State,Salary Month,Gender,Previous Basic,Gratuity,Leave Encashment',
-    // Standard PF + Auto PT (Karnataka) + Auto LWF (Karnataka) + Dec month
-    'Rahul Sharma,30000,16868,Y,standard,N,,0,12.5,KA,FKL,12,Male,25000,,',
-    // Full Basic PF + Auto PT (Maharashtra Male) + Auto LWF (Maharashtra) + Dec
-    'Priya Verma,45000,16868,Y,full_basic,N,,0,12,MH,MH,12,Male,40000,,',
-    // No PF + Manual PT + No LWF
-    'Amit Patel,18000,16868,N,standard,N,,0,12.5,,OTHER,12,Male,,,',
-    // Standard PF + Voluntary + Auto PT (Gujarat) + No LWF
-    'Neha Singh,60000,16868,Y,standard,Y,5,0,12.5,GJ,OTHER,6,Female,55000,,',
-    // Specific PF Amount + Auto PT (Andhra Pradesh) + Auto LWF (AP)
-    'Vikram Gupta,25000,16868,Y,specific_amt,N,,15000,12,AP,AP,12,Male,22000,,',
-    // Full Basic + Voluntary + Auto PT (Telangana) + Manual Gratuity
-    'Sunita Kumar,50000,14000,Y,full_basic,Y,3,0,12.5,TS,OTHER,12,Female,,500,200',
-    // High Gross + Full Basic + Auto PT (Karnataka) + Auto LWF (Karnataka)
-    'Rajesh Mehta,120000,15860,Y,full_basic,N,,0,12,KA,FKL,12,Male,110000,,',
-    // High Gross + Specific PF + Voluntary + Auto PT (West Bengal)
-    'Pooja Joshi,150000,16868,Y,specific_amt,Y,10,20000,12.5,WB,WB,6,Female,,800,',
-    // No PF + Auto PT (Tamil Nadu) + No LWF
-    'Arun Rao,80000,16868,N,standard,N,,0,12.5,TN,TN,12,Male,75000,,',
-    // Standard PF + Auto PT (Telangana) + Manual LWF
-    'Kavita Nair,15000,14858,Y,standard,N,,0,12,TS,,12,Male,13000,,',
-    // Standard PF + Auto PT (Kerala June) + Auto LWF (Kerala)
-    'Mohan Das,35000,16000,Y,standard,N,,0,12.5,KL,SKL,6,Male,30000,,',
-    // Full Basic + Employer@12% + Auto PT (Odisha) + Auto LWF (Odisha)
-    'Ritu Sharma,42000,16868,Y,full_basic,N,,0,12,OD,OD,12,Female,38000,,',
+    // ✅ Updated header with new "Leaves per Year" column
+    'Employee Name,Gross Salary,Min Wage,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,PT State,LWF State,Salary Month,Gender,Previous Basic,Gratuity,Leave Encashment,Leaves per Year',
+    
+    // Standard PF + Auto PT (Karnataka) + Auto LWF (Karnataka) + Dec month + 15 leaves
+    'Rahul Sharma,30000,16868,Y,standard,N,,0,12.5,KA,FKL,12,Male,25000,,,15',
+    
+    // Full Basic PF + Auto PT (Maharashtra Male) + Auto LWF (Maharashtra) + Dec + 18 leaves
+    'Priya Verma,45000,16868,Y,full_basic,N,,0,12,MH,MH,12,Male,40000,,500,18',
+    
+    // No PF + Manual PT + No LWF + default 15 leaves
+    'Amit Patel,18000,16868,N,standard,N,,0,12.5,,OTHER,12,Male,,,,15',
+    
+    // Standard PF + Voluntary + Auto PT (Gujarat) + No LWF + 20 leaves
+    'Neha Singh,60000,16868,Y,standard,Y,5,0,12.5,GJ,OTHER,6,Female,55000,,,20',
+    
+    // Specific PF Amount + Auto PT (Andhra Pradesh) + Auto LWF (AP) + 15 leaves
+    'Vikram Gupta,25000,16868,Y,specific_amt,N,,15000,12,AP,AP,12,Male,22000,,,15',
+    
+    // Full Basic + Voluntary + Auto PT (Telangana) + Manual Gratuity + 12 leaves
+    'Sunita Kumar,50000,14000,Y,full_basic,Y,3,0,12.5,TS,OTHER,12,Female,,500,200,12',
+    
+    // High Gross + Full Basic + Auto PT (Karnataka) + Auto LWF (Karnataka) + 15 leaves
+    'Rajesh Mehta,120000,15860,Y,full_basic,N,,0,12,KA,FKL,12,Male,110000,,,15',
+    
+    // High Gross + Specific PF + Voluntary + Auto PT (West Bengal) + 18 leaves
+    'Pooja Joshi,150000,16868,Y,specific_amt,Y,10,20000,12.5,WB,WB,6,Female,,800,,18',
+    
+    // No PF + Auto PT (Tamil Nadu) + No LWF + 15 leaves
+    'Arun Rao,80000,16868,N,standard,N,,0,12.5,TN,TN,12,Male,75000,,,15',
+    
+    // Standard PF + Auto PT (Telangana) + Manual LWF + 15 leaves
+    'Kavita Nair,15000,14858,Y,standard,N,,0,12,TS,,12,Male,13000,,,15',
+    
+    // Standard PF + Auto PT (Kerala June) + Auto LWF (Kerala) + 21 leaves
+    'Mohan Das,35000,16000,Y,standard,N,,0,12.5,KL,SKL,6,Male,30000,,,21',
+    
+    // Full Basic + Employer@12% + Auto PT (Odisha) + Auto LWF (Odisha) + 15 leaves
+    'Ritu Sharma,42000,16868,Y,full_basic,N,,0,12,OD,OD,12,Female,38000,,,15',
+    
   ].join('\n');
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = 'CTC_Bulk_Upload_Template_v10.csv';
+  link.download = 'CTC_Bulk_Upload_Template_v11.csv'; // ✅ Incremented version
   link.click();
-  showToast('✓ Template Downloaded (v10 — with PT/LWF State columns)');
+  showToast('✓ Template Downloaded (v11 — with Leaves per Year column)');
 }
 
 function resetBulk() {

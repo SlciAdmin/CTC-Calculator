@@ -2378,3 +2378,32 @@ input:invalid:not(:placeholder-shown) {
   from { opacity: 0; transform: translateY(-4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* Leave Encashment Preview Styles */
+.leave-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.leave-preview strong {
+  color: var(--accent2);
+}
+#leavePreviewAmount {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Leave count input styling */
+#leaveCountInput {
+  padding-left: 36px !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .leave-preview {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}

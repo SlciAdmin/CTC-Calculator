@@ -403,23 +403,40 @@
             </div>
 
             <!-- LEAVE ENCASHMENT -->
-            <div class="field-group special-field">
-              <label>
-                Leave Encashment (Monthly Provision)
-                <span class="formula-badge">Basic ÷ 26 × 1.25</span>
-              </label>
-              <div class="toggle-group" role="radiogroup" aria-label="Leave Encashment Mode">
-                <button class="toggle-btn active" id="leaveAuto" onclick="setLeaveMode('auto')" role="radio" aria-checked="true">Auto (Formula)</button>
-                <button class="toggle-btn" id="leaveManual" onclick="setLeaveMode('manual')" role="radio" aria-checked="false">Manual Override</button>
-              </div>
-              <div id="leaveManualWrapper" class="hidden" style="margin-top:8px;">
-                <div class="input-prefix">
-                  <span>₹</span>
-                  <input type="number" id="leaveCustom" placeholder="e.g. 200" min="0" oninput="liveCalc()" />
-                </div>
-              </div>
-              <div class="field-hint" id="leaveHint">Formula: Basic ÷ 26 × 1.25 (monthly provision for 15 leaves/yr)</div>
-            </div>
+            <!-- LEAVE ENCASHMENT - UPDATED -->
+<div class="field-group special-field">
+  <label>
+    Leave Encashment (Monthly Provision)
+    <span class="formula-badge" id="leaveFormulaBadge">Basic ÷ 26 × Leaves ÷ 12</span>
+  </label>
+  
+  <!-- Mode Toggle -->
+  <div class="toggle-group" role="radiogroup" aria-label="Leave Encashment Mode">
+    <button class="toggle-btn active" id="leaveAuto" onclick="setLeaveMode('auto')" role="radio" aria-checked="true">Auto (15 Leaves)</button>
+    <button class="toggle-btn" id="leaveManual" onclick="setLeaveMode('manual')" role="radio" aria-checked="false">Custom Leaves</button>
+  </div>
+  
+  <!-- Manual Input Wrapper -->
+  <div id="leaveManualWrapper" class="hidden" style="margin-top:12px; padding:12px; background:rgba(255,255,255,0.03); border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
+    
+    <div class="field-group" style="margin-bottom:8px;">
+      <label for="leaveCountInput">Number of Leaves per Year <span class="req">*</span></label>
+      <div class="input-prefix">
+        <span>📅</span>
+        <input type="number" id="leaveCountInput" placeholder="e.g. 15" min="0" max="30" step="1" value="15" oninput="updateLeaveCalc(); liveCalc();" />
+      </div>
+      <div class="field-hint">Enter total leaves per year for encashment (e.g., 12, 15, 18, 21, 24)</div>
+    </div>
+    
+    <div class="leave-preview" id="leavePreview" style="margin-top:8px; padding:8px 12px; background:rgba(159,122,234,0.1); border-radius:8px; font-size:12px; color:var(--text-dim);">
+      <strong>Preview:</strong> Basic ₹<span id="leavePreviewBasic">—</span> × <span id="leavePreviewLeaves">15</span> leaves ÷ 26 ÷ 12 = <strong>₹<span id="leavePreviewAmount">—</span>/month</strong>
+    </div>
+    
+  </div>
+  
+  <!-- Auto Mode Hint -->
+  <div class="field-hint" id="leaveHint">Formula: Basic ÷ 26 × 15 ÷ 12 (15 leaves/year default)</div>
+</div>
 
             <button class="btn-calc-main" onclick="calculate()">
               Calculate CTC
