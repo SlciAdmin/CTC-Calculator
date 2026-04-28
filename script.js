@@ -2535,8 +2535,9 @@ function bulkExportCSV() {
     [''],
   ];
 
+  // ── Headers — UPDATED with Employee Code & Branch ──
   const headers = [
-    'Sr. No.', 'Employee Name', 'Salary Month', 'Gender', 'Previous Basic (Rs.)',
+    'Sr. No.', 'Employee Name', 'Employee Code', 'Branch', 'Salary Month', 'Gender', 'Previous Basic (Rs.)',
     'PF Status', 'PF Mode', 'PF Wages (Rs.)', 'Employer PF Rate', 'Voluntary PF %',
     'Gross Salary', 'Basic Salary', 'HRA',
     'Defray Expenses 10% (High Gross)', 'Conveyance',
@@ -2552,11 +2553,13 @@ function bulkExportCSV() {
   const dataRows = bulkCalcResults.map(function(r) {
     if (r.error) {
       const blanks = new Array(headers.length - 3).fill('');
-      return [r.rowNum, r.name, '', ...blanks, 'Error: ' + r.error];
+      return [r.rowNum, r.name, r.empCode || '', r.branch || '', '', ...blanks, 'Error: ' + r.error];
     }
     return [
       r.rowNum,
       r.name,
+      r.empCode || '',                    // ✅ Employee Code added
+      r.branch || '',                     // ✅ Branch added
       monthNames[r.salaryMonth] || r.salaryMonth || '',
       r.gender || 'Male',
       r.previousBasic !== null && r.previousBasic !== undefined ? amt(r.previousBasic) : 'N/A',
@@ -2588,8 +2591,10 @@ function bulkExportCSV() {
   });
 
   const valid = bulkCalcResults.filter(function(r) { return !r.error; });
+  
+  // ── Total Row — UPDATED with blanks for Employee Code & Branch ──
   const totRow = [
-    'TOTAL (' + valid.length + ')', '', '', '', '', '', '', '', '', '',
+    'TOTAL (' + valid.length + ')', '', '', '', '', '', '', '', '', '', '', '',
     valid.reduce(function(s,r){ return s+amt(r.gross); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.basic); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.hra); }, 0),
@@ -2657,6 +2662,9 @@ function bulkExportTXT() {
   valid.forEach(function(r, i) {
     txt += '┌' + '─'.repeat(58) + '┐\n';
     txt += '│  ' + padR((i+1) + '. ' + r.name, 56) + '│\n';
+    // ── NEW: Emp Code & Branch ──
+    txt += '│  Emp Code: ' + padR((r.empCode || 'N/A'), 48) + '│\n';
+    txt += '│  Branch  : ' + padR((r.branch  || 'N/A'), 48) + '│\n';
     txt += '│  Month: ' + padR((monthNames[r.salaryMonth] || '—'), 50) + '│\n';
     txt += '│  Gender: ' + padR((r.gender || 'Male'), 49) + '│\n';
     if (r.previousBasic !== null && r.previousBasic !== undefined) {
@@ -2721,21 +2729,28 @@ function bulkExportTXT() {
 function bulkCopyClipboard() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const valid = bulkCalcResults.filter(function(r) { return !r.error; });
+  
+  // ── Headers — UPDATED with Employee Code & Branch ──
   const headers = [
-    '#','Employee Name','Month','Gender','Prev Basic',
-    'PF Status','PF Mode','PF Wages','Emp Rate','Voluntary %',
-    'Gross','Basic','HRA','Defray(10%)','Conveyance',
-    'EPF Employer','EDLI','Bonus','ESI Employer',
-    'Gratuity','Grat Mode','Leave Enc.','Leave Mode','Leaves/Yr',
-    'LWF State','LWF Mode','LWF',
-    'PT State','PT Mode','PT',
-    'Initial CTC','Final CTC/Mo','Annual CTC',
-    'EPF Employee','ESI Employee','Net Cash in Hand'
+    '#', 'Employee Name', 'Employee Code', 'Branch', 'Month', 'Gender', 'Prev Basic',
+    'PF Status', 'PF Mode', 'PF Wages', 'Emp Rate', 'Voluntary %',
+    'Gross', 'Basic', 'HRA', 'Defray(10%)', 'Conveyance',
+    'EPF Employer', 'EDLI', 'Bonus', 'ESI Employer',
+    'Gratuity', 'Grat Mode', 'Leave Enc.', 'Leave Mode', 'Leaves/Yr',
+    'LWF State', 'LWF Mode', 'LWF',
+    'PT State', 'PT Mode', 'PT',
+    'Initial CTC', 'Final CTC/Mo', 'Annual CTC',
+    'EPF Employee', 'ESI Employee', 'Net Cash in Hand'
   ];
+  
   const monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  
   const rows = valid.map(function(r, i) {
     return [
-      i+1, r.name,
+      i+1,
+      r.name,
+      r.empCode || '',                    // ✅ Employee Code added
+      r.branch || '',                     // ✅ Branch added
       monthNames[r.salaryMonth] || '',
       r.gender || 'Male',
       r.previousBasic !== null && r.previousBasic !== undefined ? Math.round(r.previousBasic) : 'N/A',
@@ -2763,6 +2778,7 @@ function bulkCopyClipboard() {
       Math.round(r.cash)
     ].join('\t');
   });
+  
   const text = [headers.join('\t')].concat(rows).join('\n');
   navigator.clipboard.writeText(text)
     .then(function() { showBulkExportStatus('✓ Copied!'); showToast('⎘ Bulk data copied to clipboard'); })
