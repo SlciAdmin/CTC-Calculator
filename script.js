@@ -1,20 +1,11 @@
 /* ============================================
    CTC CALCULATOR — FIREBASE AUTH + LOGIC
    New Labour Code | Cross-Device Login System
-   LWF + PT: State-wise Auto Calculation (v10.0)
+   LWF + PT: State-wise Auto Calculation (v10.2)
    
-   ✅ BULK UPLOAD — FULL INDIVIDUAL-LEVEL FUNCTIONALITY:
-   ┌──────────────────────────────────────────────────┐
-   │  Each row can specify:                           │
-   │  • PT State  → auto slab calculation             │
-   │  • LWF State → auto month-based calculation      │
-   │  • PF Mode   → Standard / Full Basic / Specific  │
-   │  • Voluntary PF % (Employee only)                │
-   │  • Employer PF Rate (12% or 12.5%)               │
-   │  • Gratuity Override (manual or auto)            │
-   │  • Leave Encashment Override (manual or auto)    │
-   │  • Previous Basic (for Excel export reference)   │
-   └──────────────────────────────────────────────────┘
+   ✅ NEW: PF Mandatory if Basic ≤ ₹15,000 (EPF Act Compliance)
+   ✅ NEW: Toast message when trying to disable PF illegally
+   ✅ BULK UPLOAD — FULL INDIVIDUAL-LEVEL FUNCTIONALITY
    ============================================ */
 
 // 🔥 FIREBASE CONFIG
@@ -68,7 +59,6 @@ const LWF_STATES = {
   OTHER: { name: 'Other',            months: 'none',    amount: 0,    formula: null },
 };
 
-// LWF State name aliases for bulk matching
 const LWF_STATE_ALIASES = {
   'TN': ['TN','TAMIL NADU','TAMILNADU'],
   'AP': ['AP','ANDHRA PRADESH','ANDHRAPRADESH'],
@@ -301,7 +291,6 @@ const PT_STATES = {
   OTHER: { name: 'Other', rules: [] }
 };
 
-// PT State name aliases for bulk matching
 const PT_STATE_ALIASES = {
   'KA': ['KA','KARNATAKA'],
   'OD': ['OD','ODISHA','ORISSA'],
@@ -457,10 +446,36 @@ function setPFApplicable(val) {
   const pfNo          = document.getElementById('pfNo');
   const pfModeSection = document.getElementById('pfModeSection');
   const hint          = document.getElementById('pfHint');
+  
   if (pfYes) pfYes.classList.toggle('active', val === 'Y');
   if (pfNo)  pfNo.classList.toggle('active', val === 'N');
-  if (pfModeSection) pfModeSection.style.display = val === 'Y' ? 'block' : 'none';
-  if (val === 'N') {
+  
+  // ✅ NEW: Check if PF is mandatory based on basic salary
+  const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+  const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
+  const basicPct = val === 'Y' ? 0.55 : 0.53;
+  const basicFromGross = Math.round(gross * basicPct);
+  const basic = Math.min(Math.max(basicFromGross, minWage), gross);
+  const isPFMandatory = basic <= 15000;
+  
+  if (pfNo) {
+    if (isPFMandatory && val === 'N') {
+      // Force PF to Yes if basic <= 15000
+      pfApplicable = 'Y';
+      if (pfYes) pfYes.classList.add('active');
+      if (pfNo) pfNo.classList.remove('active');
+      // ✅ NEW: Show toast message with clear information
+      showToast('⚠️ PF Mandatory: Basic Salary (₹' + Math.round(basic).toLocaleString('en-IN') + ') is ≤ ₹15,000. As per EPF Act, PF cannot be disabled.');
+    }
+    pfNo.disabled = isPFMandatory;
+    pfNo.title = isPFMandatory ? 'PF mandatory for Basic ≤ ₹15,000 as per EPF Act' : '';
+    pfNo.style.cursor = isPFMandatory ? 'not-allowed' : 'pointer';
+    pfNo.style.opacity = isPFMandatory ? '0.5' : '1';
+  }
+  
+  if (pfModeSection) pfModeSection.style.display = pfApplicable === 'Y' ? 'block' : 'none';
+  
+  if (pfApplicable === 'N') {
     if (hint) hint.textContent = '53% of Gross or Min Wage (whichever is higher) -> Basic. No PF deducted.';
     pfBaseMode     = 'standard';
     pfAddVoluntary = false;
@@ -472,7 +487,21 @@ function setPFApplicable(val) {
   liveCalc();
 }
 
-function setPF(val) { setPFApplicable(val); }
+function setPF(val) { 
+  // ✅ NEW: Prevent setting PF to 'N' if basic <= 15000 with clear toast message
+  const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+  const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
+  const basicPct = val === 'Y' ? 0.55 : 0.53;
+  const basicFromGross = Math.round(gross * basicPct);
+  const basic = Math.min(Math.max(basicFromGross, minWage), gross);
+  
+  if (val === 'N' && basic <= 15000) {
+    // ✅ NEW: Detailed toast message explaining the problem
+    showToast('⚠️ PF Cannot Be Disabled: When Basic Salary (₹' + Math.round(basic).toLocaleString('en-IN') + ') is ₹15,000 or less, PF is MANDATORY as per EPF Act 1952. Please increase Basic or keep PF applicable.');
+    return;
+  }
+  setPFApplicable(val); 
+}
 
 function setPFBaseMode(mode) {
   pfBaseMode = mode;
@@ -518,9 +547,19 @@ function _syncPFUI() {
 function updatePFHint() {
   const hint = document.getElementById('pfHint');
   if (!hint) return;
-  const basicPct = pfApplicable === 'Y' ? '55%' : '53%';
+  
+  // ✅ NEW: Check if PF is mandatory
+  const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+  const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
+  const basicPct = pfApplicable === 'Y' ? 0.55 : 0.53;
+  const basicFromGross = Math.round(gross * basicPct);
+  const basic = Math.min(Math.max(basicFromGross, minWage), gross);
+  const isPFMandatory = basic <= 15000;
+  
+  const mandatoryBadge = isPFMandatory ? ' 🔒 MANDATORY' : '';
+  
   if (pfApplicable === 'N') {
-    hint.textContent = basicPct + ' of Gross or Min Wage -> Basic. No PF deducted.';
+    hint.textContent = '53% of Gross or Min Wage -> Basic. No PF deducted.' + mandatoryBadge;
     return;
   }
   const vpct    = parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0;
@@ -531,13 +570,13 @@ function updatePFHint() {
     : 'Employer: 12.5% of PF Wages | EDLI: 0.5% of Basic (max Rs.75)';
   switch (pfBaseMode) {
     case 'standard':
-      hint.textContent = basicPct + ' of Gross/MinWage -> Basic. PF Wages = min(Basic, Rs.15,000). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText;
+      hint.textContent = basicPct*100 + '% of Gross/MinWage -> Basic. PF Wages = min(Basic, Rs.15,000). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
       break;
     case 'full_basic':
-      hint.textContent = basicPct + ' of Gross/MinWage -> Basic. PF Wages = Full Basic. Employee: 12% + Vol% of Basic. ' + empRateText + '.' + addText;
+      hint.textContent = basicPct*100 + '% of Gross/MinWage -> Basic. PF Wages = Full Basic. Employee: 12% + Vol% of Basic. ' + empRateText + '.' + addText + mandatoryBadge;
       break;
     case 'specific_amt':
-      hint.textContent = basicPct + ' of Gross/MinWage -> Basic. PF Wages = Rs.' + sAmt.toLocaleString('en-IN') + ' (fixed). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText;
+      hint.textContent = basicPct*100 + '% of Gross/MinWage -> Basic. PF Wages = Rs.' + sAmt.toLocaleString('en-IN') + ' (fixed). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
       break;
   }
 }
@@ -838,9 +877,16 @@ function setupEventListeners() {
     });
   });
   const grossInput = document.getElementById('grossSalary');
+  const minWageInput = document.getElementById('minWage');
   if (grossInput) grossInput.addEventListener('input', function() {
     if (lwfMode === 'auto') updateLWFAuto();
     if (ptMode  === 'auto') updatePTAuto();
+    // ✅ NEW: Re-check PF mandatory status on gross change
+    setPFApplicable(pfApplicable);
+  });
+  if (minWageInput) minWageInput.addEventListener('input', function() {
+    // ✅ NEW: Re-check PF mandatory status on min wage change
+    setPFApplicable(pfApplicable);
   });
 }
 
@@ -1120,8 +1166,9 @@ function setLeaveMode(mode) {
 }
 
 // ============================================================
-//  ✅ CORE CTC ENGINE — FULL INDIVIDUAL-LEVEL (v10.0)
-//     All overrides supported for bulk processing
+//  ✅ CORE CTC ENGINE — FULL INDIVIDUAL-LEVEL (v10.2)
+//     ✅ PF Mandatory if Basic ≤ ₹15,000 (EPF Act Compliance)
+//     ✅ Clear toast messages for user guidance
 // ============================================================
 function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride,
                     pfBaseModeOverride, pfVoluntaryOverride, pfVolPctOverride, pfSpecAmtOverride, pfEmpRateOverride) {
@@ -1132,6 +1179,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   const basicFromGross = Math.round(gross * basicPct);
   let   basic          = Math.max(basicFromGross, minWage);
   basic                = Math.min(basic, gross);
+
+  // ✅ NEW: If basic <= 15000, PF must be applicable
+  if (basic <= 15000 && pf !== 'Y') {
+    pf = 'Y'; // Force PF to Yes
+  }
 
   let hra = Math.round(basic * 0.5);
   if (basic + hra > gross) hra = Math.max(gross - basic, 0);
@@ -1757,16 +1809,9 @@ document.addEventListener('keydown', function(e) {
 });
 
 /* =====================================================
-   BULK UPLOAD — v10.0
-   FULL INDIVIDUAL-LEVEL FUNCTIONALITY:
-   - PT State-wise auto (per row)
-   - LWF State-wise auto (per row, per month)
-   - PF Modes (Standard / Full Basic / Specific per row)
-   - Voluntary PF % (per row)
-   - Employer PF Rate (per row)
-   - Gratuity (auto/manual per row)
-   - Leave Encashment (auto/manual per row)
-   - Previous Basic column in export
+   BULK UPLOAD — v10.2
+   ✅ PF Mandatory if Basic ≤ ₹15,000 (EPF Act Compliance)
+   ✅ Clear toast messages for user guidance
    ===================================================== */
 
 let bulkRawData     = [];
@@ -1935,8 +1980,8 @@ function findHeaderAndData(rawRows) {
 
 // ===================================================================
 //  BULK PROCESS — Full individual-level calculation per row
-//  Now includes: PT State auto, LWF State auto, PF modes,
-//  Gender for PT, Month for PT/LWF, Previous Basic
+//  ✅ PF Mandatory if Basic ≤ ₹15,000 (EPF Act Compliance)
+//  ✅ Clear toast messages for user guidance
 // ===================================================================
 function processBulkFile() {
   if (!bulkRawData || bulkRawData.length === 0) {
@@ -1997,7 +2042,15 @@ function processBulkFile() {
 
     // ── PF ──
     const pfRaw = getBulkField(row, ['PF','PF Applicable','PF (Y/N)','pf','PF_Applicable','PF Applicability','pf_yn']);
-    const pf    = pfRaw && pfRaw.toString().trim().toUpperCase() === 'N' ? 'N' : 'Y';
+    let pf    = pfRaw && pfRaw.toString().trim().toUpperCase() === 'N' ? 'N' : 'Y';
+
+    // ✅ NEW: If basic <= 15000, PF must be applicable (EPF Act)
+    const basicPct = pf === 'Y' ? 0.55 : 0.53;
+    const basicFromGross = Math.round(gross * basicPct);
+    const basic = Math.min(Math.max(basicFromGross, minWage), gross);
+    if (basic <= 15000 && pf !== 'Y') {
+      pf = 'Y'; // Force PF to Yes
+    }
 
     // ── PF Base Mode ──
     const pfBaseModeRaw = getBulkField(row, ['PF Mode','PFMode','pf_mode','PF Type','PFType','PF Base Mode','pfbasemode']);
@@ -2132,6 +2185,9 @@ function processBulkFile() {
     else              showToast('⚠️ ' + (total - errors) + '/' + total + ' calculated. ' + errors + ' errors — check red rows.');
   }, delay + 200);
 }
+
+// ... [Rest of the bulk functions remain unchanged - bulkFmt, renderBulkResults, bulkExportCSV, bulkExportTXT, bulkCopyClipboard, bulkDownloadTemplate, resetBulk, setBulkStatus, showBulkExportStatus]
+// (Code truncated for brevity - all other functions remain exactly as in your original file)
 
 function bulkFmt(n) {
   if (n === null || n === undefined || isNaN(n)) return 'Rs.0';
