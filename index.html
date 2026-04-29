@@ -232,6 +232,16 @@
             </div>
 
             <div class="field-group">
+  <label for="previousBasic">Previous Basic Salary <span class="opt">(optional)</span></label>
+  <div class="input-prefix">
+    <span>₹</span>
+    <input type="number" id="previousBasic" placeholder="e.g. 14000" min="0" oninput="liveCalc()" />
+  </div>
+  <div class="field-hint">Enter employee's previous basic. Final Basic = MAX(MinWage, PreviousBasic, CalculatedBasic)</div>
+</div>
+<!-- 🔴 END: Previous Basic Input Field -->
+
+            <div class="field-group">
               <label>PF Applicability</label>
               <div class="toggle-group" role="radiogroup" aria-label="PF Applicability">
                 <button class="toggle-btn active" id="pfYes" onclick="setPF('Y')" role="radio" aria-checked="true">Yes (PF Applicable)</button>
@@ -239,6 +249,8 @@
               </div>
               <div class="field-hint" id="pfHint">55% of Gross or Min Wage (whichever is higher) → Basic</div>
             </div>
+
+            
 
             <!-- PROFESSIONAL TAX -->
             <div class="field-group special-field pt-field">
@@ -634,23 +646,25 @@
             </div>
 
             <!-- TEMPLATE NOTE -->
-            <div class="bulk-template-note">
-              <div class="template-title">Required Columns (Blue = Mandatory)</div>
-              <div class="bulk-col-tags">
-                <span class="col-tag mandatory">Employee Name</span>
-                <span class="col-tag mandatory">Gross Salary</span>
-                <span class="col-tag mandatory">Min Wage</span>
-                <span class="col-tag optional">PF (Y/N)</span>
-                <span class="col-tag optional">PT Amount</span>
-                <span class="col-tag optional">LWF Amount</span>
-                <span class="col-tag optional">Gratuity</span>
-                <span class="col-tag optional">Leave Encashment</span>
-              </div>
-              <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
-                Optional fields pe default auto-calculation hogi &nbsp;•&nbsp;
-                <a href="#" onclick="bulkDownloadTemplate(); return false;" style="color:var(--accent);text-decoration:none;">↓ Download Sample Template</a>
-              </div>
-            </div>
+            <!-- 🔴 UPDATED: Required Columns with Previous Basic -->
+<div class="bulk-template-note">
+  <div class="template-title">Required Columns (Blue = Mandatory)</div>
+  <div class="bulk-col-tags">
+    <span class="col-tag mandatory">Employee Name</span>
+    <span class="col-tag mandatory">Gross Salary</span>
+    <span class="col-tag mandatory">Min Wage</span>
+    <span class="col-tag optional">Previous Basic</span>
+    <span class="col-tag optional">PF (Y/N)</span>
+    <span class="col-tag optional">PT Amount</span>
+    <span class="col-tag optional">LWF Amount</span>
+    <span class="col-tag optional">Gratuity</span>
+    <span class="col-tag optional">Leave Encashment</span>
+  </div>
+  <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+    Optional fields pe default auto-calculation hogi &nbsp;•&nbsp;
+    <a href="#" onclick="bulkDownloadTemplate(); return false;" style="color:var(--accent);text-decoration:none;">↓ Download Sample Template</a>
+  </div>
+</div>
 
             <!-- STATUS BAR -->
             <div class="bulk-status" id="bulkStatus" style="display:none"></div>

@@ -1116,22 +1116,35 @@ function initializeCalculator() {
 
 // ============== CORE CTC ENGINE ==============
 // ✅ leavesPerYear param added — used by BOTH individual & bulk
+// 🔴 UPDATED: computeCTC function - Added previousBasic parameter
 function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride,
                     pfBaseModeOverride, pfVoluntaryOverride, pfVolPctOverride,
-                    pfSpecAmtOverride, pfEmpRateOverride, leavesPerYear) {
+                    pfSpecAmtOverride, pfEmpRateOverride, leavesPerYear, previousBasic) {
 
-  gross   = Math.round(gross);
+  gross = Math.round(gross);
   minWage = Math.round(minWage);
+  
+  // 🔴 NEW: Handle previousBasic parameter
+  previousBasic = (previousBasic !== undefined && previousBasic !== null && !isNaN(previousBasic)) 
+    ? Math.round(previousBasic) : null;
 
   // ── Leave count: param > global > default 15 ──
   const effectiveLeaves = (leavesPerYear !== undefined && leavesPerYear !== null && !isNaN(leavesPerYear))
     ? leavesPerYear
-    : (leaveMode === 'manual' ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15) : 15);
+    : (typeof leaveMode !== 'undefined' && leaveMode === 'manual' 
+        ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15) 
+        : 15);
 
   const basicPct       = pf === 'Y' ? 0.55 : 0.53;
   const basicFromGross = Math.round(gross * basicPct);
-  let   basic          = Math.max(basicFromGross, minWage);
-  basic                = Math.min(basic, gross);
+  
+  // 🔴 NEW LOGIC: Basic = MAX(MinWage, PreviousBasic, CalculatedBasic)
+  let basic = basicFromGross;
+  if (previousBasic !== null && previousBasic > 0) {
+    basic = Math.max(basic, previousBasic);
+  }
+  basic = Math.max(basic, minWage);  // Ensure not below min wage
+  basic = Math.min(basic, gross);     // Ensure not above gross
 
   // EPF Act: Basic ≤ 15000 → PF mandatory
   if (basic <= 15000 && pf !== 'Y') pf = 'Y';
@@ -1155,11 +1168,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   }
 
   // ── Resolve overrides ──
-  const resolvedBase    = pfBaseModeOverride  ?? pfBaseMode;
-  const resolvedHasVol  = pfVoluntaryOverride ?? pfAddVoluntary;
+  const resolvedBase    = pfBaseModeOverride  ?? (typeof pfBaseMode !== 'undefined' ? pfBaseMode : 'standard');
+  const resolvedHasVol  = pfVoluntaryOverride ?? (typeof pfAddVoluntary !== 'undefined' ? pfAddVoluntary : false);
   const resolvedVolPct  = pfVolPctOverride    ?? (parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0);
   const resolvedSpecAmt = pfSpecAmtOverride   ?? (parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0);
-  const resolvedEmpRate = pfEmpRateOverride   ?? pfEmployerRate;
+  const resolvedEmpRate = pfEmpRateOverride   ?? (typeof pfEmployerRate !== 'undefined' ? pfEmployerRate : '12');
 
   // ── PF Wages ──
   let pfWages = 0;
@@ -1228,20 +1241,31 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   })();
 
   return {
-    gross, basic, hra, conv,
+    gross, 
+    basic, 
+    hra, 
+    conv,
     convLabel      : 'Conveyance',
     deferAllowance,
     isHighGross    : gross > 100000,
     minWage,
+    previousBasic,  // 🔴 NEW: Return previousBasic in result
     pfApplicable   : pf,
     pfWages,
     pfEmployerRate : resolvedEmpRate,
-    epfEmployer, edliEmployer, bonus, initialCTC,
-    esiEmployer, esiEmployee,
-    gratuity, gratuityAuto,
-    leaveComponent, leaveAuto,
+    epfEmployer, 
+    edliEmployer, 
+    bonus, 
+    initialCTC,
+    esiEmployer, 
+    esiEmployee,
+    gratuity, 
+    gratuityAuto,
+    leaveComponent, 
+    leaveAuto,
     leavesPerYear  : effectiveLeaves,
-    lwf, pt,
+    lwf, 
+    pt,
     finalCTC,
     finalCTCAnnual : finalCTC * 12,
     epfEmployee,
@@ -1388,8 +1412,13 @@ function liveCalc() {
 function calculate(silent) {
   const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
+  
+  // 🔴 NEW: Get Previous Basic value
+  const prevBasic = parseFloat(document.getElementById('previousBasic')?.value) || null;
+  
   const pt      = getPTValue();
   const lwf     = getLWFValue();
+  
   if (gross <= 0 || minWage <= 0) {
     if (!silent) showToast('⚠️ Please enter Gross Salary and Minimum Wage');
     return;
@@ -1398,11 +1427,13 @@ function calculate(silent) {
     if (!silent) showToast('⚠️ Gross Salary minimum wages (Rs.' + minWage.toLocaleString('en-IN') + ') se kam hai!');
     return;
   }
+  
   let gratuityOverride = null;
   if (gratuityMode === 'manual') {
     const val = parseFloat(document.getElementById('gratuityCustom')?.value);
     if (!isNaN(val) && val >= 0) gratuityOverride = val;
   }
+  
   let leaveOverride = null;
   if (leaveMode === 'manual') {
     const val = parseFloat(document.getElementById('leaveCustom')?.value);
@@ -1414,10 +1445,23 @@ function calculate(silent) {
     ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15)
     : 15;
 
-  const r = computeCTC(gross, minWage, pfApplicable, pt, lwf,
-    gratuityOverride, leaveOverride,
-    undefined, undefined, undefined, undefined, undefined,
-    leavesPerYear);
+  // 🔴 UPDATED: Pass previousBasic to computeCTC as 13th parameter
+  const r = computeCTC(
+    gross, 
+    minWage, 
+    pfApplicable, 
+    pt, 
+    lwf,
+    gratuityOverride, 
+    leaveOverride,
+    undefined,    // pfBaseModeOverride
+    undefined,    // pfVoluntaryOverride
+    undefined,    // pfVolPctOverride
+    undefined,    // pfSpecAmtOverride
+    undefined,    // pfEmpRateOverride
+    leavesPerYear,
+    prevBasic     // 🔴 NEW: previousBasic parameter (13th argument)
+  );
 
   updatePFPreview(r.basic);
 
@@ -1429,6 +1473,7 @@ function calculate(silent) {
     if (!stateEl || !stateEl.value) return 'Not Selected';
     return LWF_STATES[stateEl.value]?.name || stateEl.value;
   })();
+  
   r.ptMode      = ptMode;
   r.ptLabel     = getPTLabel();
   r.ptStateName = (function() {
@@ -1444,6 +1489,7 @@ function calculate(silent) {
   renderExportPreview(r);
   if (!silent) showToast('✓ CTC Calculated Successfully');
 }
+
 
 function fmt(n) { return 'Rs.' + Math.round(n).toLocaleString('en-IN'); }
 function pct(part, total) { if (!total) return '0%'; return (part / total * 100).toFixed(1) + '%'; }
@@ -1612,7 +1658,12 @@ function switchTab(tab) {
 }
 
 function resetAll() {
-  ['empName', 'grossSalary', 'minWage'].forEach(function(id) { const el = document.getElementById(id); if (el) el.value = ''; });
+  // 🔴 UPDATED: Added 'previousBasic' to reset list
+  ['empName', 'grossSalary', 'minWage', 'previousBasic'].forEach(function(id) { 
+    const el = document.getElementById(id); 
+    if (el) el.value = ''; 
+  });
+  
   const warnEl = document.getElementById('minWageWarning');
   if (warnEl) warnEl.classList.add('hidden');
 
@@ -1653,6 +1704,10 @@ function resetAll() {
   safeToggle('summaryResults', true);
   safeToggle('breakdownEmpty', false);
   safeToggle('breakdownContent', true);
+  
+  // 🔴 NEW: Hide previousBasic display row on reset (if exists)
+  safeToggle('previousBasicRow', true);
+  
   const exportPreview = document.getElementById('exportPreview');
   if (exportPreview) exportPreview.innerHTML = '<div class="preview-empty">Calculate first to see export preview</div>';
   calcResult = null;
@@ -2119,7 +2174,7 @@ function processBulkFile() {
     const empCode = getBulkField(row, ['Employee Code','Emp Code','EmployeeCode','EmpCode','Code','ID','Employee ID','EmpID']) || '';
     const branch  = getBulkField(row, ['Branch','Office','Location','Site','Branch Name','BranchName','Unit','Department']) || '';
 
-    // ── Previous Basic ──
+    // ── 🔴 Previous Basic Extraction ──
     const prevBasicRaw = getBulkField(row, ['Previous Basic','Prev Basic','PrevBasic','Old Basic','OldBasic','Last Basic','Previous Basic Salary']);
     const previousBasic = isNaN(cleanNum(prevBasicRaw)) ? null : cleanNum(prevBasicRaw);
 
@@ -2246,22 +2301,31 @@ function processBulkFile() {
     }
 
     try {
-      // ✅ computeCTC called with ALL params — same as individual calculator
+      // ✅ computeCTC called with ALL params — including previousBasic as 14th parameter
       const r = computeCTC(
-        gross, minWage, pf, pt, lwf,
-        gratuityOverride,   // gratuity manual override (or null for auto)
-        leaveOverride,      // leave amount manual override (or null for auto formula)
-        bulkPfBase,         // PF base mode
-        bulkHasVol,         // voluntary PF toggle
-        bulkVolPct,         // voluntary PF %
-        bulkSpecAmt,        // specific PF amount
-        bulkEmpRate,        // employer PF rate
-        bulkLeaves          // ✅ leaves per year for formula
+        gross, 
+        minWage, 
+        pf, 
+        pt, 
+        lwf,
+        gratuityOverride,   // 6: gratuity manual override (or null for auto)
+        leaveOverride,      // 7: leave amount manual override (or null for auto formula)
+        bulkPfBase,         // 8: PF base mode
+        bulkHasVol,         // 9: voluntary PF toggle
+        bulkVolPct,         // 10: voluntary PF %
+        bulkSpecAmt,        // 11: specific PF amount
+        bulkEmpRate,        // 12: employer PF rate
+        bulkLeaves,         // 13: leaves per year for formula
+        previousBasic       // 🔴 14: previousBasic parameter (NEW)
       );
 
       bulkCalcResults.push({
-        name, rowNum, empCode, branch, error: null,  // ✅ empCode & branch added here
-        previousBasic,
+        name, 
+        rowNum, 
+        empCode, 
+        branch, 
+        error: null,
+        previousBasic,        // 🔴 Store for display/export
         salaryMonth    : bulkMonth,
         gender         : bulkGender,
         leavesPerYear  : r.leavesPerYear,
@@ -2288,7 +2352,14 @@ function processBulkFile() {
         ptDeduction: r.ptDeduction, cash: r.cashInHand,
       });
     } catch (err) {
-      bulkCalcResults.push({ name, rowNum, empCode, branch, error: 'Calculation error: ' + err.message }); // ✅ also added for error case
+      bulkCalcResults.push({ 
+        name, 
+        rowNum, 
+        empCode, 
+        branch, 
+        previousBasic,  // 🔴 Also store in error case
+        error: 'Calculation error: ' + err.message 
+      });
       errors++;
     }
   });
@@ -2301,6 +2372,7 @@ function processBulkFile() {
     else showToast('⚠️ ' + (total - errors) + '/' + total + ' calculated. ' + errors + ' errors.');
   }, delay + 200);
 }
+
 
 function bulkFmt(n) {
   if (n === null || n === undefined || isNaN(n)) return 'Rs.0';
@@ -2323,6 +2395,9 @@ function renderBulkResults(errors, total) {
   const totalBonus   = valid.reduce(function(s, r) { return s + (r.bonus || 0); }, 0);
   const totalGrat    = valid.reduce(function(s, r) { return s + (r.gratuityUsed || 0); }, 0);
   const totalLeave   = valid.reduce(function(s, r) { return s + (r.leaveUsed || 0); }, 0);
+  
+  // 🔴 NEW: Count employees with Previous Basic set
+  const withPrevBasic = valid.filter(function(r) { return r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0; }).length;
 
   // ── Summary Cards ──
   const summaryEl = document.getElementById('bulkSummaryCards');
@@ -2341,10 +2416,11 @@ function renderBulkResults(errors, total) {
       <div class="bulk-sum-card"><div class="bsc-label">Total Bonus</div><div class="bsc-val">${bulkFmt(totalBonus)}</div></div>
       <div class="bulk-sum-card"><div class="bsc-label">Total Gratuity Prov.</div><div class="bsc-val">${bulkFmt(totalGrat)}</div></div>
       <div class="bulk-sum-card"><div class="bsc-label">Total Leave Prov.</div><div class="bsc-val">${bulkFmt(totalLeave)}</div></div>
+      ${withPrevBasic > 0 ? `<div class="bulk-sum-card"><div class="bsc-label">Employees w/ Prev Basic</div><div class="bsc-val amber">${withPrevBasic}/${valid.length}</div></div>` : ''}
     `;
   }
 
-  // ── Table Header — UPDATED with Emp Code & Branch ──
+  // ── Table Header — UPDATED with Prev Basic column ──
   const headEl = document.getElementById('bulkTableHead');
   if (headEl) {
     headEl.innerHTML = `<tr>
@@ -2398,11 +2474,11 @@ function renderBulkResults(errors, total) {
     const alt = i % 2 === 0 ? '' : 'alt-row';
 
     if (r.error) {
-      // ── Error Row — UPDATED colspan to 32 ──
+      // ── Error Row ──
       bodyHtml += '<tr class="error-row ' + alt + '">' +
         '<td style="color:var(--text-muted)">' + r.rowNum + '</td>' +
         '<td class="td-name">' + escapeHtml(r.name) + '</td>' +
-        '<td colspan="32" style="font-size:11px;color:var(--danger);padding:8px 12px;">' + escapeHtml(r.error) + '</td>' +
+        '<td colspan="33" style="font-size:11px;color:var(--danger);padding:8px 12px;">' + escapeHtml(r.error) + '</td>' +
         '<td class="td-err">⚠ Error</td>' +
         '</tr>';
       return;
@@ -2439,8 +2515,9 @@ function renderBulkResults(errors, total) {
       : '<span style="color:var(--text-muted)">—</span>';
     const ptCell = r.pt > 0 ? '<span style="color:var(--danger)">' + bulkFmt(r.pt) + '</span>' : '<span style="color:var(--text-muted)">Rs.0</span>';
 
-    const prevBasicCell = (r.previousBasic !== null && r.previousBasic !== undefined)
-      ? '<span style="color:var(--accent2)">' + bulkFmt(r.previousBasic) + '</span>'
+    // 🔴 NEW: Previous Basic cell formatting
+    const prevBasicCell = (r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0)
+      ? '<span style="color:var(--accent2);font-weight:500">' + bulkFmt(r.previousBasic) + '</span>'
       : '<span style="color:var(--text-muted)">—</span>';
 
     const gratuityCell = r.gratuityMode === 'manual'
@@ -2451,7 +2528,7 @@ function renderBulkResults(errors, total) {
       ? bulkFmt(r.leaveUsed) + ' <span style="font-size:9px;color:var(--accent2)">M</span>'
       : bulkFmt(r.leaveUsed);
 
-    // ── Valid Row — UPDATED with empCode & branch cells ──
+    // ── Valid Row — WITH Previous Basic column ──
     bodyHtml += '<tr class="' + alt + '">' +
       '<td style="color:var(--text-muted)">' + r.rowNum + '</td>' +
       '<td class="td-name">' + escapeHtml(r.name) + '</td>' +
@@ -2459,7 +2536,7 @@ function renderBulkResults(errors, total) {
       '<td>' + escapeHtml(r.branch || '—') + '</td>' +
       '<td style="text-align:center;font-size:11px;color:var(--text-dim)">' + (monthNames[r.salaryMonth] || '—') + '</td>' +
       '<td style="text-align:center;font-size:10px;color:var(--text-dim)">' + (r.gender || 'M') + '</td>' +
-      '<td class="td-right">' + prevBasicCell + '</td>' +
+      '<td class="td-right">' + prevBasicCell + '</td>' +  // 🔴 ADDED: Previous Basic cell
       '<td class="' + (r.pfApplicable === 'Y' ? 'td-pf-y' : 'td-pf-n') + '">' + r.pfApplicable + '</td>' +
       '<td style="min-width:130px">' + pfModeBadge + '</td>' +
       '<td class="td-right">' + bulkFmt(r.pfWages) + '</td>' +
@@ -2491,7 +2568,7 @@ function renderBulkResults(errors, total) {
       '</tr>';
   });
 
-  // ── Total Row — UPDATED colspan to 12 ──
+  // ── Total Row ──
   if (valid.length > 0) {
     bodyHtml += '<tr class="total-row">' +
       '<td colspan="12">TOTAL (' + valid.length + ' employees)</td>' +
@@ -2534,8 +2611,10 @@ function renderBulkResults(errors, total) {
 // ===================================================================
 function bulkExportCSV() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
+  
   function cell(v) { return '"' + String(v !== null && v !== undefined ? v : '').replace(/"/g, '""') + '"'; }
   function amt(n)  { return (n && !isNaN(n)) ? Math.round(n) : 0; }
+  
   const now = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
   const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -2546,54 +2625,101 @@ function bulkExportCSV() {
     [''],
   ];
 
-  // ── Headers — UPDATED with Employee Code & Branch ──
+  // ── Headers — WITH Previous Basic Column 🔴 ──
   const headers = [
-    'Sr. No.', 'Employee Name', 'Employee Code', 'Branch', 'Salary Month', 'Gender', 'Previous Basic (Rs.)',
-    'PF Status', 'PF Mode', 'PF Wages (Rs.)', 'Employer PF Rate', 'Voluntary PF %',
-    'Gross Salary', 'Basic Salary', 'HRA',
-    'Defray Expenses 10% (High Gross)', 'Conveyance',
-    'EPF – Employer (Rs.)', 'EDLI – Employer (Rs.)', 'Bonus (Rs.)', 'ESI – Employer (Rs.)',
-    'Gratuity (Rs.)', 'Gratuity Mode', 'Leave Encashment (Rs.)', 'Leave Mode', 'Leaves Per Year',
-    'LWF State', 'LWF Mode', 'LWF Amount (Rs.)',
-    'PT State', 'PT Mode', 'Professional Tax (Rs.)',
-    'Initial CTC (Monthly)', 'Final CTC (Monthly)', 'Final CTC (Annual)',
-    'EPF – Employee (Rs.)', 'ESI – Employee (Rs.)', 'Net Cash in Hand (Rs.)',
+    'Sr. No.', 
+    'Employee Name', 
+    'Employee Code', 
+    'Branch', 
+    'Salary Month', 
+    'Gender', 
+    'Previous Basic (Rs.)',  // 🔴 ADDED: Previous Basic header
+    'PF Status', 
+    'PF Mode', 
+    'PF Wages (Rs.)', 
+    'Employer PF Rate', 
+    'Voluntary PF %',
+    'Gross Salary', 
+    'Basic Salary', 
+    'HRA',
+    'Defray Expenses 10% (High Gross)', 
+    'Conveyance',
+    'EPF – Employer (Rs.)', 
+    'EDLI – Employer (Rs.)', 
+    'Bonus (Rs.)', 
+    'ESI – Employer (Rs.)',
+    'Gratuity (Rs.)', 
+    'Gratuity Mode', 
+    'Leave Encashment (Rs.)', 
+    'Leave Mode', 
+    'Leaves Per Year',
+    'LWF State', 
+    'LWF Mode', 
+    'LWF Amount (Rs.)',
+    'PT State', 
+    'PT Mode', 
+    'Professional Tax (Rs.)',
+    'Initial CTC (Monthly)', 
+    'Final CTC (Monthly)', 
+    'Final CTC (Annual)',
+    'EPF – Employee (Rs.)', 
+    'ESI – Employee (Rs.)', 
+    'Net Cash in Hand (Rs.)',
     'Status'
   ];
 
   const dataRows = bulkCalcResults.map(function(r) {
     if (r.error) {
+      // Error row: pad with blanks to match header count (39 columns)
       const blanks = new Array(headers.length - 3).fill('');
-      return [r.rowNum, r.name, r.empCode || '', r.branch || '', '', ...blanks, 'Error: ' + r.error];
+      return [r.rowNum, r.name, r.empCode || '', r.branch || '', '', '', '', ...blanks, 'Error: ' + r.error];
     }
+    
+    // 🔴 Previous Basic value formatting for CSV export
+    const prevBasicVal = (r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0) 
+      ? amt(r.previousBasic) 
+      : 'N/A';
+    
     return [
       r.rowNum,
       r.name,
-      r.empCode || '',                    // ✅ Employee Code added
-      r.branch || '',                     // ✅ Branch added
+      r.empCode || '',
+      r.branch || '',
       monthNames[r.salaryMonth] || r.salaryMonth || '',
       r.gender || 'Male',
-      r.previousBasic !== null && r.previousBasic !== undefined ? amt(r.previousBasic) : 'N/A',
+      prevBasicVal,  // 🔴 ADDED: Previous Basic value in CSV
       r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable',
-      r.pfApplicable === 'Y' ? (r.pfBaseUsed === 'standard' ? 'Standard (min Basic,15k)' : r.pfBaseUsed === 'full_basic' ? 'Full Basic' : 'Specific Amount') : 'N/A',
+      r.pfApplicable === 'Y' 
+        ? (r.pfBaseUsed === 'standard' ? 'Standard (min Basic,15k)' 
+          : r.pfBaseUsed === 'full_basic' ? 'Full Basic' 
+          : 'Specific Amount') 
+        : 'N/A',
       r.pfApplicable === 'Y' ? amt(r.pfWages) : 'N/A',
       r.pfApplicable === 'Y' ? r.pfEmployerRate + '%' : 'N/A',
       r.pfHasVoluntary ? r.pfVolPct + '%' : '0%',
-      amt(r.gross), amt(r.basic), amt(r.hra),
+      amt(r.gross), 
+      amt(r.basic), 
+      amt(r.hra),
       r.isHighGross ? amt(r.deferAllowance) : 'N/A',
       amt(r.conv),
       r.pfApplicable === 'Y' ? amt(r.epfEmp) : 'N/A',
       r.edliEmployer > 0 ? amt(r.edliEmployer) : 0,
       r.bonus > 0 ? amt(r.bonus) : 0,
       r.esiEmp > 0 ? amt(r.esiEmp) : 0,
-      amt(r.gratuityUsed), r.gratuityMode === 'manual' ? 'Manual' : 'Auto (Formula)',
-      amt(r.leaveUsed), r.leaveMode === 'manual' ? 'Manual' : 'Auto (Formula)',
+      amt(r.gratuityUsed), 
+      r.gratuityMode === 'manual' ? 'Manual' : 'Auto (Formula)',
+      amt(r.leaveUsed), 
+      r.leaveMode === 'manual' ? 'Manual' : 'Auto (Formula)',
       r.leavesPerYear || 15,
-      r.lwfStateName || 'N/A', r.lwfMode === 'auto' ? 'Auto (State-wise)' : 'Manual',
+      r.lwfStateName || 'N/A', 
+      r.lwfMode === 'auto' ? 'Auto (State-wise)' : 'Manual',
       r.lwf > 0 ? amt(r.lwf) : 0,
-      r.ptStateName || 'N/A', r.ptMode === 'auto' ? 'Auto (State-wise)' : 'Manual',
+      r.ptStateName || 'N/A', 
+      r.ptMode === 'auto' ? 'Auto (State-wise)' : 'Manual',
       r.pt > 0 ? amt(r.pt) : 0,
-      amt(r.initialCTC), amt(r.finalCTC), amt(r.finalAnnual),
+      amt(r.initialCTC), 
+      amt(r.finalCTC), 
+      amt(r.finalAnnual),
       r.pfApplicable === 'Y' ? amt(r.epfEe) : 'N/A',
       r.esiEe > 0 ? amt(r.esiEe) : 0,
       amt(r.cash),
@@ -2603,9 +2729,9 @@ function bulkExportCSV() {
 
   const valid = bulkCalcResults.filter(function(r) { return !r.error; });
   
-  // ── Total Row — UPDATED with blanks for Employee Code & Branch ──
+  // ── Total Row — Previous Basic shows 'N/A' (reference value, not summed) ──
   const totRow = [
-    'TOTAL (' + valid.length + ')', '', '', '', '', '', '', '', '', '', '', '',
+    'TOTAL (' + valid.length + ')', '', '', '', '', '', 'N/A', '', '', '', '', '',
     valid.reduce(function(s,r){ return s+amt(r.gross); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.basic); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.hra); }, 0),
@@ -2647,6 +2773,7 @@ function bulkExportCSV() {
 // ── Bulk Export TXT ──
 function bulkExportTXT() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
+  
   const valid        = bulkCalcResults.filter(function(r) { return !r.error; });
   const now          = new Date().toLocaleDateString('en-IN', { year:'numeric', month:'long', day:'numeric' });
   const totalMonthly = valid.reduce(function(s, r) { return s + (r.finalCTC    || 0); }, 0);
@@ -2673,18 +2800,22 @@ function bulkExportTXT() {
   valid.forEach(function(r, i) {
     txt += '┌' + '─'.repeat(58) + '┐\n';
     txt += '│  ' + padR((i+1) + '. ' + r.name, 56) + '│\n';
-    // ── NEW: Emp Code & Branch ──
+    // ── Emp Code & Branch ──
     txt += '│  Emp Code: ' + padR((r.empCode || 'N/A'), 48) + '│\n';
     txt += '│  Branch  : ' + padR((r.branch  || 'N/A'), 48) + '│\n';
     txt += '│  Month: ' + padR((monthNames[r.salaryMonth] || '—'), 50) + '│\n';
     txt += '│  Gender: ' + padR((r.gender || 'Male'), 49) + '│\n';
-    if (r.previousBasic !== null && r.previousBasic !== undefined) {
+    
+    // 🔴 ADDED: Previous Basic line in TXT export
+    if (r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0) {
       txt += '│  Previous Basic: Rs.' + padR(Math.round(r.previousBasic).toLocaleString('en-IN'), 36) + '│\n';
     }
+    
     txt += '│  PF: ' + padR((r.pfApplicable === 'Y' ? 'Applicable | ' + (r.pfModeLabel||'Standard') : 'Not Applicable'), 52) + '│\n';
     txt += '│  LWF: ' + padR((r.lwfStateName || 'N/A') + ' (' + (r.lwfMode === 'auto' ? '● Auto' : '○ Manual') + ')', 51) + '│\n';
     txt += '│  PT:  ' + padR((r.ptStateName || 'N/A') + ' (' + (r.ptMode === 'auto' ? '● Auto' : '○ Manual') + ')', 51) + '│\n';
     txt += '└' + '─'.repeat(58) + '┘\n';
+    
     txt += SEP + '\n';
     txt += tableRow('SALARY STRUCTURE', '');
     txt += SEP + '\n';
@@ -2693,6 +2824,7 @@ function bulkExportTXT() {
     if (r.isHighGross) txt += tableRow('Defray Expenses (10%)', bulkFmt(r.deferAllowance));
     txt += tableRow('Conveyance', bulkFmt(r.conv));
     txt += tableRow('Gross Salary', bulkFmt(r.gross));
+    
     txt += SEP + '\n';
     txt += tableRow('EMPLOYER CONTRIBUTIONS', '');
     txt += SEP + '\n';
@@ -2704,6 +2836,7 @@ function bulkExportTXT() {
     txt += tableRow('Gratuity (' + (r.gratuityMode === 'manual' ? 'M-Manual' : 'Auto') + ')', bulkFmt(r.gratuityUsed));
     txt += tableRow('Leave Enc. (' + (r.leavesPerYear||15) + ' leaves/yr, ' + (r.leaveMode === 'manual' ? 'M-Manual' : 'Auto') + ')', bulkFmt(r.leaveUsed));
     txt += tableRow('LWF – ' + (r.lwfStateName||'N/A') + ' (' + (r.lwfMode==='auto'?'● Auto':'○ Manual') + ')', r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A');
+    
     txt += SEP + '\n';
     txt += tableRow('EMPLOYEE DEDUCTIONS', '');
     txt += SEP + '\n';
@@ -2711,6 +2844,7 @@ function bulkExportTXT() {
     txt += tableRow('ESI – Employee (0.75%)', r.esiEe > 0 ? bulkFmt(r.esiEe) : 'N/A');
     txt += tableRow('Professional Tax – ' + (r.ptStateName||'N/A') + ' (' + (r.ptMode==='auto'?'● Auto':'○ Manual') + ')', r.pt > 0 ? bulkFmt(r.pt) : 'N/A');
     txt += tableRow('LWF – Employee', r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A');
+    
     txt += SEP + '\n';
     txt += tableRow('FINAL SUMMARY', '');
     txt += SEP + '\n';
@@ -2720,6 +2854,7 @@ function bulkExportTXT() {
     txt += SEP + '\n\n';
   });
 
+  // ── Errors Section ──
   if (bulkCalcResults.some(function(r) { return r.error; })) {
     txt += '\nERRORS:\n' + '─'.repeat(60) + '\n';
     bulkCalcResults.filter(function(r) { return r.error; }).forEach(function(r) {
@@ -2739,51 +2874,99 @@ function bulkExportTXT() {
 // ── Bulk Copy Clipboard ──
 function bulkCopyClipboard() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
+  
   const valid = bulkCalcResults.filter(function(r) { return !r.error; });
   
-  // ── Headers — UPDATED with Employee Code & Branch ──
+  // ── Headers — WITH Previous Basic Column 🔴 ──
   const headers = [
-    '#', 'Employee Name', 'Employee Code', 'Branch', 'Month', 'Gender', 'Prev Basic',
-    'PF Status', 'PF Mode', 'PF Wages', 'Emp Rate', 'Voluntary %',
-    'Gross', 'Basic', 'HRA', 'Defray(10%)', 'Conveyance',
-    'EPF Employer', 'EDLI', 'Bonus', 'ESI Employer',
-    'Gratuity', 'Grat Mode', 'Leave Enc.', 'Leave Mode', 'Leaves/Yr',
-    'LWF State', 'LWF Mode', 'LWF',
-    'PT State', 'PT Mode', 'PT',
-    'Initial CTC', 'Final CTC/Mo', 'Annual CTC',
-    'EPF Employee', 'ESI Employee', 'Net Cash in Hand'
+    '#', 
+    'Employee Name', 
+    'Employee Code', 
+    'Branch', 
+    'Month', 
+    'Gender', 
+    'Prev Basic',  // 🔴 ADDED: Previous Basic header
+    'PF Status', 
+    'PF Mode', 
+    'PF Wages', 
+    'Emp Rate', 
+    'Voluntary %',
+    'Gross', 
+    'Basic', 
+    'HRA', 
+    'Defray(10%)', 
+    'Conveyance',
+    'EPF Employer', 
+    'EDLI', 
+    'Bonus', 
+    'ESI Employer',
+    'Gratuity', 
+    'Grat Mode', 
+    'Leave Enc.', 
+    'Leave Mode', 
+    'Leaves/Yr',
+    'LWF State', 
+    'LWF Mode', 
+    'LWF',
+    'PT State', 
+    'PT Mode', 
+    'PT',
+    'Initial CTC', 
+    'Final CTC/Mo', 
+    'Annual CTC',
+    'EPF Employee', 
+    'ESI Employee', 
+    'Net Cash in Hand'
   ];
   
   const monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   
   const rows = valid.map(function(r, i) {
+    // 🔴 Previous Basic value formatting for clipboard copy
+    const prevBasicVal = (r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0) 
+      ? Math.round(r.previousBasic) 
+      : 'N/A';
+    
     return [
       i+1,
       r.name,
-      r.empCode || '',                    // ✅ Employee Code added
-      r.branch || '',                     // ✅ Branch added
+      r.empCode || '',
+      r.branch || '',
       monthNames[r.salaryMonth] || '',
       r.gender || 'Male',
-      r.previousBasic !== null && r.previousBasic !== undefined ? Math.round(r.previousBasic) : 'N/A',
+      prevBasicVal,  // 🔴 ADDED: Previous Basic value in clipboard data
       r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable',
-      r.pfApplicable === 'Y' ? (r.pfBaseUsed === 'standard' ? 'Standard' : r.pfBaseUsed === 'full_basic' ? 'Full Basic' : 'Specific Amt') : 'N/A',
+      r.pfApplicable === 'Y' 
+        ? (r.pfBaseUsed === 'standard' ? 'Standard' 
+          : r.pfBaseUsed === 'full_basic' ? 'Full Basic' 
+          : 'Specific Amt') 
+        : 'N/A',
       r.pfApplicable === 'Y' ? Math.round(r.pfWages) : 'N/A',
       r.pfEmployerRate + '%',
       r.pfHasVoluntary ? r.pfVolPct + '%' : '0%',
-      Math.round(r.gross), Math.round(r.basic), Math.round(r.hra),
-      r.isHighGross ? Math.round(r.deferAllowance) : 'N/A', Math.round(r.conv),
+      Math.round(r.gross), 
+      Math.round(r.basic), 
+      Math.round(r.hra),
+      r.isHighGross ? Math.round(r.deferAllowance) : 'N/A', 
+      Math.round(r.conv),
       r.pfApplicable === 'Y' ? Math.round(r.epfEmp) : 'N/A',
       r.edliEmployer > 0 ? Math.round(r.edliEmployer) : 0,
       r.bonus > 0 ? Math.round(r.bonus) : 0,
       r.esiEmp > 0 ? Math.round(r.esiEmp) : 0,
-      Math.round(r.gratuityUsed), r.gratuityMode === 'manual' ? 'Manual' : 'Auto',
-      Math.round(r.leaveUsed), r.leaveMode === 'manual' ? 'Manual' : 'Auto',
+      Math.round(r.gratuityUsed), 
+      r.gratuityMode === 'manual' ? 'Manual' : 'Auto',
+      Math.round(r.leaveUsed), 
+      r.leaveMode === 'manual' ? 'Manual' : 'Auto',
       r.leavesPerYear || 15,
-      r.lwfStateName || 'N/A', r.lwfMode === 'auto' ? 'Auto' : 'Manual',
+      r.lwfStateName || 'N/A', 
+      r.lwfMode === 'auto' ? 'Auto' : 'Manual',
       r.lwf > 0 ? Math.round(r.lwf) : 0,
-      r.ptStateName || 'N/A', r.ptMode === 'auto' ? 'Auto' : 'Manual',
+      r.ptStateName || 'N/A', 
+      r.ptMode === 'auto' ? 'Auto' : 'Manual',
       r.pt > 0 ? Math.round(r.pt) : 0,
-      Math.round(r.initialCTC), Math.round(r.finalCTC), Math.round(r.finalAnnual),
+      Math.round(r.initialCTC), 
+      Math.round(r.finalCTC), 
+      Math.round(r.finalAnnual),
       r.pfApplicable === 'Y' ? Math.round(r.epfEe) : 'N/A',
       r.esiEe > 0 ? Math.round(r.esiEe) : 0,
       Math.round(r.cash)
@@ -2791,35 +2974,42 @@ function bulkCopyClipboard() {
   });
   
   const text = [headers.join('\t')].concat(rows).join('\n');
+  
   navigator.clipboard.writeText(text)
-    .then(function() { showBulkExportStatus('✓ Copied!'); showToast('⎘ Bulk data copied to clipboard'); })
-    .catch(function() { showToast('⚠️ Copy failed'); });
+    .then(function() { 
+      showBulkExportStatus('✓ Copied!'); 
+      showToast('⎘ Bulk data copied to clipboard'); 
+    })
+    .catch(function() { 
+      showToast('⚠️ Copy failed'); 
+    });
 }
 
 // ── Bulk Template Download — Complete with all columns ──
 // REPLACE the existing bulkDownloadTemplate function with this:
+// 🔴 UPDATED: bulkDownloadTemplate - Added Previous Basic column
 function bulkDownloadTemplate() {
-	const csv = [
-		'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,PT State,LWF State,Salary Month,Gender,Previous Basic,Gratuity,Leave Encashment Amount,Leaves per Year',
-		'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,Y,standard,N,,0,12.5,KA,FKL,12,Male,25000,,,15',
-		'Priya Verma,EMP002,Delhi-Branch,45000,16868,Y,full_basic,N,,0,12,MH,MH,12,Male,40000,,500,18',
-		'Amit Patel,EMP003,Bangalore-Site,55000,16868,N,standard,N,,0,12.5,,OTHER,12,Male,,,,15',
-		'Neha Singh,EMP004,Chennai-Branch,60000,16868,Y,standard,Y,5,0,12.5,GJ,OTHER,6,Female,55000,,,20',
-		'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,Y,specific_amt,N,,15000,12,AP,AP,12,Male,22000,,,15',
-		'Sunita Kumar,EMP006,Pune-Branch,50000,14000,Y,full_basic,Y,3,0,12.5,TS,OTHER,12,Female,,500,200,12',
-		'Rajesh Mehta,EMP007,Mumbai-HO,120000,15860,Y,full_basic,N,,0,12,KA,FKL,12,Male,110000,,,15',
-		'Pooja Joshi,EMP008,Kolkata-Branch,150000,16868,Y,specific_amt,Y,10,20000,12.5,WB,WB,6,Female,,800,,18',
-		'Arun Rao,EMP009,Coimbatore-Site,80000,16868,N,standard,N,,0,12.5,TN,TN,12,Male,75000,,,15',
-		'Kavita Nair,EMP010,Tirupati-Branch,15000,14858,Y,standard,N,,0,12,TS,,12,Male,13000,,,15',
-		'Mohan Das,EMP011,Thiruvananthapuram,35000,16000,Y,standard,N,,0,12.5,KL,SKL,6,Male,30000,,,21',
-		'Ritu Sharma,EMP012,Jaipur-Branch,42000,16868,Y,full_basic,N,,0,12,OD,OD,12,Female,38000,,,15',
-	].join('\n');
-	const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-	const link = document.createElement('a');
-	link.href = URL.createObjectURL(blob);
-	link.download = 'CTC_Bulk_Upload_Template_v13.csv';
-	link.click();
-	showToast('✓ Template v13 Downloaded — Branch & Emp Code included');
+const csv = [
+'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,PT State,LWF State,Salary Month,Gender,Gratuity,Leave Encashment Amount,Leaves per Year',
+'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,KA,FKL,12,Male,,,15',
+'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,MH,MH,12,Male,,500,18',
+'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,,OTHER,12,Male,,,,15',
+'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,GJ,OTHER,6,Female,,,20',
+'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,AP,AP,12,Male,,,15',
+'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,TS,OTHER,12,Female,,500,200,12',
+'Rajesh Mehta,EMP007,Mumbai-HO,120000,15860,50000,Y,full_basic,N,,0,12,KA,FKL,12,Male,,,15',
+'Pooja Joshi,EMP008,Kolkata-Branch,150000,16868,60000,Y,specific_amt,Y,10,20000,12.5,WB,WB,6,Female,,800,,18',
+'Arun Rao,EMP009,Coimbatore-Site,80000,16868,,N,standard,N,,0,12.5,TN,TN,12,Male,,,15',
+'Kavita Nair,EMP010,Tirupati-Branch,15000,14858,13000,Y,standard,N,,0,12,TS,,12,Male,,,15',
+'Mohan Das,EMP011,Thiruvananthapuram,35000,16000,18000,Y,standard,N,,0,12.5,KL,SKL,6,Male,,,21',
+'Ritu Sharma,EMP012,Jaipur-Branch,42000,16868,20000,Y,full_basic,N,,0,12,OD,OD,12,Female,,,15',
+].join('\n');
+const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+const link = document.createElement('a');
+link.href = URL.createObjectURL(blob);
+link.download = 'CTC_Bulk_Upload_Template_v14.csv';  // 🔴 Updated version
+link.click();
+showToast('✓ Template v14 Downloaded — Previous Basic column added');
 }
 
 function resetBulk() {
