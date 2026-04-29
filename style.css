@@ -2408,3 +2408,78 @@ input:invalid:not(:placeholder-shown) {
   }
 }
 
+/* Fix for bulk summary cards overflow */
+.bulk-sum-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  transition: border-color 0.2s;
+  min-width: 0; /* Allows flex items to shrink */
+  word-wrap: break-word;
+  overflow: hidden;
+}
+
+.bsc-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bsc-val {
+  font-family: 'Syne', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  word-break: break-word;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* Responsive font sizes for smaller screens */
+@media (max-width: 1200px) {
+  .bsc-val {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 992px) {
+  .bsc-val {
+    font-size: 16px;
+  }
+  
+  .bulk-summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .bsc-val {
+    font-size: 15px;
+  }
+  
+  .bsc-label {
+    font-size: 9px;
+  }
+  
+  .bulk-sum-card {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 576px) {
+  .bsc-val {
+    font-size: 14px;
+  }
+  
+  .bulk-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
