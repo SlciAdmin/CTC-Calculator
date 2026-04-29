@@ -2483,3 +2483,137 @@ input:invalid:not(:placeholder-shown) {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+/* Add/Update these CSS rules in your style.css */
+
+/* Fix for all cards */
+.card, 
+.final-item, 
+.bulk-sum-card,
+.mini-item,
+.result-hero,
+.breakdown-card {
+  overflow: hidden;
+  word-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+/* Fix for card content */
+.card-header h2,
+.fi-label,
+.fi-val,
+.fi-sub,
+.hero-label,
+.hero-value,
+.mini-label,
+.mini-val,
+.bsc-label,
+.bsc-val {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Multi-line text wrap for labels */
+.fi-label,
+.bsc-label,
+.mini-label {
+  white-space: normal;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+/* Fix for values - allow wrapping */
+.fi-val,
+.bsc-val,
+.hero-value,
+.mini-val {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Subtitle text */
+.fi-sub,
+.hero-sub {
+  white-space: normal;
+  line-height: 1.4;
+  font-size: 11px;
+  word-wrap: break-word;
+}
+
+/* Responsive font sizes for smaller screens */
+@media (max-width: 1200px) {
+  .fi-val,
+  .hero-value {
+    font-size: 18px;
+  }
+  
+  .fi-label,
+  .hero-label {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 992px) {
+  .fi-val,
+  .hero-value {
+    font-size: 16px;
+  }
+  
+  .fi-label {
+    font-size: 9px;
+  }
+  
+  .fi-sub {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .final-items {
+    grid-template-columns: 1fr;
+  }
+  
+  .fi-val {
+    font-size: 20px;
+  }
+  
+  .fi-label {
+    font-size: 11px;
+  }
+  
+  .card {
+    padding: 16px;
+  }
+}
+
+/* Bulk summary cards specific fix */
+.bulk-summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.bulk-sum-card {
+  padding: 14px;
+  min-width: 0;
+}
+
+.bsc-val {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+@media (max-width: 576px) {
+  .bulk-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .bsc-val {
+    font-size: 15px;
+  }
+  
+  .bsc-label {
+    font-size: 9px;
+  }
+}
