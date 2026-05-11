@@ -17,9 +17,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   
- 
-<!-- jsPDF Library - Load AFTER Firebase scripts -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- jsPDF Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   
   <link rel="stylesheet" href="style.css">
 </head>
@@ -141,10 +140,7 @@
     <aside class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-icon">
-          <img src="logo.png"
-               alt="SLCI Logo"
-               class="brand-logo"
-               onerror="this.style.display='none'; this.parentElement.innerHTML='📊'">
+          <img src="logo.png" alt="SLCI Logo" class="brand-logo" onerror="this.style.display='none'; this.parentElement.innerHTML='📊'">
         </div>
         <div>
           <div class="brand-name">SLCI</div>
@@ -218,8 +214,8 @@
                 <input type="number" id="grossSalary" placeholder="e.g. 30000" min="0" oninput="liveCalc()" />
               </div>
               <div id="minWageWarning" class="min-wage-warning hidden" role="alert">
-  ⚠️ Entered Gross Salary is below the minimum wage requirement. Please enter ₹<span id="minWageWarningAmt"></span> or higher.
-</div>
+                ⚠️ Entered Gross Salary is below the minimum wage requirement. Please enter ₹<span id="minWageWarningAmt"></span> or higher.
+              </div>
             </div>
 
             <div class="field-group">
@@ -232,14 +228,13 @@
             </div>
 
             <div class="field-group">
-  <label for="previousBasic">Previous Basic Salary <span class="opt">(optional)</span></label>
-  <div class="input-prefix">
-    <span>₹</span>
-    <input type="number" id="previousBasic" placeholder="e.g. 14000" min="0" oninput="liveCalc()" />
-  </div>
-  <div class="field-hint">Enter employee's previous basic. Final Basic = MAX(MinWage, PreviousBasic, CalculatedBasic)</div>
-</div>
-<!-- 🔴 END: Previous Basic Input Field -->
+              <label for="previousBasic">Previous Basic Salary <span class="opt">(optional)</span></label>
+              <div class="input-prefix">
+                <span>₹</span>
+                <input type="number" id="previousBasic" placeholder="e.g. 14000" min="0" oninput="liveCalc()" />
+              </div>
+              <div class="field-hint">Enter employee's previous basic. Final Basic = MAX(MinWage, PreviousBasic, CalculatedBasic)</div>
+            </div>
 
             <div class="field-group">
               <label>PF Applicability</label>
@@ -249,8 +244,6 @@
               </div>
               <div class="field-hint" id="pfHint">55% of Gross or Min Wage (whichever is higher) → Basic</div>
             </div>
-
-            
 
             <!-- PROFESSIONAL TAX -->
             <div class="field-group special-field pt-field">
@@ -349,10 +342,10 @@
                       <option value="">-- Select State --</option>
                       <option value="TN">Tamil Nadu (TN)</option>
                       <option value="AP">Andhra Pradesh (AP)</option>
-                      <option value="KL">Kerala (KL)</option>
-                      <option value="KA">Karnataka (KA)</option>
+                      <option value="SKL">Kerala (KL)</option>
+                      <option value="FKL">Karnataka (KA)</option>
                       <option value="MH">Maharashtra (MH)</option>
-                      <option value="GA">Goa (GA)</option>
+                      <option value="Goa">Goa (GA)</option>
                       <option value="DL">Delhi (DL)</option>
                       <option value="CH">Chandigarh (CH)</option>
                       <option value="MP">Madhya Pradesh (MP)</option>
@@ -396,60 +389,48 @@
               </div>
             </div>
 
-            <!-- GRATUITY -->
-            <div class="field-group special-field">
+            <!-- HEALTH INSURANCE (Gratuity ki jagah) -->
+            <div class="field-group special-field hi-field">
               <label>
-                Gratuity (Monthly Provision)
-                <span class="formula-badge">Basic ÷ 26 × 15 ÷ 12</span>
+                Health Insurance 
+                <span class="formula-badge">Manual Entry</span>
               </label>
-              <div class="toggle-group" role="radiogroup" aria-label="Gratuity Calculation Mode">
-                <button class="toggle-btn active" id="gratuityAuto" onclick="setGratuityMode('auto')" role="radio" aria-checked="true">Auto (Formula)</button>
-                <button class="toggle-btn" id="gratuityManual" onclick="setGratuityMode('manual')" role="radio" aria-checked="false">Manual Override</button>
+              <div class="input-prefix" style="margin-top: 8px;">
+                <span>₹</span>
+                <input type="number" id="healthInsurance" placeholder="e.g. 500" min="0" value="0" oninput="liveCalc()" />
               </div>
-              <div id="gratuityManualWrapper" class="hidden" style="margin-top:8px;">
-                <div class="input-prefix">
-                  <span>₹</span>
-                  <input type="number" id="gratuityCustom" placeholder="e.g. 500" min="0" oninput="liveCalc()" />
-                </div>
-              </div>
-              <div class="field-hint" id="gratuityHint">Formula: Basic ÷ 26 × 15 ÷ 12 (monthly provision)</div>
+              <div class="field-hint">Enter monthly health insurance premium (employer contribution added to CTC)</div>
             </div>
 
             <!-- LEAVE ENCASHMENT -->
-            <!-- LEAVE ENCASHMENT - UPDATED -->
-<div class="field-group special-field">
-  <label>
-    Leave Encashment (Monthly Provision)
-    <span class="formula-badge" id="leaveFormulaBadge">Basic ÷ 26 × Leaves ÷ 12</span>
-  </label>
-  
-  <!-- Mode Toggle -->
-  <div class="toggle-group" role="radiogroup" aria-label="Leave Encashment Mode">
-    <button class="toggle-btn active" id="leaveAuto" onclick="setLeaveMode('auto')" role="radio" aria-checked="true">Auto (15 Leaves)</button>
-    <button class="toggle-btn" id="leaveManual" onclick="setLeaveMode('manual')" role="radio" aria-checked="false">Custom Leaves</button>
-  </div>
-  
-  <!-- Manual Input Wrapper -->
-  <div id="leaveManualWrapper" class="hidden" style="margin-top:12px; padding:12px; background:rgba(255,255,255,0.03); border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
-    
-    <div class="field-group" style="margin-bottom:8px;">
-      <label for="leaveCountInput">Number of Leaves per Year <span class="req">*</span></label>
-      <div class="input-prefix">
-        <span>📅</span>
-        <input type="number" id="leaveCountInput" placeholder="e.g. 15" min="0" max="30" step="1" value="15" oninput="updateLeaveCalc(); liveCalc();" />
-      </div>
-      <div class="field-hint">Enter total leaves per year for encashment (e.g., 12, 15, 18, 21, 24)</div>
-    </div>
-    
-    <div class="leave-preview" id="leavePreview" style="margin-top:8px; padding:8px 12px; background:rgba(159,122,234,0.1); border-radius:8px; font-size:12px; color:var(--text-dim);">
-      <strong>Preview:</strong> Basic ₹<span id="leavePreviewBasic">—</span> × <span id="leavePreviewLeaves">15</span> leaves ÷ 26 ÷ 12 = <strong>₹<span id="leavePreviewAmount">—</span>/month</strong>
-    </div>
-    
-  </div>
-  
-  <!-- Auto Mode Hint -->
-  <div class="field-hint" id="leaveHint">Formula: Basic ÷ 26 × 15 ÷ 12 (15 leaves/year default)</div>
-</div>
+            <div class="field-group special-field">
+              <label>
+                Leave Encashment (Monthly Provision)
+                <span class="formula-badge" id="leaveFormulaBadge">Basic ÷ 26 × Leaves ÷ 12</span>
+              </label>
+              
+              <div class="toggle-group" role="radiogroup" aria-label="Leave Encashment Mode">
+                <button class="toggle-btn active" id="leaveAuto" onclick="setLeaveMode('auto')" role="radio" aria-checked="true">Auto (15 Leaves)</button>
+                <button class="toggle-btn" id="leaveManual" onclick="setLeaveMode('manual')" role="radio" aria-checked="false">Custom Leaves</button>
+              </div>
+              
+              <div id="leaveManualWrapper" class="hidden" style="margin-top:12px; padding:12px; background:rgba(255,255,255,0.03); border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
+                <div class="field-group" style="margin-bottom:8px;">
+                  <label for="leaveCountInput">Number of Leaves per Year <span class="req">*</span></label>
+                  <div class="input-prefix">
+                    <span>📅</span>
+                    <input type="number" id="leaveCountInput" placeholder="e.g. 15" min="0" max="30" step="1" value="15" oninput="updateLeaveCalc(); liveCalc();" />
+                  </div>
+                  <div class="field-hint">Enter total leaves per year for encashment (e.g., 12, 15, 18, 21, 24)</div>
+                </div>
+                
+                <div class="leave-preview" id="leavePreview" style="margin-top:8px; padding:8px 12px; background:rgba(159,122,234,0.1); border-radius:8px; font-size:12px; color:var(--text-dim);">
+                  <strong>Preview:</strong> Basic ₹<span id="leavePreviewBasic">—</span> × <span id="leavePreviewLeaves">15</span> leaves ÷ 26 ÷ 12 = <strong>₹<span id="leavePreviewAmount">—</span>/month</strong>
+                </div>
+              </div>
+              
+              <div class="field-hint" id="leaveHint">Formula: Basic ÷ 26 × 15 ÷ 12 (15 leaves/year default)</div>
+            </div>
 
             <button class="btn-calc-main" onclick="calculate()">
               Calculate CTC
@@ -491,7 +472,7 @@
                   <span class="mini-val" id="r_hra">—</span>
                 </div>
                 <div class="mini-item">
-                  <span class="mini-label" data-field="conv">Conveyance</span>
+                  <span class="mini-label">Conveyance</span>
                   <span class="mini-val" id="r_conv">—</span>
                 </div>
                 <div class="mini-item">
@@ -522,7 +503,6 @@
         </div>
         <div class="breakdown-content hidden" id="breakdownContent">
           <div class="breakdown-grid">
-            <!-- SALARY STRUCTURE -->
             <div class="card breakdown-card">
               <div class="card-header">
                 <span class="card-icon">₹</span>
@@ -542,7 +522,6 @@
                 </tfoot>
               </table>
             </div>
-            <!-- EMPLOYER CONTRIBUTIONS -->
             <div class="card breakdown-card">
               <div class="card-header">
                 <span class="card-icon">⊕</span>
@@ -561,7 +540,6 @@
                 </tfoot>
               </table>
             </div>
-            <!-- EMPLOYEE DEDUCTIONS -->
             <div class="card breakdown-card">
               <div class="card-header">
                 <span class="card-icon">⊖</span>
@@ -580,7 +558,6 @@
                 </tfoot>
               </table>
             </div>
-            <!-- FINAL COST CARD -->
             <div class="card breakdown-card final-card">
               <div class="card-header">
                 <span class="card-icon">★</span>
@@ -634,7 +611,6 @@
               <span class="badge-new">New</span>
             </div>
 
-            <!-- DROP ZONE -->
             <div class="bulk-drop-zone" id="bulkDropZone">
               <div class="drop-content">
                 <div class="drop-big-icon">📂</div>
@@ -645,36 +621,30 @@
               <input type="file" id="bulkFileInput" accept=".csv,.xlsx,.xls" style="display:none">
             </div>
 
-            <!-- TEMPLATE NOTE -->
-            <!-- 🔴 UPDATED: Required Columns with Previous Basic -->
-<div class="bulk-template-note">
-  <div class="template-title">Required Columns (Blue = Mandatory)</div>
-  <div class="bulk-col-tags">
-    <span class="col-tag mandatory">Employee Name</span>
-    <span class="col-tag mandatory">Gross Salary</span>
-    <span class="col-tag mandatory">Min Wage</span>
-    <span class="col-tag optional">Previous Basic</span>
-    <span class="col-tag optional">PF (Y/N)</span>
-    <span class="col-tag optional">PT Amount</span>
-    <span class="col-tag optional">LWF Amount</span>
-    <span class="col-tag optional">Gratuity</span>
-    <span class="col-tag optional">Leave Encashment</span>
-  </div>
-  <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
-    Optional fields pe default auto-calculation hogi &nbsp;•&nbsp;
-    <a href="#" onclick="bulkDownloadTemplate(); return false;" style="color:var(--accent);text-decoration:none;">↓ Download Sample Template</a>
-  </div>
-</div>
+            <div class="bulk-template-note">
+              <div class="template-title">Required Columns (Blue = Mandatory)</div>
+              <div class="bulk-col-tags">
+                <span class="col-tag mandatory">Employee Name</span>
+                <span class="col-tag mandatory">Gross Salary</span>
+                <span class="col-tag mandatory">Min Wage</span>
+                <span class="col-tag optional">Previous Basic</span>
+                <span class="col-tag optional">PF (Y/N)</span>
+                <span class="col-tag optional">PT Amount</span>
+                <span class="col-tag optional">LWF Amount</span>
+                <span class="col-tag optional">Health Insurance</span>
+                <span class="col-tag optional">Leave Encashment</span>
+              </div>
+              <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+                Optional fields pe default auto-calculation hogi &nbsp;•&nbsp;
+                <a href="#" onclick="bulkDownloadTemplate(); return false;" style="color:var(--accent);text-decoration:none;">↓ Download Sample Template</a>
+              </div>
+            </div>
 
-            <!-- STATUS BAR -->
             <div class="bulk-status" id="bulkStatus" style="display:none"></div>
-
-            <!-- PROGRESS BAR -->
             <div class="bulk-progress-wrap" id="bulkProgressWrap" style="display:none">
               <div class="bulk-progress-fill" id="bulkProgressFill"></div>
             </div>
 
-            <!-- FILE INFO + ACTION ROW -->
             <div class="bulk-action-row" id="bulkActionRow" style="display:none">
               <div class="bulk-file-info">
                 <span class="file-name-tag" id="bulkFileName">—</span>
@@ -685,15 +655,9 @@
                 <button class="btn-reset-bulk" onclick="resetBulk()">✕ Clear</button>
               </div>
             </div>
-            
 
-            <!-- RESULTS SECTION -->
             <div id="bulkResultsSection" style="display:none">
-
-              <!-- SUMMARY CARDS -->
               <div class="bulk-summary-grid" id="bulkSummaryCards"></div>
-
-              <!-- EXPORT ROW -->
               <div class="bulk-export-row">
                 <button class="export-btn-bulk green" onclick="bulkExportCSV()">
                   <span>📊</span> Export Full CSV
@@ -706,15 +670,12 @@
                 </button>
                 <span class="bulk-export-status" id="bulkExportStatus"></span>
               </div>
-
-              <!-- RESULTS TABLE -->
               <div class="bulk-table-scroll">
                 <table class="bulk-results-table" id="bulkResultsTable">
                   <thead id="bulkTableHead"></thead>
                   <tbody id="bulkTableBody"></tbody>
                 </table>
               </div>
-
             </div>
           </div>
         </div>
@@ -806,4 +767,4 @@
 
   <script src="script.js" defer></script>
 </body>
-</html> 
+</html>

@@ -2,7 +2,7 @@
    CTC CALCULATOR — FIREBASE AUTH + LOGIC
    New Labour Code | Cross-Device Login System
    LWF + PT: State-wise Auto Calculation
-   
+   Health Insurance: Manual Entry (Employer Contribution)
    ✅ PF Mandatory if Basic ≤ ₹15,000 (EPF Act)
    ✅ BULK UPLOAD — FULL INDIVIDUAL-LEVEL PARITY
    ✅ computeCTC accepts leavesPerYear param
@@ -32,7 +32,6 @@ let leaveCountManual = 15;
 
 let pfApplicable = 'Y';
 let calcResult   = null;
-let gratuityMode = 'auto';
 let leaveMode    = 'auto';
 let lwfMode      = 'auto';
 let ptMode       = 'auto';
@@ -596,7 +595,6 @@ onReady(function() {
 function injectBulkSearchStyles() {
   const style = document.createElement('style');
   style.textContent = `
-    /* ── BULK SEARCH BAR ── */
     .bulk-search-bar {
       display: flex;
       align-items: center;
@@ -612,80 +610,26 @@ function injectBulkSearchStyles() {
       border-color: rgba(99,179,237,0.45);
       background: rgba(99,179,237,0.04);
     }
-    .bulk-search-icon {
-      font-size: 16px;
-      color: var(--text-muted);
-      flex-shrink: 0;
-      user-select: none;
-    }
+    .bulk-search-icon { font-size: 16px; color: var(--text-muted); flex-shrink: 0; user-select: none; }
     .bulk-search-input {
-      flex: 1;
-      background: transparent;
-      border: none;
-      outline: none;
-      color: var(--text-main);
-      font-size: 14px;
-      font-family: inherit;
-      padding: 0;
-      caret-color: var(--accent);
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text-main); font-size: 14px; font-family: inherit;
+      padding: 0; caret-color: var(--accent);
     }
-    .bulk-search-input::placeholder {
-      color: var(--text-muted);
-      font-size: 13px;
-    }
+    .bulk-search-input::placeholder { color: var(--text-muted); font-size: 13px; }
     .bulk-search-clear {
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 6px;
-      color: var(--text-dim);
-      font-size: 12px;
-      padding: 4px 10px;
-      cursor: pointer;
-      transition: all 0.15s;
-      display: none;
-      font-family: inherit;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px; color: var(--text-dim); font-size: 12px;
+      padding: 4px 10px; cursor: pointer; transition: all 0.15s; display: none; font-family: inherit;
     }
-    .bulk-search-clear:hover {
-      background: rgba(252,129,129,0.15);
-      border-color: rgba(252,129,129,0.35);
-      color: #fc8181;
-    }
-    .bulk-search-count {
-      font-size: 12px;
-      color: var(--text-muted);
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .bulk-search-count .match-count {
-      color: var(--accent3);
-      font-weight: 700;
-    }
-    .bulk-search-highlight {
-      background: rgba(252,211,77,0.28);
-      color: #f6e05e;
-      border-radius: 2px;
-      padding: 0 1px;
-      font-weight: 700;
-    }
-    /* Hide non-matching rows */
-    #bulkTableBody tr.bulk-hidden {
-      display: none;
-    }
-    /* Highlight matching rows slightly */
-    #bulkTableBody tr.bulk-match {
-      background: rgba(99,179,237,0.04) !important;
-    }
-    /* No results message */
-    .bulk-no-results {
-      text-align: center;
-      padding: 24px;
-      color: var(--text-muted);
-      font-size: 13px;
-      display: none;
-    }
-    .bulk-no-results.visible {
-      display: block;
-    }
+    .bulk-search-clear:hover { background: rgba(252,129,129,0.15); border-color: rgba(252,129,129,0.35); color: #fc8181; }
+    .bulk-search-count { font-size: 12px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+    .bulk-search-count .match-count { color: var(--accent3); font-weight: 700; }
+    .bulk-search-highlight { background: rgba(252,211,77,0.28); color: #f6e05e; border-radius: 2px; padding: 0 1px; font-weight: 700; }
+    #bulkTableBody tr.bulk-hidden { display: none; }
+    #bulkTableBody tr.bulk-match { background: rgba(99,179,237,0.04) !important; }
+    .bulk-no-results { text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; display: none; }
+    .bulk-no-results.visible { display: block; }
   `;
   document.head.appendChild(style);
 }
@@ -751,9 +695,7 @@ function _insertPFModeAfter(pfField) {
         <input type="number" id="pfSpecificAmtVal" placeholder="e.g. 15000" min="0" step="1"
                oninput="updatePFHint(); liveCalc();" />
       </div>
-      <div class="field-hint" style="margin-top:4px;">
-        Fixed PF Wages used for calculation. Employee PF = 12% + Vol% of this amount. Employer PF = selected rate of this amount ONLY (no voluntary).
-      </div>
+      <div class="field-hint" style="margin-top:4px;">Fixed PF Wages used for calculation.</div>
     </div>
     <div id="pfVoluntaryWrapper" class="hidden pf-extra-input" style="margin-top:10px;">
       <label class="pt-sub-label">Voluntary Extra PF % (Employee Side Only)</label>
@@ -762,9 +704,7 @@ function _insertPFModeAfter(pfField) {
         <input type="number" id="pfVoluntaryPct" placeholder="e.g. 5" min="0" max="88" step="0.5"
                oninput="updatePFHint(); liveCalc();" style="padding-left:36px;" />
       </div>
-      <div class="field-hint" style="margin-top:4px;">
-        Extra % added to Employee (12%) contribution on PF Wages ONLY. Employer remains at fixed rate.
-      </div>
+      <div class="field-hint" style="margin-top:4px;">Extra % added to Employee (12%) contribution on PF Wages ONLY.</div>
     </div>
     <div class="pf-live-preview" id="pfLivePreview" style="display:none; margin-top:10px;">
       <div class="pf-preview-row">
@@ -831,6 +771,15 @@ function _insertPFModeAfter(pfField) {
       from { opacity:0; transform:translateY(-4px); }
       to   { opacity:1; transform:translateY(0); }
     }
+    .hi-field {
+      background: rgba(246,173,85,0.04);
+      border: 1px solid rgba(246,173,85,0.2);
+      border-radius: 10px;
+      padding: 14px 14px 10px;
+      margin-bottom: 14px;
+      transition: border-color 0.2s;
+    }
+    .hi-field:hover { border-color: rgba(246,173,85,0.35); }
   `;
   document.head.appendChild(style);
   pfField.insertAdjacentHTML('afterend', pfModeHTML);
@@ -1203,7 +1152,6 @@ function initializeCalculator() {
   pfAddVoluntary = false;
   pfEmployerRate = '12.5';
   _syncPFUI();
-  setGratuityMode('auto');
   setLeaveMode('auto');
   setLWFMode('auto');
   setPTMode('auto');
@@ -1214,13 +1162,15 @@ function initializeCalculator() {
   if (ptMonthEl) ptMonthEl.value = currentMonth;
 }
 
-// ============== CORE CTC ENGINE ==============
-function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride,
+// ============================================================
+//  ✅ CORE CTC ENGINE — Health Insurance replaces Gratuity
+// ============================================================
+function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverride,
                     pfBaseModeOverride, pfVoluntaryOverride, pfVolPctOverride,
                     pfSpecAmtOverride, pfEmpRateOverride, leavesPerYear, previousBasic) {
 
-  gross = Math.round(gross);
-  minWage = Math.round(minWage);
+  gross    = Math.round(gross);
+  minWage  = Math.round(minWage);
   
   previousBasic = (previousBasic !== undefined && previousBasic !== null && !isNaN(previousBasic)) 
     ? Math.round(previousBasic) : null;
@@ -1300,15 +1250,15 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
   const esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
   const esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
 
-  const gratuityAuto = Math.round((basic / 26) * 15 / 12);
-  const gratuity     = (gratuityOverride !== null && gratuityOverride !== undefined && !isNaN(gratuityOverride) && gratuityOverride >= 0)
-    ? Math.round(gratuityOverride) : gratuityAuto;
+  // ✅ Health Insurance — simple manual amount
+  const healthIns = Math.round(healthInsuranceAmt || 0);
 
   const leaveAuto      = Math.round((basic / 26) * (effectiveLeaves / 12));
   const leaveComponent = (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0)
     ? Math.round(leaveOverride) : leaveAuto;
 
-  const finalCTC   = initialCTC + esiEmployer + gratuity + lwf + leaveComponent;
+  // ✅ finalCTC: Health Insurance replaces Gratuity
+  const finalCTC   = initialCTC + esiEmployer + healthIns + lwf + leaveComponent;
   const cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
 
   const pfModeLabel = (function() {
@@ -1335,7 +1285,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
     pfEmployerRate : resolvedEmpRate,
     epfEmployer, edliEmployer, bonus, initialCTC,
     esiEmployer, esiEmployee,
-    gratuity, gratuityAuto,
+    healthInsurance: healthIns,
     leaveComponent, leaveAuto,
     leavesPerYear  : effectiveLeaves,
     lwf, pt,
@@ -1350,27 +1300,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, gratuityOverride, leaveOverride
     pfHasVoluntary : resolvedHasVol,
     pfVolPct       : resolvedVolPct,
     pfSpecAmt      : resolvedSpecAmt,
-    gratuityMode   : (gratuityOverride !== null && gratuityOverride !== undefined && !isNaN(gratuityOverride) && gratuityOverride >= 0) ? 'manual' : 'auto',
     leaveMode      : (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0) ? 'manual' : 'auto',
   };
 }
 
 // ============== INDIVIDUAL CALC HELPERS ==============
-function setGratuityMode(mode) {
-  gratuityMode = mode;
-  const autoBtn     = document.getElementById('gratuityAuto');
-  const manualBtn   = document.getElementById('gratuityManual');
-  const manualInput = document.getElementById('gratuityManualWrapper');
-  const hint        = document.getElementById('gratuityHint');
-  if (autoBtn)     autoBtn.classList.toggle('active', mode === 'auto');
-  if (manualBtn)   manualBtn.classList.toggle('active', mode === 'manual');
-  if (manualInput) manualInput.classList.toggle('hidden', mode !== 'manual');
-  if (hint) hint.textContent = mode === 'manual'
-    ? 'Enter custom monthly gratuity amount'
-    : 'Formula: Basic / 26 x 15 / 12 (monthly provision)';
-  liveCalc();
-}
-
 function setLeaveMode(mode) {
   leaveMode = mode;
   const autoBtn     = document.getElementById('leaveAuto');
@@ -1426,36 +1360,19 @@ function updateLeaveCalc() {
   liveCalc();
 }
 
-function updateGratuityPlaceholder() {
-  const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
-  const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
-  const input   = document.getElementById('gratuityCustom');
-  if (!input) return;
-  if (gross > 0 && minWage > 0) {
-    const basicPct = pfApplicable === 'Y' ? 0.55 : 0.53;
-    const basic    = Math.min(Math.max(Math.round(gross * basicPct), minWage), gross);
-    const autoVal  = Math.round((basic / 26) * 15 / 12);
-    input.placeholder = 'Auto = Rs.' + autoVal.toLocaleString('en-IN');
-  } else { input.placeholder = 'e.g. 500'; }
-}
-
 function updateLeavePlaceholder() {
   const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
-  const input   = document.getElementById('leaveCustom');
   const leaveCountInput = document.getElementById('leaveCountInput');
-  if (!input) return;
   if (gross > 0 && minWage > 0) {
     const basicPct = pfApplicable === 'Y' ? 0.55 : 0.53;
     const basic    = Math.min(Math.max(Math.round(gross * basicPct), minWage), gross);
     const leaves   = (leaveMode === 'manual' && leaveCountInput) ? (parseInt(leaveCountInput.value) || 15) : 15;
     const autoVal  = Math.round((basic / 26) * (leaves / 12));
-    input.placeholder = 'Auto = Rs.' + autoVal.toLocaleString('en-IN') + ' (' + leaves + ' leaves)';
-  } else { input.placeholder = 'e.g. 500'; }
+  }
 }
 
 function liveCalc() {
-  updateGratuityPlaceholder();
   updateLeavePlaceholder();
   updatePFHint();
   const gross     = parseFloat(document.getElementById('grossSalary')?.value) || 0;
@@ -1483,11 +1400,13 @@ function liveCalc() {
 }
 
 function calculate(silent) {
-  const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
-  const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
-  const prevBasic = parseFloat(document.getElementById('previousBasic')?.value) || null;
-  const pt      = getPTValue();
-  const lwf     = getLWFValue();
+  const gross       = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+  const minWage     = parseFloat(document.getElementById('minWage')?.value) || 0;
+  const prevBasic   = parseFloat(document.getElementById('previousBasic')?.value) || null;
+  const pt          = getPTValue();
+  const lwf         = getLWFValue();
+  // ✅ Health Insurance — direct value
+  const healthInsAmt = parseFloat(document.getElementById('healthInsurance')?.value) || 0;
   
   if (gross <= 0 || minWage <= 0) {
     if (!silent) showToast('⚠️ Please enter Gross Salary and Minimum Wage');
@@ -1496,12 +1415,6 @@ function calculate(silent) {
   if (gross < minWage) {
     if (!silent) showToast('⚠️ Gross Salary minimum wages (Rs.' + minWage.toLocaleString('en-IN') + ') se kam hai!');
     return;
-  }
-  
-  let gratuityOverride = null;
-  if (gratuityMode === 'manual') {
-    const val = parseFloat(document.getElementById('gratuityCustom')?.value);
-    if (!isNaN(val) && val >= 0) gratuityOverride = val;
   }
   
   let leaveOverride = null;
@@ -1516,7 +1429,7 @@ function calculate(silent) {
 
   const r = computeCTC(
     gross, minWage, pfApplicable, pt, lwf,
-    gratuityOverride, leaveOverride,
+    healthInsAmt, leaveOverride,
     undefined, undefined, undefined, undefined, undefined,
     leavesPerYear, prevBasic
   );
@@ -1600,7 +1513,7 @@ function renderBreakdown(r) {
 
   const dedRows = [
     ['EPF – Employee @ 12% + Vol% of PF Wages ' + pfModeBadge, r.pfModeLabel, r.epfEmployee, r.pfApplicable === 'Y'],
-    ['ESI – Employee @ 0.75% (Gross ≤ Rs.21,000)', '0.75%', r.esiEmployee, r.gross <= 21000],
+    ['ESI – Employee @ 0.75% (basic ≤ Rs.21,000)', '0.75%', r.esiEmployee, r.basic <= 21000],
     ['PT – ' + (r.ptStateName||'N/A') + ' (' + (r.ptMode === 'manual' ? 'Manual' : 'Auto') + ')', 'State', r.ptDeduction, r.ptDeduction > 0],
     ['LWF – ' + (r.lwfStateName||'N/A') + ' (' + (r.lwfMode === 'manual' ? 'Manual' : 'Auto') + ')', 'State', r.lwfEmployee, r.lwfEmployee > 0],
   ];
@@ -1614,10 +1527,7 @@ function renderBreakdown(r) {
   setTextContent('deductionTable', dedHtml);
   setText('tfoot_cash', fmt(r.cashInHand));
 
-  const empName       = (document.getElementById('empName')?.value || '').trim() || 'Employee';
-  const gratuityLabel = r.gratuityMode === 'manual'
-    ? 'Gratuity <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">CUSTOM</span>'
-    : 'Gratuity <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>';
+  const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
 
   const userLeavesDisplay = r.leavesPerYear || 15;
   const leaveLabel = r.leaveMode === 'manual'
@@ -1636,17 +1546,17 @@ function renderBreakdown(r) {
   const edliDisplay = r.edliEmployer > 0 ? fmt(r.edliEmployer) : 'Rs.0 (N/A)';
 
   const finalItemsData = [
-    { label: 'Gross Salary',        val: fmt(r.gross),         sub: 'Monthly',                        cls: '' },
-    { label: 'Initial CTC',         val: fmt(r.initialCTC),    sub: 'Gross + Employer Contributions', cls: '' },
-    { label: 'ESI – Employer',      val: r.esiEmployer > 0 ? fmt(r.esiEmployer) : 'N/A', sub: '3.25% of Gross (if ≤ Rs.21k)', cls: '' },
-    { label: gratuityLabel,         val: fmt(r.gratuity),      sub: r.gratuityMode === 'manual' ? 'Manual (Auto: ' + fmt(r.gratuityAuto) + ')' : 'Basic/26 x 15 / 12', cls: '' },
-    { label: leaveLabel,            val: fmt(r.leaveComponent), sub: r.leaveMode === 'manual' ? 'Manual (Auto: ' + fmt(r.leaveAuto) + ')' : 'Basic/26 x ' + userLeavesDisplay + 'Lvs / 12', cls: '' },
-    { label: lwfLabel,              val: r.lwf > 0 ? fmt(r.lwf) : 'Rs.0 (N/A)', sub: r.lwfMode === 'auto' ? (r.lwfStateName||'N/A') + ' – State-wise auto' : 'Manual override', cls: '' },
-    { label: ptLabel,               val: r.ptDeduction > 0 ? fmt(r.ptDeduction) : 'Rs.0 (N/A)', sub: r.ptMode === 'auto' ? (r.ptStateName||'N/A') + ' – State-wise auto' : 'Manual override', cls: '' },
-    { label: 'Final CTC (Monthly)', val: fmt(r.finalCTC),      sub: empName, cls: 'highlight' },
-    { label: 'Final CTC (Annual)',  val: fmt(r.finalCTCAnnual), sub: empName, cls: 'highlight' },
-    { label: 'Cash in Hand',        val: fmt(r.cashInHand),    sub: 'After all deductions', cls: 'green' },
-    { label: pfModeDisplayLabel,    val: r.pfApplicable === 'Y' ? fmt(r.epfEmployee) : 'Rs.0',
+    { label: 'Gross Salary',                val: fmt(r.gross),             sub: 'Monthly',                        cls: '' },
+    { label: 'Initial CTC',                 val: fmt(r.initialCTC),        sub: 'Gross + Employer Contributions', cls: '' },
+    { label: 'ESI – Employer',              val: r.esiEmployer > 0 ? fmt(r.esiEmployer) : 'N/A', sub: '3.25% of Gross (if ≤ Rs.21k)', cls: '' },
+    { label: 'Health Insurance (Monthly)',  val: fmt(r.healthInsurance),   sub: 'Employer contribution (manual)', cls: 'purple' },
+    { label: leaveLabel,                    val: fmt(r.leaveComponent),    sub: r.leaveMode === 'manual' ? 'Manual (Auto: ' + fmt(r.leaveAuto) + ')' : 'Basic/26 x ' + userLeavesDisplay + 'Lvs / 12', cls: '' },
+    { label: lwfLabel,                      val: r.lwf > 0 ? fmt(r.lwf) : 'Rs.0 (N/A)', sub: r.lwfMode === 'auto' ? (r.lwfStateName||'N/A') + ' – State-wise auto' : 'Manual override', cls: '' },
+    { label: ptLabel,                       val: r.ptDeduction > 0 ? fmt(r.ptDeduction) : 'Rs.0 (N/A)', sub: r.ptMode === 'auto' ? (r.ptStateName||'N/A') + ' – State-wise auto' : 'Manual override', cls: '' },
+    { label: 'Final CTC (Monthly)',         val: fmt(r.finalCTC),          sub: empName, cls: 'highlight' },
+    { label: 'Final CTC (Annual)',          val: fmt(r.finalCTCAnnual),    sub: empName, cls: 'highlight' },
+    { label: 'Cash in Hand',               val: fmt(r.cashInHand),        sub: 'After all deductions', cls: 'green' },
+    { label: pfModeDisplayLabel,           val: r.pfApplicable === 'Y' ? fmt(r.epfEmployee) : 'Rs.0',
       sub: r.pfApplicable === 'Y' ? 'Employee: 12%+Vol% | Employer: ' + r.pfEmployerRate + '% | EDLI: ' + edliDisplay + ' | PF Wages: Rs.' + Math.round(r.pfWages).toLocaleString('en-IN') : 'No PF applicable', cls: 'purple' },
   ];
 
@@ -1683,7 +1593,7 @@ function renderExportPreview(r) {
     ['Bonus', fmt(r.bonus), false],
     ['Initial CTC', fmt(r.initialCTC), false],
     ['ESI – Employer', fmt(r.esiEmployer), false],
-    ['Gratuity', fmt(r.gratuity), false],
+    ['Health Insurance (Monthly)', fmt(r.healthInsurance), false],
     ['Leave Encashment (' + r.leavesPerYear + ' leaves/yr)', fmt(r.leaveComponent), false],
     ['EMPLOYEE DEDUCTIONS', '', true],
     ['EPF – Employee', fmt(r.epfEmployee), false],
@@ -1715,9 +1625,9 @@ function switchTab(tab) {
 }
 
 function resetAll() {
-  ['empName', 'grossSalary', 'minWage', 'previousBasic'].forEach(function(id) { 
+  ['empName', 'grossSalary', 'minWage', 'previousBasic', 'healthInsurance'].forEach(function(id) { 
     const el = document.getElementById(id); 
-    if (el) el.value = ''; 
+    if (el) el.value = id === 'healthInsurance' ? '0' : ''; 
   });
   
   const warnEl = document.getElementById('minWageWarning');
@@ -1737,11 +1647,7 @@ function resetAll() {
   const ptAmountEl = document.getElementById('ptAmount');    if (ptAmountEl) ptAmountEl.value = '0';
   const ptMonthEl  = document.getElementById('ptMonth');     if (ptMonthEl)  ptMonthEl.value = new Date().getMonth() + 1;
 
-  gratuityMode = 'auto'; setGratuityMode('auto');
-  const gratuityCustom = document.getElementById('gratuityCustom'); if (gratuityCustom) gratuityCustom.value = '';
-
   leaveMode = 'auto'; setLeaveMode('auto');
-  const leaveCustom = document.getElementById('leaveCustom'); if (leaveCustom) leaveCustom.value = '';
   const leaveCountInput = document.getElementById('leaveCountInput'); if (leaveCountInput) leaveCountInput.value = '15';
   leaveCountManual = 15;
 
@@ -1760,7 +1666,6 @@ function resetAll() {
   safeToggle('summaryResults', true);
   safeToggle('breakdownEmpty', false);
   safeToggle('breakdownContent', true);
-  safeToggle('previousBasicRow', true);
   
   const exportPreview = document.getElementById('exportPreview');
   if (exportPreview) exportPreview.innerHTML = '<div class="preview-empty">Calculate first to see export preview</div>';
@@ -1770,144 +1675,141 @@ function resetAll() {
 
 // ============== EXPORT FUNCTIONS ==============
 function exportPDF() {
-    if (!calcResult) { showToast('Please calculate first'); return; }
-    const r = calcResult;
-    const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
-    const now = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'mm', 'a4');
-    const PW = 210, PH = 297, M = 12, CW = PW - (M * 2), HH = 25, FH = 15;
-    let Y = HH + 10;
-    function fmtP(n) { return 'Rs. ' + Math.round(n).toLocaleString('en-IN'); }
-    function needPage(need) {
-        if (Y + need > PH - FH - 10) { doc.addPage(); Y = 18; addMiniHeader(); return true; } return false;
-    }
-    function addMainHeader() {
-        doc.setFillColor(28, 58, 108); doc.rect(0, 0, PW, HH, 'F');
-        doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
-        doc.text('CTC SALARY REPORT', PW/2, 12, {align:'center'});
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-        doc.text('New Labour Code Compliance - Gross Based', PW/2, 18, {align:'center'});
-        doc.text('SLCI Solutions', PW/2, 23, {align:'center'});
-    }
-    function addMiniHeader() {
-        doc.setFillColor(28, 58, 108); doc.rect(0, 0, PW, 10, 'F');
-        doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
-        doc.text('CTC Report - ' + empName.substring(0,20), PW/2, 6.5, {align:'center'}); Y = 15;
-    }
-    function addFooter(pn, tp) {
-        const fy = PH - 10; doc.setDrawColor(200, 200, 200); doc.line(M, fy, PW-M, fy);
-        doc.setTextColor(120, 120, 120); doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
-        doc.text('Generated: ' + now, M, fy + 4);
-        doc.text('Page ' + pn + ' of ' + tp, PW-M, fy + 4, {align:'right'});
-    }
-    function addInfo() {
-        needPage(35); doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-        const info = [
-            ['Employee Name', empName], ['Report Date', now],
-            ['PF Status', r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable'],
-            ['Minimum Wage', fmtP(r.minWage)],
-            ['LWF State', r.lwfStateName || 'Not Selected'],
-            ['PT State', r.ptStateName || 'Not Selected']
-        ];
-        info.forEach(function(it, i) {
-            doc.setFont('helvetica', 'bold'); doc.text(it[0] + ':', M, Y + (i * 5));
-            doc.setFont('helvetica', 'normal'); doc.text(it[1], M + 42, Y + (i * 5));
-        });
-        Y += (info.length * 5) + 12;
-    }
-    function addTitle(txt) {
-        needPage(20);
-        doc.setFillColor(240, 240, 240); doc.rect(M, Y-2, CW, 8, 'F');
-        doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.3);
-        doc.line(M, Y-2, M+CW, Y-2); doc.line(M, Y+6, M+CW, Y+6);
-        doc.setTextColor(28, 58, 108); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-        doc.text(txt, M+5, Y+3); Y += 16;
-    }
-    function addBorderedTable(headers, rows, highlightLast) {
-        const col1W = CW * 0.62, col2W = CW - col1W, RH = 7;
-        needPage((rows.length + 1) * RH + 15); doc.setFontSize(8);
-        doc.setFillColor(28, 58, 108); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
-        doc.rect(M, Y, col1W, RH, 'F'); doc.rect(M+col1W, Y, col2W, RH, 'F');
-        doc.text(headers[0], M+3, Y+4.5); doc.text(headers[1], M+col1W+3, Y+4.5, {align:'right'});
-        doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y, CW, RH, 'S'); Y += RH;
-        doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal');
-        rows.forEach(function(row, ri) {
-            needPage(RH + 5);
-            if (ri % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(M, Y, CW, RH, 'F'); }
-            if (highlightLast && ri === rows.length-1) { doc.setTextColor(0, 95, 60); doc.setFont('helvetica', 'bold'); }
-            doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.2);
-            doc.rect(M, Y, col1W, RH, 'S'); doc.rect(M+col1W, Y, col2W, RH, 'S');
-            let label = String(row[0]); if (label.length > 38) label = label.substring(0, 35) + '...';
-            doc.text(label, M+3, Y+4.5); doc.text(String(row[1]), M+col1W+3, Y+4.5, {align:'right'});
-            doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal'); Y += RH;
-        });
-        doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y-RH, CW, RH, 'S'); Y += 8;
-    }
-    function addBorderedTable3(headers, rows) {
-        const W1 = CW * 0.42, W2 = CW * 0.29, W3 = CW - W1 - W2, RH = 7;
-        needPage((rows.length + 1) * RH + 15); doc.setFontSize(8);
-        doc.setFillColor(28, 58, 108); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
-        doc.rect(M, Y, W1, RH, 'F'); doc.rect(M+W1, Y, W2, RH, 'F'); doc.rect(M+W1+W2, Y, W3, RH, 'F');
-        doc.text(headers[0], M+3, Y+4.5); doc.text(headers[1], M+W1+3, Y+4.5, {align:'right'}); doc.text(headers[2], M+W1+W2+3, Y+4.5, {align:'right'});
-        doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y, CW, RH, 'S'); Y += RH;
-        doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal');
-        rows.forEach(function(row, ri) {
-            needPage(RH + 5);
-            if (ri % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(M, Y, CW, RH, 'F'); }
-            doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.2);
-            doc.rect(M, Y, W1, RH, 'S'); doc.rect(M+W1, Y, W2, RH, 'S'); doc.rect(M+W1+W2, Y, W3, RH, 'S');
-            let label = String(row[0]); if (label.length > 32) label = label.substring(0, 29) + '...';
-            doc.text(label, M+3, Y+4.5); doc.text(String(row[1]), M+W1+3, Y+4.5, {align:'right'}); doc.text(String(row[2]), M+W1+W2+3, Y+4.5, {align:'right'});
-            Y += RH;
-        });
-        doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y-RH, CW, RH, 'S'); Y += 8;
-    }
-    addMainHeader();
-    addInfo();
-    addTitle('SALARY STRUCTURE (Monthly)');
-    let salRows = [['Basic Salary', fmtP(r.basic)], ['HRA', fmtP(r.hra)]];
-    if (r.isHighGross) {
-        salRows.push(['Defray Expenses (10%)', fmtP(r.deferAllowance)]);
-        salRows.push([r.convLabel || 'Conveyance', fmtP(r.conv)]);
-    } else {
-        salRows.push([r.convLabel || 'Conveyance', fmtP(r.conv)]);
-    }
-    salRows.push(['-------------------------', '--------------']);
-    salRows.push(['GROSS SALARY', fmtP(r.gross)]);
-    addBorderedTable(['Component', 'Amount'], salRows);
-    addTitle('EMPLOYER CONTRIBUTIONS');
-    const empRows = [
-        ['EPF - Employer', r.pfApplicable === 'Y' ? fmtP(r.epfEmployer) : 'N/A'],
-        ['EDLI - Employer', r.edliEmployer > 0 ? fmtP(r.edliEmployer) : 'Rs. 0'],
-        ['Bonus', r.bonus > 0 ? fmtP(r.bonus) : 'N/A'],
-        ['-------------------------', '--------------'],
-        ['Initial CTC', fmtP(r.initialCTC)],
-        ['ESI - Employer', r.esiEmployer > 0 ? fmtP(r.esiEmployer) : 'N/A'],
-        ['Gratuity', fmtP(r.gratuity)],
-        ['Leave Encashment (' + r.leavesPerYear + ' leaves)', fmtP(r.leaveComponent)],
-        ['LWF', r.lwf > 0 ? fmtP(r.lwf) : 'Rs. 0']
+  if (!calcResult) { showToast('Please calculate first'); return; }
+  const r = calcResult;
+  const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
+  const now = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const PW = 210, PH = 297, M = 12, CW = PW - (M * 2), HH = 25, FH = 15;
+  let Y = HH + 10;
+  function fmtP(n) { return 'Rs. ' + Math.round(n).toLocaleString('en-IN'); }
+  function needPage(need) {
+    if (Y + need > PH - FH - 10) { doc.addPage(); Y = 18; addMiniHeader(); return true; } return false;
+  }
+  function addMainHeader() {
+    doc.setFillColor(28, 58, 108); doc.rect(0, 0, PW, HH, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+    doc.text('CTC SALARY REPORT', PW/2, 12, {align:'center'});
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    doc.text('New Labour Code Compliance - Gross Based', PW/2, 18, {align:'center'});
+    doc.text('SLCI Solutions', PW/2, 23, {align:'center'});
+  }
+  function addMiniHeader() {
+    doc.setFillColor(28, 58, 108); doc.rect(0, 0, PW, 10, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.text('CTC Report - ' + empName.substring(0,20), PW/2, 6.5, {align:'center'}); Y = 15;
+  }
+  function addFooter(pn, tp) {
+    const fy = PH - 10; doc.setDrawColor(200, 200, 200); doc.line(M, fy, PW-M, fy);
+    doc.setTextColor(120, 120, 120); doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+    doc.text('Generated: ' + now, M, fy + 4);
+    doc.text('Page ' + pn + ' of ' + tp, PW-M, fy + 4, {align:'right'});
+  }
+  function addInfo() {
+    needPage(35); doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    const info = [
+      ['Employee Name', empName], ['Report Date', now],
+      ['PF Status', r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable'],
+      ['Minimum Wage', fmtP(r.minWage)],
+      ['LWF State', r.lwfStateName || 'Not Selected'],
+      ['PT State', r.ptStateName || 'Not Selected'],
+      ['Health Insurance', fmtP(r.healthInsurance)]
     ];
-    addBorderedTable(['Component', 'Amount'], empRows);
-    addTitle('EMPLOYEE DEDUCTIONS');
-    const dedRows = [
-        ['EPF - Employee', r.pfApplicable === 'Y' ? fmtP(r.epfEmployee) : 'N/A'],
-        ['ESI - Employee', r.esiEmployee > 0 ? fmtP(r.esiEmployee) : 'N/A'],
-        ['Professional Tax', r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs. 0'],
-        ['LWF', r.lwf > 0 ? fmtP(r.lwf) : 'Rs. 0']
-    ];
-    addBorderedTable(['Deduction', 'Amount'], dedRows);
-    addTitle('FINAL SUMMARY');
-    const finalRows = [
-        ['Final CTC', fmtP(r.finalCTC), fmtP(r.finalCTCAnnual)],
-        ['Net Cash in Hand', fmtP(r.cashInHand), fmtP(r.cashInHand * 12)]
-    ];
-    addBorderedTable3(['Particulars', 'Monthly', 'Annual'], finalRows);
-    const tp = doc.internal.getNumberOfPages();
-    for (let p = 1; p <= tp; p++) { doc.setPage(p); addFooter(p, tp); }
-    const safe = empName.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 22);
-    doc.save('CTC_Report_' + safe + '_' + new Date().toISOString().slice(0,10) + '.pdf');
-    showToast('PDF downloaded successfully');
+    info.forEach(function(it, i) {
+      doc.setFont('helvetica', 'bold'); doc.text(it[0] + ':', M, Y + (i * 5));
+      doc.setFont('helvetica', 'normal'); doc.text(it[1], M + 42, Y + (i * 5));
+    });
+    Y += (info.length * 5) + 12;
+  }
+  function addTitle(txt) {
+    needPage(20);
+    doc.setFillColor(240, 240, 240); doc.rect(M, Y-2, CW, 8, 'F');
+    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.3);
+    doc.line(M, Y-2, M+CW, Y-2); doc.line(M, Y+6, M+CW, Y+6);
+    doc.setTextColor(28, 58, 108); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text(txt, M+5, Y+3); Y += 16;
+  }
+  function addBorderedTable(headers, rows, highlightLast) {
+    const col1W = CW * 0.62, col2W = CW - col1W, RH = 7;
+    needPage((rows.length + 1) * RH + 15); doc.setFontSize(8);
+    doc.setFillColor(28, 58, 108); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
+    doc.rect(M, Y, col1W, RH, 'F'); doc.rect(M+col1W, Y, col2W, RH, 'F');
+    doc.text(headers[0], M+3, Y+4.5); doc.text(headers[1], M+col1W+3, Y+4.5, {align:'right'});
+    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y, CW, RH, 'S'); Y += RH;
+    doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal');
+    rows.forEach(function(row, ri) {
+      needPage(RH + 5);
+      if (ri % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(M, Y, CW, RH, 'F'); }
+      if (highlightLast && ri === rows.length-1) { doc.setTextColor(0, 95, 60); doc.setFont('helvetica', 'bold'); }
+      doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.2);
+      doc.rect(M, Y, col1W, RH, 'S'); doc.rect(M+col1W, Y, col2W, RH, 'S');
+      let label = String(row[0]); if (label.length > 38) label = label.substring(0, 35) + '...';
+      doc.text(label, M+3, Y+4.5); doc.text(String(row[1]), M+col1W+3, Y+4.5, {align:'right'});
+      doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal'); Y += RH;
+    });
+    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y-RH, CW, RH, 'S'); Y += 8;
+  }
+  function addBorderedTable3(headers, rows) {
+    const W1 = CW * 0.42, W2 = CW * 0.29, W3 = CW - W1 - W2, RH = 7;
+    needPage((rows.length + 1) * RH + 15); doc.setFontSize(8);
+    doc.setFillColor(28, 58, 108); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
+    doc.rect(M, Y, W1, RH, 'F'); doc.rect(M+W1, Y, W2, RH, 'F'); doc.rect(M+W1+W2, Y, W3, RH, 'F');
+    doc.text(headers[0], M+3, Y+4.5); doc.text(headers[1], M+W1+3, Y+4.5, {align:'right'}); doc.text(headers[2], M+W1+W2+3, Y+4.5, {align:'right'});
+    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y, CW, RH, 'S'); Y += RH;
+    doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal');
+    rows.forEach(function(row, ri) {
+      needPage(RH + 5);
+      if (ri % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(M, Y, CW, RH, 'F'); }
+      doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.2);
+      doc.rect(M, Y, W1, RH, 'S'); doc.rect(M+W1, Y, W2, RH, 'S'); doc.rect(M+W1+W2, Y, W3, RH, 'S');
+      let label = String(row[0]); if (label.length > 32) label = label.substring(0, 29) + '...';
+      doc.text(label, M+3, Y+4.5); doc.text(String(row[1]), M+W1+3, Y+4.5, {align:'right'}); doc.text(String(row[2]), M+W1+W2+3, Y+4.5, {align:'right'});
+      Y += RH;
+    });
+    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y-RH, CW, RH, 'S'); Y += 8;
+  }
+  addMainHeader();
+  addInfo();
+  addTitle('SALARY STRUCTURE (Monthly)');
+  let salRows = [['Basic Salary', fmtP(r.basic)], ['HRA', fmtP(r.hra)]];
+  if (r.isHighGross) { salRows.push(['Defray Expenses (10%)', fmtP(r.deferAllowance)]); salRows.push([r.convLabel || 'Conveyance', fmtP(r.conv)]); }
+  else { salRows.push([r.convLabel || 'Conveyance', fmtP(r.conv)]); }
+  salRows.push(['-------------------------', '--------------']);
+  salRows.push(['GROSS SALARY', fmtP(r.gross)]);
+  addBorderedTable(['Component', 'Amount'], salRows);
+  addTitle('EMPLOYER CONTRIBUTIONS');
+  const empRows = [
+    ['EPF - Employer', r.pfApplicable === 'Y' ? fmtP(r.epfEmployer) : 'N/A'],
+    ['EDLI - Employer', r.edliEmployer > 0 ? fmtP(r.edliEmployer) : 'Rs. 0'],
+    ['Bonus', r.bonus > 0 ? fmtP(r.bonus) : 'N/A'],
+    ['-------------------------', '--------------'],
+    ['Initial CTC', fmtP(r.initialCTC)],
+    ['ESI - Employer', r.esiEmployer > 0 ? fmtP(r.esiEmployer) : 'N/A'],
+    ['Health Insurance (Monthly)', fmtP(r.healthInsurance)],
+    ['Leave Encashment (' + r.leavesPerYear + ' leaves)', fmtP(r.leaveComponent)],
+    ['LWF', r.lwf > 0 ? fmtP(r.lwf) : 'Rs. 0']
+  ];
+  addBorderedTable(['Component', 'Amount'], empRows);
+  addTitle('EMPLOYEE DEDUCTIONS');
+  const dedRows = [
+    ['EPF - Employee', r.pfApplicable === 'Y' ? fmtP(r.epfEmployee) : 'N/A'],
+    ['ESI - Employee', r.esiEmployee > 0 ? fmtP(r.esiEmployee) : 'N/A'],
+    ['Professional Tax', r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs. 0'],
+    ['LWF', r.lwf > 0 ? fmtP(r.lwf) : 'Rs. 0']
+  ];
+  addBorderedTable(['Deduction', 'Amount'], dedRows);
+  addTitle('FINAL SUMMARY');
+  const finalRows = [
+    ['Final CTC', fmtP(r.finalCTC), fmtP(r.finalCTCAnnual)],
+    ['Net Cash in Hand', fmtP(r.cashInHand), fmtP(r.cashInHand * 12)]
+  ];
+  addBorderedTable3(['Particulars', 'Monthly', 'Annual'], finalRows);
+  const tp = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= tp; p++) { doc.setPage(p); addFooter(p, tp); }
+  const safe = empName.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 22);
+  doc.save('CTC_Report_' + safe + '_' + new Date().toISOString().slice(0,10) + '.pdf');
+  showToast('PDF downloaded successfully');
 }
 
 function exportCSV() {
@@ -1934,7 +1836,7 @@ function exportCSV() {
     ['Bonus', '', r.bonus > 0 ? amt(r.bonus) : 'N/A'],
     ['Initial CTC', '', amt(r.initialCTC)],
     ['ESI – Employer (3.25%)', '', r.esiEmployer > 0 ? amt(r.esiEmployer) : 'N/A'],
-    ['Gratuity', '', amt(r.gratuity)],
+    ['Health Insurance (Monthly)', '', amt(r.healthInsurance)],
     ['Leave Encashment (' + r.leavesPerYear + ' leaves/yr)', '', amt(r.leaveComponent)],
     ['LWF', '', r.lwf > 0 ? amt(r.lwf) : 'N/A'], ['', '', ''],
     ['EMPLOYEE DEDUCTIONS', '', 'Monthly Amount (Rs.)'],
@@ -1971,7 +1873,7 @@ function copyToClipboard() {
       'EDLI Employer\t' + r.edliEmployer,
       'Bonus\t' + r.bonus,
       'ESI Employer\t' + r.esiEmployer,
-      'Gratuity\t' + r.gratuity,
+      'Health Insurance (Monthly)\t' + r.healthInsurance,
       'Leave Encashment (' + r.leavesPerYear + ' leaves)\t' + r.leaveComponent,
       'LWF – ' + (r.lwfStateName||'N/A') + '\t' + r.lwf,
       'PT – ' + (r.ptStateName||'N/A') + '\t' + r.ptDeduction,
@@ -2138,7 +2040,7 @@ function cleanNum(v) {
 
 function findHeaderAndData(rawRows) {
   if (!rawRows || !Array.isArray(rawRows) || rawRows.length === 0) return [];
-  const headerKeywords = ['gross','employee','name','empname','minwage','minimumwage','salary','wage','basic','hra','pf','pt','lwf','gratuity','leave','encashment','monthly','pay','amount'];
+  const headerKeywords = ['gross','employee','name','empname','minwage','minimumwage','salary','wage','basic','hra','pf','pt','lwf','health','insurance','leave','encashment','monthly','pay','amount'];
   for (var i = 0; i < Math.min(rawRows.length, 10); i++) {
     const row = rawRows[i];
     if (!row || typeof row !== 'object') continue;
@@ -2162,37 +2064,21 @@ function findHeaderAndData(rawRows) {
 }
 
 // ============================================================
-//  ✅ BULK SEARCH — Real-time search across all result columns
+//  ✅ BULK SEARCH
 // ============================================================
-
-/**
- * injectBulkSearchBar()
- * Injects the search bar HTML above the bulk results table.
- * Called once after renderBulkResults() builds the table.
- */
 function injectBulkSearchBar() {
-  // Remove existing search bar if present (re-render case)
   const existing = document.getElementById('bulkSearchBar');
   if (existing) existing.remove();
-
   const noResultsDiv = document.getElementById('bulkNoResults');
   if (noResultsDiv) noResultsDiv.remove();
-
   const tableScroll = document.querySelector('.bulk-table-scroll');
   if (!tableScroll) return;
-
-  // ── Search Bar HTML ──
   const searchBarHTML = `
     <div class="bulk-search-bar" id="bulkSearchBar">
       <span class="bulk-search-icon">🔍</span>
-      <input
-        type="text"
-        class="bulk-search-input"
-        id="bulkSearchInput"
+      <input type="text" class="bulk-search-input" id="bulkSearchInput"
         placeholder="Search employees by name, code, branch, state, PF status, CTC..."
-        autocomplete="off"
-        spellcheck="false"
-      />
+        autocomplete="off" spellcheck="false" />
       <span class="bulk-search-count" id="bulkSearchCount"></span>
       <button class="bulk-search-clear" id="bulkSearchClear" onclick="clearBulkSearch()" title="Clear search">✕ Clear</button>
     </div>
@@ -2201,139 +2087,80 @@ function injectBulkSearchBar() {
       No employees match your search. Try different keywords.
     </div>
   `;
-
   tableScroll.insertAdjacentHTML('beforebegin', searchBarHTML);
-
-  // Attach live input event
   const searchInput = document.getElementById('bulkSearchInput');
   if (searchInput) {
-    searchInput.addEventListener('input', function() {
-      filterBulkTable(this.value);
-    });
-    // Focus the search box
+    searchInput.addEventListener('input', function() { filterBulkTable(this.value); });
     setTimeout(function() { searchInput.focus(); }, 100);
   }
-
-  // Update count display with total
   updateBulkSearchCount('', bulkCalcResults.length, bulkCalcResults.length);
 }
 
-/**
- * filterBulkTable(query)
- * Filters rows of #bulkTableBody based on the search query.
- * Searches across ALL visible text in each row (name, code, branch, states, amounts, etc.)
- * Also highlights matched text inside .td-name cells.
- */
 function filterBulkTable(query) {
   const tbody     = document.getElementById('bulkTableBody');
   const clearBtn  = document.getElementById('bulkSearchClear');
   const noResults = document.getElementById('bulkNoResults');
   if (!tbody) return;
-
   const q = (query || '').trim().toLowerCase();
-
-  // Show/hide clear button
   if (clearBtn) clearBtn.style.display = q ? 'inline-block' : 'none';
-
   const rows      = Array.from(tbody.querySelectorAll('tr'));
   let visibleCount = 0;
   const total      = rows.length;
-
   if (!q) {
-    // No query → show all rows, remove highlights
     rows.forEach(function(row) {
       row.classList.remove('bulk-hidden', 'bulk-match');
-      // Restore original text in name cells
       const nameCell = row.querySelector('.td-name');
-      if (nameCell && nameCell.dataset.originalText) {
-        nameCell.textContent = nameCell.dataset.originalText;
-      }
+      if (nameCell && nameCell.dataset.originalText) nameCell.textContent = nameCell.dataset.originalText;
     });
     updateBulkSearchCount('', total, total);
     if (noResults) noResults.classList.remove('visible');
     return;
   }
-
-  // Query present → filter rows
   rows.forEach(function(row) {
-    // Get all text content from this row for searching
     const rowText = row.textContent.toLowerCase();
     const matches = rowText.includes(q);
-
     if (matches) {
       row.classList.remove('bulk-hidden');
       row.classList.add('bulk-match');
       visibleCount++;
-
-      // Highlight match in the employee name cell
       const nameCell = row.querySelector('.td-name');
       if (nameCell) {
-        // Store original text once
-        if (!nameCell.dataset.originalText) {
-          nameCell.dataset.originalText = nameCell.textContent;
-        }
+        if (!nameCell.dataset.originalText) nameCell.dataset.originalText = nameCell.textContent;
         const original = nameCell.dataset.originalText;
         const lowerOrig = original.toLowerCase();
         const idx = lowerOrig.indexOf(q);
         if (idx >= 0) {
-          // Highlight the matching part
-          nameCell.innerHTML =
-            escapeHtml(original.slice(0, idx)) +
+          nameCell.innerHTML = escapeHtml(original.slice(0, idx)) +
             '<span class="bulk-search-highlight">' + escapeHtml(original.slice(idx, idx + q.length)) + '</span>' +
             escapeHtml(original.slice(idx + q.length));
-        } else {
-          // Query matched elsewhere in row, just restore name
-          nameCell.textContent = original;
-        }
+        } else { nameCell.textContent = original; }
       }
     } else {
       row.classList.add('bulk-hidden');
       row.classList.remove('bulk-match');
-      // Restore name cell on hidden rows
       const nameCell = row.querySelector('.td-name');
-      if (nameCell && nameCell.dataset.originalText) {
-        nameCell.textContent = nameCell.dataset.originalText;
-      }
+      if (nameCell && nameCell.dataset.originalText) nameCell.textContent = nameCell.dataset.originalText;
     }
   });
-
   updateBulkSearchCount(q, visibleCount, total);
-
-  // Show no-results message if nothing found
-  if (noResults) {
-    noResults.classList.toggle('visible', visibleCount === 0);
-  }
+  if (noResults) noResults.classList.toggle('visible', visibleCount === 0);
 }
 
-/**
- * updateBulkSearchCount(query, visible, total)
- * Updates the "Showing X of Y" counter next to the search box.
- */
 function updateBulkSearchCount(query, visible, total) {
   const countEl = document.getElementById('bulkSearchCount');
   if (!countEl) return;
-  if (!query) {
-    countEl.innerHTML = '<span class="match-count">' + total + '</span> employees';
-  } else {
-    countEl.innerHTML = '<span class="match-count">' + visible + '</span> of ' + total + ' match';
-  }
+  if (!query) countEl.innerHTML = '<span class="match-count">' + total + '</span> employees';
+  else countEl.innerHTML = '<span class="match-count">' + visible + '</span> of ' + total + ' match';
 }
 
-/**
- * clearBulkSearch()
- * Clears the search input and resets the table.
- */
 function clearBulkSearch() {
   const searchInput = document.getElementById('bulkSearchInput');
-  if (searchInput) {
-    searchInput.value = '';
-    searchInput.focus();
-  }
+  if (searchInput) { searchInput.value = ''; searchInput.focus(); }
   filterBulkTable('');
 }
 
 // ===================================================================
-//  ✅ BULK PROCESS — FULL INDIVIDUAL-LEVEL PARITY
+//  ✅ BULK PROCESS — Health Insurance replaces Gratuity
 // ===================================================================
 function processBulkFile() {
   if (!bulkRawData || bulkRawData.length === 0) {
@@ -2368,11 +2195,11 @@ function processBulkFile() {
 
     const rowNum = i + 1;
 
-    const name = getBulkField(row, ['Employee Name','EmployeeName','Name','Emp Name','EmpName','Employee','EMPLOYEE NAME']) || 'Employee ' + rowNum;
+    const name    = getBulkField(row, ['Employee Name','EmployeeName','Name','Emp Name','EmpName','Employee','EMPLOYEE NAME']) || 'Employee ' + rowNum;
     const empCode = getBulkField(row, ['Employee Code','Emp Code','EmployeeCode','EmpCode','Code','ID','Employee ID','EmpID']) || '';
     const branch  = getBulkField(row, ['Branch','Office','Location','Site','Branch Name','BranchName','Unit','Department']) || '';
 
-    const prevBasicRaw = getBulkField(row, ['Previous Basic','Prev Basic','PrevBasic','Old Basic','OldBasic','Last Basic','Previous Basic Salary']);
+    const prevBasicRaw  = getBulkField(row, ['Previous Basic','Prev Basic','PrevBasic','Old Basic','OldBasic','Last Basic','Previous Basic Salary']);
     const previousBasic = isNaN(cleanNum(prevBasicRaw)) ? null : cleanNum(prevBasicRaw);
 
     const grossRaw = getBulkField(row, ['Gross Salary','Gross','Monthly Gross','GrossSalary','GROSS','Gross Pay','Monthly Gross Salary','Gross_Amt','Total Gross']);
@@ -2431,7 +2258,7 @@ function processBulkFile() {
       }
     }
 
-    const genderRaw = getBulkField(row, ['Gender','gender','Sex','sex']);
+    const genderRaw  = getBulkField(row, ['Gender','gender','Sex','sex']);
     const bulkGender = (genderRaw && genderRaw.toString().trim().toLowerCase().includes('f')) ? 'Female' : 'Male';
 
     const ptStateRaw  = getBulkField(row, ['PT State','PTState','Professional Tax State','pt_state','State PT','PT (State)','PT State Code']);
@@ -2470,8 +2297,9 @@ function processBulkFile() {
       lwfMode_row = 'manual';
     }
 
-    const gratRaw        = getBulkField(row, ['Gratuity','Gratuity Amount','Monthly Gratuity','gratuity_amt']);
-    const gratuityOverride = (gratRaw && !isNaN(cleanNum(gratRaw))) ? cleanNum(gratRaw) : null;
+    // ✅ Health Insurance — read from bulk column
+    const hiRaw = getBulkField(row, ['Health Insurance','HealthInsurance','Health Ins','HI Amount','health_insurance','Health Insurance Amount','hi_amt','Medical Insurance','MedicalInsurance']);
+    const healthInsAmtBulk = (!isNaN(cleanNum(hiRaw)) && cleanNum(hiRaw) >= 0) ? cleanNum(hiRaw) : 0;
 
     const leaveAmtRaw    = getBulkField(row, ['Leave Encashment Amount','Leave Amount','Monthly Leave Amount','leave_enc_amount']);
     const leaveOverride  = (leaveAmtRaw && !isNaN(cleanNum(leaveAmtRaw))) ? cleanNum(leaveAmtRaw) : null;
@@ -2486,7 +2314,7 @@ function processBulkFile() {
     try {
       const r = computeCTC(
         gross, minWage, pf, pt, lwf,
-        gratuityOverride, leaveOverride,
+        healthInsAmtBulk, leaveOverride,
         bulkPfBase, bulkHasVol, bulkVolPct, bulkSpecAmt, bulkEmpRate,
         bulkLeaves, previousBasic
       );
@@ -2504,7 +2332,7 @@ function processBulkFile() {
         pfVolPct: r.pfVolPct, pfSpecAmt: r.pfSpecAmt,
         epfEmp: r.epfEmployer, edliEmployer: r.edliEmployer, bonus: r.bonus, initialCTC: r.initialCTC,
         esiEmp: r.esiEmployer,
-        gratuityUsed: r.gratuity, gratuityAuto: r.gratuityAuto, gratuityMode: r.gratuityMode,
+        healthInsurance: r.healthInsurance,
         leaveUsed: r.leaveComponent, leaveAuto: r.leaveAuto, leaveMode: r.leaveMode,
         lwf: r.lwf, lwfStateName, lwfMode: lwfMode_row,
         pt: r.ptDeduction, ptStateName, ptMode: ptMode_row,
@@ -2536,7 +2364,7 @@ function bulkFmt(n) {
 }
 
 // ===================================================================
-//  ✅ BULK RESULTS TABLE
+//  ✅ BULK RESULTS TABLE — Health Insurance column
 // ===================================================================
 function renderBulkResults(errors, total) {
   const valid        = bulkCalcResults.filter(function(r) { return !r.error; });
@@ -2548,11 +2376,10 @@ function renderBulkResults(errors, total) {
   const maxCTC       = valid.length ? Math.max.apply(null, valid.map(function(r) { return r.finalCTC || 0; })) : 0;
   const totalEpfEmp  = valid.reduce(function(s, r) { return s + (r.epfEmp || 0); }, 0);
   const totalBonus   = valid.reduce(function(s, r) { return s + (r.bonus || 0); }, 0);
-  const totalGrat    = valid.reduce(function(s, r) { return s + (r.gratuityUsed || 0); }, 0);
+  const totalHI      = valid.reduce(function(s, r) { return s + (r.healthInsurance || 0); }, 0);
   const totalLeave   = valid.reduce(function(s, r) { return s + (r.leaveUsed || 0); }, 0);
   const withPrevBasic = valid.filter(function(r) { return r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0; }).length;
 
-  // ── Summary Cards ──
   const summaryEl = document.getElementById('bulkSummaryCards');
   if (summaryEl) {
     summaryEl.innerHTML = `
@@ -2567,58 +2394,31 @@ function renderBulkResults(errors, total) {
       <div class="bulk-sum-card"><div class="bsc-label">Max CTC</div><div class="bsc-val amber">${maxCTC ? bulkFmt(maxCTC) : '—'}</div></div>
       <div class="bulk-sum-card"><div class="bsc-label">Total EPF (Employer)</div><div class="bsc-val">${bulkFmt(totalEpfEmp)}</div></div>
       <div class="bulk-sum-card"><div class="bsc-label">Total Bonus</div><div class="bsc-val">${bulkFmt(totalBonus)}</div></div>
-      <div class="bulk-sum-card"><div class="bsc-label">Total Gratuity Prov.</div><div class="bsc-val">${bulkFmt(totalGrat)}</div></div>
+      <div class="bulk-sum-card"><div class="bsc-label">Total Health Insurance</div><div class="bsc-val">${bulkFmt(totalHI)}</div></div>
       <div class="bulk-sum-card"><div class="bsc-label">Total Leave Prov.</div><div class="bsc-val">${bulkFmt(totalLeave)}</div></div>
-      ${withPrevBasic > 0 ? `<div class="bulk-sum-card"><div class="bsc-label">Employees w/ Prev Basic</div><div class="bsc-val amber">${withPrevBasic}/${valid.length}</div></div>` : ''}
+      ${withPrevBasic > 0 ? `<div class="bulk-sum-card"><div class="bsc-label">Emp w/ Prev Basic</div><div class="bsc-val amber">${withPrevBasic}/${valid.length}</div></div>` : ''}
     `;
   }
 
-  // ── Table Header ──
   const headEl = document.getElementById('bulkTableHead');
   if (headEl) {
     headEl.innerHTML = `<tr>
-      <th>#</th>
-      <th>Employee Name</th>
-      <th>Emp Code</th>
-      <th>Branch</th>
-      <th>Month</th>
-      <th>Gender</th>
-      <th>Prev Basic</th>
-      <th>PF</th>
-      <th>PF Mode</th>
-      <th>PF Wages</th>
-      <th>Emp Rate</th>
-      <th>Voluntary</th>
-      <th>Gross</th>
-      <th>Basic</th>
-      <th>HRA</th>
-      <th>Defray(10%)</th>
-      <th>Conveyance</th>
-      <th>EPF Employer</th>
-      <th>EDLI</th>
-      <th>Bonus</th>
-      <th>ESI Employer</th>
-      <th>Gratuity</th>
-      <th>Leave Enc.</th>
-      <th>Leaves/Yr</th>
-      <th>LWF State</th>
-      <th>LWF</th>
-      <th>PT State</th>
-      <th>PT</th>
-      <th>Initial CTC</th>
-      <th>Final CTC/Mo</th>
-      <th>Annual CTC</th>
-      <th>EPF Employee</th>
-      <th>ESI Employee</th>
-      <th>Cash in Hand</th>
-      <th>Status</th>
+      <th>#</th><th>Employee Name</th><th>Emp Code</th><th>Branch</th>
+      <th>Month</th><th>Gender</th><th>Prev Basic</th>
+      <th>PF</th><th>PF Mode</th><th>PF Wages</th><th>Emp Rate</th><th>Voluntary</th>
+      <th>Gross</th><th>Basic</th><th>HRA</th><th>Defray(10%)</th><th>Conveyance</th>
+      <th>EPF Employer</th><th>EDLI</th><th>Bonus</th><th>ESI Employer</th>
+      <th>Health Ins.</th><th>Leave Enc.</th><th>Leaves/Yr</th>
+      <th>LWF State</th><th>LWF</th><th>PT State</th><th>PT</th>
+      <th>Initial CTC</th><th>Final CTC/Mo</th><th>Annual CTC</th>
+      <th>EPF Employee</th><th>ESI Employee</th><th>Cash in Hand</th><th>Status</th>
     </tr>`;
   }
 
   const monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   const tot = {};
-  const totFields = ['gross','basic','hra','deferAllowance','conv','epfEmp','edliEmployer','bonus','esiEmp','gratuityUsed','leaveUsed','lwf','pt','initialCTC','finalCTC','finalAnnual','epfEe','esiEe','cash','pfWages'];
+  const totFields = ['gross','basic','hra','deferAllowance','conv','epfEmp','edliEmployer','bonus','esiEmp','healthInsurance','leaveUsed','lwf','pt','initialCTC','finalCTC','finalAnnual','epfEe','esiEe','cash','pfWages'];
   totFields.forEach(function(k) { tot[k] = 0; });
 
   let bodyHtml = '';
@@ -2645,11 +2445,8 @@ function renderBulkResults(errors, total) {
       ? '<span style="color:var(--accent3);font-size:10px">+' + r.pfVolPct + '%</span>'
       : '<span style="color:var(--text-muted);font-size:10px">—</span>';
 
-    const deferCell = r.isHighGross
-      ? bulkFmt(r.deferAllowance)
-      : '<span style="color:var(--text-muted)">—</span>';
-
-    const edliCell = r.edliEmployer > 0 ? bulkFmt(r.edliEmployer) : '<span style="color:var(--text-muted)">Rs.0</span>';
+    const deferCell = r.isHighGross ? bulkFmt(r.deferAllowance) : '<span style="color:var(--text-muted)">—</span>';
+    const edliCell  = r.edliEmployer > 0 ? bulkFmt(r.edliEmployer) : '<span style="color:var(--text-muted)">Rs.0</span>';
     const bonusCell = r.bonus > 0 ? bulkFmt(r.bonus) : '<span style="color:var(--text-muted)">—</span>';
     const esiEmpCell = r.esiEmp > 0 ? bulkFmt(r.esiEmp) : '<span style="color:var(--text-muted)">—</span>';
     const esiEeCell  = r.esiEe > 0  ? bulkFmt(r.esiEe)  : '<span style="color:var(--text-muted)">—</span>';
@@ -2669,9 +2466,9 @@ function renderBulkResults(errors, total) {
       ? '<span style="color:var(--accent2);font-weight:500">' + bulkFmt(r.previousBasic) + '</span>'
       : '<span style="color:var(--text-muted)">—</span>';
 
-    const gratuityCell = r.gratuityMode === 'manual'
-      ? bulkFmt(r.gratuityUsed) + ' <span style="font-size:9px;color:var(--accent2)">M</span>'
-      : bulkFmt(r.gratuityUsed);
+    const hiCell = r.healthInsurance > 0
+      ? '<span style="color:var(--accent4);font-weight:600">' + bulkFmt(r.healthInsurance) + '</span>'
+      : '<span style="color:var(--text-muted)">Rs.0</span>';
 
     const leaveCell = r.leaveMode === 'manual'
       ? bulkFmt(r.leaveUsed) + ' <span style="font-size:9px;color:var(--accent2)">M</span>'
@@ -2699,7 +2496,7 @@ function renderBulkResults(errors, total) {
       '<td class="td-right">' + edliCell + '</td>' +
       '<td class="td-right">' + bonusCell + '</td>' +
       '<td class="td-right">' + esiEmpCell + '</td>' +
-      '<td class="td-right">' + gratuityCell + '</td>' +
+      '<td class="td-right">' + hiCell + '</td>' +
       '<td class="td-right">' + leaveCell + '</td>' +
       '<td class="td-right" style="font-size:10px;color:var(--text-dim)">' + (r.leavesPerYear || 15) + '</td>' +
       '<td>' + lwfStateCell + '</td>' +
@@ -2716,7 +2513,6 @@ function renderBulkResults(errors, total) {
       '</tr>';
   });
 
-  // ── Total Row ──
   if (valid.length > 0) {
     bodyHtml += '<tr class="total-row">' +
       '<td colspan="12">TOTAL (' + valid.length + ' employees)</td>' +
@@ -2729,7 +2525,7 @@ function renderBulkResults(errors, total) {
       '<td class="td-right">' + bulkFmt(tot.edliEmployer) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.bonus) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.esiEmp) + '</td>' +
-      '<td class="td-right">' + bulkFmt(tot.gratuityUsed) + '</td>' +
+      '<td class="td-right">' + bulkFmt(tot.healthInsurance) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.leaveUsed) + '</td>' +
       '<td></td>' +
       '<td></td><td class="td-right">' + bulkFmt(tot.lwf) + '</td>' +
@@ -2753,12 +2549,11 @@ function renderBulkResults(errors, total) {
     '✓ Done! ' + valid.length + ' calculated' + (errors > 0 ? ', ' + errors + ' error(s)' : '') +
     ' | ● = Auto State-wise  ○ = Manual  M = Manual Override');
 
-  // ── INJECT SEARCH BAR after table is rendered ──
   injectBulkSearchBar();
 }
 
 // ===================================================================
-//  ✅ BULK EXPORT CSV
+//  ✅ BULK EXPORT CSV — Health Insurance
 // ===================================================================
 function bulkExportCSV() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
@@ -2780,9 +2575,9 @@ function bulkExportCSV() {
     'Sr. No.', 'Employee Name', 'Employee Code', 'Branch', 'Salary Month', 'Gender',
     'Previous Basic (Rs.)', 'PF Status', 'PF Mode', 'PF Wages (Rs.)', 'Employer PF Rate', 'Voluntary PF %',
     'Gross Salary', 'Basic Salary', 'HRA',
-    'Defray Expenses 10% (High Gross)', 'Conveyance',
+    'Defray Expenses 10%', 'Conveyance',
     'EPF – Employer (Rs.)', 'EDLI – Employer (Rs.)', 'Bonus (Rs.)', 'ESI – Employer (Rs.)',
-    'Gratuity (Rs.)', 'Gratuity Mode', 'Leave Encashment (Rs.)', 'Leave Mode', 'Leaves Per Year',
+    'Health Insurance (Rs.)', 'Leave Encashment (Rs.)', 'Leave Mode', 'Leaves Per Year',
     'LWF State', 'LWF Mode', 'LWF Amount (Rs.)',
     'PT State', 'PT Mode', 'Professional Tax (Rs.)',
     'Initial CTC (Monthly)', 'Final CTC (Monthly)', 'Final CTC (Annual)',
@@ -2795,21 +2590,13 @@ function bulkExportCSV() {
       const blanks = new Array(headers.length - 3).fill('');
       return [r.rowNum, r.name, r.empCode || '', r.branch || '', '', '', '', ...blanks, 'Error: ' + r.error];
     }
-    
-    const prevBasicVal = (r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0) 
-      ? amt(r.previousBasic) : 'N/A';
-    
+    const prevBasicVal = (r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0) ? amt(r.previousBasic) : 'N/A';
     return [
       r.rowNum, r.name, r.empCode || '', r.branch || '',
-      monthNames[r.salaryMonth] || r.salaryMonth || '',
-      r.gender || 'Male',
+      monthNames[r.salaryMonth] || r.salaryMonth || '', r.gender || 'Male',
       prevBasicVal,
       r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable',
-      r.pfApplicable === 'Y' 
-        ? (r.pfBaseUsed === 'standard' ? 'Standard (min Basic,15k)' 
-          : r.pfBaseUsed === 'full_basic' ? 'Full Basic' 
-          : 'Specific Amount') 
-        : 'N/A',
+      r.pfApplicable === 'Y' ? (r.pfBaseUsed === 'standard' ? 'Standard' : r.pfBaseUsed === 'full_basic' ? 'Full Basic' : 'Specific Amount') : 'N/A',
       r.pfApplicable === 'Y' ? amt(r.pfWages) : 'N/A',
       r.pfApplicable === 'Y' ? r.pfEmployerRate + '%' : 'N/A',
       r.pfHasVoluntary ? r.pfVolPct + '%' : '0%',
@@ -2820,7 +2607,7 @@ function bulkExportCSV() {
       r.edliEmployer > 0 ? amt(r.edliEmployer) : 0,
       r.bonus > 0 ? amt(r.bonus) : 0,
       r.esiEmp > 0 ? amt(r.esiEmp) : 0,
-      amt(r.gratuityUsed), r.gratuityMode === 'manual' ? 'Manual' : 'Auto (Formula)',
+      amt(r.healthInsurance || 0),
       amt(r.leaveUsed), r.leaveMode === 'manual' ? 'Manual' : 'Auto (Formula)',
       r.leavesPerYear || 15,
       r.lwfStateName || 'N/A', r.lwfMode === 'auto' ? 'Auto (State-wise)' : 'Manual',
@@ -2830,13 +2617,11 @@ function bulkExportCSV() {
       amt(r.initialCTC), amt(r.finalCTC), amt(r.finalAnnual),
       r.pfApplicable === 'Y' ? amt(r.epfEe) : 'N/A',
       r.esiEe > 0 ? amt(r.esiEe) : 0,
-      amt(r.cash),
-      'Calculated'
+      amt(r.cash), 'Calculated'
     ];
   });
 
   const valid = bulkCalcResults.filter(function(r) { return !r.error; });
-  
   const totRow = [
     'TOTAL (' + valid.length + ')', '', '', '', '', '', 'N/A', '', '', '', '', '',
     valid.reduce(function(s,r){ return s+amt(r.gross); }, 0),
@@ -2848,7 +2633,7 @@ function bulkExportCSV() {
     valid.reduce(function(s,r){ return s+amt(r.edliEmployer); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.bonus); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.esiEmp); }, 0),
-    valid.reduce(function(s,r){ return s+amt(r.gratuityUsed); }, 0), '',
+    valid.reduce(function(s,r){ return s+amt(r.healthInsurance||0); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.leaveUsed); }, 0), '', '',
     '', '', valid.reduce(function(s,r){ return s+amt(r.lwf); }, 0),
     '', '', valid.reduce(function(s,r){ return s+amt(r.pt); }, 0),
@@ -2857,8 +2642,7 @@ function bulkExportCSV() {
     valid.reduce(function(s,r){ return s+amt(r.finalAnnual); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.epfEe); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.esiEe); }, 0),
-    valid.reduce(function(s,r){ return s+amt(r.cash); }, 0),
-    ''
+    valid.reduce(function(s,r){ return s+amt(r.cash); }, 0), ''
   ];
 
   const allRows = metaRows.concat([headers]).concat(dataRows).concat([totRow]);
@@ -2875,95 +2659,53 @@ function bulkExportCSV() {
   showToast('✓ Bulk CSV Downloaded');
 }
 
-// ── Bulk Export TXT ──
 function bulkExportTXT() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
-  
   const valid        = bulkCalcResults.filter(function(r) { return !r.error; });
   const now          = new Date().toLocaleDateString('en-IN', { year:'numeric', month:'long', day:'numeric' });
   const totalMonthly = valid.reduce(function(s, r) { return s + (r.finalCTC    || 0); }, 0);
   const totalAnnual  = valid.reduce(function(s, r) { return s + (r.finalAnnual || 0); }, 0);
   const monthNames   = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
-
   function padR(s, n) { s = String(s); return s.length >= n ? s.slice(0,n) : s + ' '.repeat(n - s.length); }
   function padL(s, n) { s = String(s); return s.length >= n ? s.slice(0,n) : ' '.repeat(n - s.length) + s; }
   const SEP  = '+' + '-'.repeat(36) + '+' + '-'.repeat(18) + '+';
   function tableRow(label, val) { return '| ' + padR(label,35) + '| ' + padL(val,17) + '|\n'; }
-
-  let txt = '═'.repeat(60) + '\n';
-  txt += '   BULK CTC SALARY REPORT — NEW LABOUR CODE\n';
-  txt += '═'.repeat(60) + '\n';
+  let txt = '═'.repeat(60) + '\n   BULK CTC SALARY REPORT — NEW LABOUR CODE\n' + '═'.repeat(60) + '\n';
   txt += '  Date              : ' + now + '\n';
   txt += '  Total Employees   : ' + bulkCalcResults.length + '\n';
   txt += '  Calculated        : ' + valid.length + '\n';
-  txt += '  Errors            : ' + (bulkCalcResults.length - valid.length) + '\n';
   txt += '  Total Monthly CTC : ' + bulkFmt(totalMonthly) + '\n';
   txt += '  Total Annual CTC  : ' + bulkFmt(totalAnnual) + '\n';
-  txt += '  ● = Auto State-wise  ○ = Manual  M = Manual Override\n';
   txt += '═'.repeat(60) + '\n\n';
-
   valid.forEach(function(r, i) {
     txt += '┌' + '─'.repeat(58) + '┐\n';
     txt += '│  ' + padR((i+1) + '. ' + r.name, 56) + '│\n';
     txt += '│  Emp Code: ' + padR((r.empCode || 'N/A'), 48) + '│\n';
-    txt += '│  Branch  : ' + padR((r.branch  || 'N/A'), 48) + '│\n';
-    txt += '│  Month: ' + padR((monthNames[r.salaryMonth] || '—'), 50) + '│\n';
-    txt += '│  Gender: ' + padR((r.gender || 'Male'), 49) + '│\n';
-    
-    if (r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0) {
-      txt += '│  Previous Basic: Rs.' + padR(Math.round(r.previousBasic).toLocaleString('en-IN'), 36) + '│\n';
-    }
-    
-    txt += '│  PF: ' + padR((r.pfApplicable === 'Y' ? 'Applicable | ' + (r.pfModeLabel||'Standard') : 'Not Applicable'), 52) + '│\n';
-    txt += '│  LWF: ' + padR((r.lwfStateName || 'N/A') + ' (' + (r.lwfMode === 'auto' ? '● Auto' : '○ Manual') + ')', 51) + '│\n';
-    txt += '│  PT:  ' + padR((r.ptStateName || 'N/A') + ' (' + (r.ptMode === 'auto' ? '● Auto' : '○ Manual') + ')', 51) + '│\n';
+    if (r.previousBasic > 0) txt += '│  Prev Basic: Rs.' + padR(Math.round(r.previousBasic).toLocaleString('en-IN'), 40) + '│\n';
     txt += '└' + '─'.repeat(58) + '┘\n';
-    
     txt += SEP + '\n';
-    txt += tableRow('SALARY STRUCTURE', '');
-    txt += SEP + '\n';
-    txt += tableRow('Basic Salary', bulkFmt(r.basic));
-    txt += tableRow('HRA (50% of Basic)', bulkFmt(r.hra));
-    if (r.isHighGross) txt += tableRow('Defray Expenses (10%)', bulkFmt(r.deferAllowance));
-    txt += tableRow('Conveyance', bulkFmt(r.conv));
     txt += tableRow('Gross Salary', bulkFmt(r.gross));
-    
+    txt += tableRow('Basic Salary', bulkFmt(r.basic));
+    txt += tableRow('HRA', bulkFmt(r.hra));
+    txt += tableRow('Conveyance', bulkFmt(r.conv));
     txt += SEP + '\n';
-    txt += tableRow('EMPLOYER CONTRIBUTIONS', '');
-    txt += SEP + '\n';
-    txt += tableRow('EPF – Employer (' + (r.pfEmployerRate||'12.5') + '%) ' + (r.pfApplicable !== 'Y' ? '[N/A]' : ''), r.pfApplicable === 'Y' ? bulkFmt(r.epfEmp) : 'N/A');
-    txt += tableRow('EDLI – Employer', r.edliEmployer > 0 ? bulkFmt(r.edliEmployer) : 'Rs.0');
-    txt += tableRow('Bonus (8.33% of MinWage, Basic≤21k)', r.bonus > 0 ? bulkFmt(r.bonus) : 'N/A');
+    txt += tableRow('EPF – Employer', r.pfApplicable === 'Y' ? bulkFmt(r.epfEmp) : 'N/A');
+    txt += tableRow('Bonus', r.bonus > 0 ? bulkFmt(r.bonus) : 'N/A');
     txt += tableRow('Initial CTC', bulkFmt(r.initialCTC));
-    txt += tableRow('ESI – Employer (3.25%)', r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A');
-    txt += tableRow('Gratuity (' + (r.gratuityMode === 'manual' ? 'M-Manual' : 'Auto') + ')', bulkFmt(r.gratuityUsed));
-    txt += tableRow('Leave Enc. (' + (r.leavesPerYear||15) + ' leaves/yr, ' + (r.leaveMode === 'manual' ? 'M-Manual' : 'Auto') + ')', bulkFmt(r.leaveUsed));
-    txt += tableRow('LWF – ' + (r.lwfStateName||'N/A') + ' (' + (r.lwfMode==='auto'?'● Auto':'○ Manual') + ')', r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A');
-    
+    txt += tableRow('ESI – Employer', r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A');
+    txt += tableRow('Health Insurance (Monthly)', bulkFmt(r.healthInsurance || 0));
+    txt += tableRow('Leave Encashment (' + (r.leavesPerYear||15) + ' leaves)', bulkFmt(r.leaveUsed));
+    txt += tableRow('LWF – ' + (r.lwfStateName||'N/A'), r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A');
     txt += SEP + '\n';
-    txt += tableRow('EMPLOYEE DEDUCTIONS', '');
-    txt += SEP + '\n';
-    txt += tableRow('EPF – Employee (12%' + (r.pfHasVoluntary ? '+' + r.pfVolPct + '% Vol' : '') + ')', r.pfApplicable === 'Y' ? bulkFmt(r.epfEe) : 'N/A');
-    txt += tableRow('ESI – Employee (0.75%)', r.esiEe > 0 ? bulkFmt(r.esiEe) : 'N/A');
-    txt += tableRow('Professional Tax – ' + (r.ptStateName||'N/A') + ' (' + (r.ptMode==='auto'?'● Auto':'○ Manual') + ')', r.pt > 0 ? bulkFmt(r.pt) : 'N/A');
-    txt += tableRow('LWF – Employee', r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A');
-    
-    txt += SEP + '\n';
-    txt += tableRow('FINAL SUMMARY', '');
+    txt += tableRow('EPF – Employee', r.pfApplicable === 'Y' ? bulkFmt(r.epfEe) : 'N/A');
+    txt += tableRow('ESI – Employee', r.esiEe > 0 ? bulkFmt(r.esiEe) : 'N/A');
+    txt += tableRow('Professional Tax – ' + (r.ptStateName||'N/A'), r.pt > 0 ? bulkFmt(r.pt) : 'N/A');
     txt += SEP + '\n';
     txt += tableRow('Final CTC (Monthly)', bulkFmt(r.finalCTC));
     txt += tableRow('Final CTC (Annual)', bulkFmt(r.finalAnnual));
     txt += tableRow('NET CASH IN HAND', bulkFmt(r.cash));
     txt += SEP + '\n\n';
   });
-
-  if (bulkCalcResults.some(function(r) { return r.error; })) {
-    txt += '\nERRORS:\n' + '─'.repeat(60) + '\n';
-    bulkCalcResults.filter(function(r) { return r.error; }).forEach(function(r) {
-      txt += '  Row ' + r.rowNum + ': ' + r.name + ' — ' + r.error + '\n';
-    });
-  }
-
   const blob = new Blob([txt], { type: 'text/plain;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
@@ -2973,98 +2715,47 @@ function bulkExportTXT() {
   showToast('✓ Summary TXT Downloaded');
 }
 
-// ── Bulk Copy Clipboard ──
 function bulkCopyClipboard() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
-  
   const valid = bulkCalcResults.filter(function(r) { return !r.error; });
-  const monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  
-  const headers = [
-    '#', 'Employee Name', 'Employee Code', 'Branch', 'Month', 'Gender', 'Prev Basic',
-    'PF Status', 'PF Mode', 'PF Wages', 'Emp Rate', 'Voluntary %',
-    'Gross', 'Basic', 'HRA', 'Defray(10%)', 'Conveyance',
-    'EPF Employer', 'EDLI', 'Bonus', 'ESI Employer',
-    'Gratuity', 'Grat Mode', 'Leave Enc.', 'Leave Mode', 'Leaves/Yr',
-    'LWF State', 'LWF Mode', 'LWF',
-    'PT State', 'PT Mode', 'PT',
-    'Initial CTC', 'Final CTC/Mo', 'Annual CTC',
-    'EPF Employee', 'ESI Employee', 'Net Cash in Hand'
-  ];
-  
+  const headers = ['#','Employee Name','Emp Code','Branch','Gross','Basic','HRA','EPF Emp','Bonus','ESI Emp','Health Ins.','Leave Enc.','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Employee','ESI Employee','Cash in Hand'];
   const rows = valid.map(function(r, i) {
-    const prevBasicVal = (r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0) 
-      ? Math.round(r.previousBasic) : 'N/A';
-    
     return [
       i+1, r.name, r.empCode || '', r.branch || '',
-      monthNames[r.salaryMonth] || '', r.gender || 'Male',
-      prevBasicVal,
-      r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable',
-      r.pfApplicable === 'Y' 
-        ? (r.pfBaseUsed === 'standard' ? 'Standard' 
-          : r.pfBaseUsed === 'full_basic' ? 'Full Basic' 
-          : 'Specific Amt') 
-        : 'N/A',
-      r.pfApplicable === 'Y' ? Math.round(r.pfWages) : 'N/A',
-      r.pfEmployerRate + '%',
-      r.pfHasVoluntary ? r.pfVolPct + '%' : '0%',
       Math.round(r.gross), Math.round(r.basic), Math.round(r.hra),
-      r.isHighGross ? Math.round(r.deferAllowance) : 'N/A', 
-      Math.round(r.conv),
       r.pfApplicable === 'Y' ? Math.round(r.epfEmp) : 'N/A',
-      r.edliEmployer > 0 ? Math.round(r.edliEmployer) : 0,
       r.bonus > 0 ? Math.round(r.bonus) : 0,
       r.esiEmp > 0 ? Math.round(r.esiEmp) : 0,
-      Math.round(r.gratuityUsed), r.gratuityMode === 'manual' ? 'Manual' : 'Auto',
-      Math.round(r.leaveUsed), r.leaveMode === 'manual' ? 'Manual' : 'Auto',
-      r.leavesPerYear || 15,
-      r.lwfStateName || 'N/A', r.lwfMode === 'auto' ? 'Auto' : 'Manual',
-      r.lwf > 0 ? Math.round(r.lwf) : 0,
-      r.ptStateName || 'N/A', r.ptMode === 'auto' ? 'Auto' : 'Manual',
+      Math.round(r.healthInsurance || 0),
+      Math.round(r.leaveUsed), r.lwf > 0 ? Math.round(r.lwf) : 0,
       r.pt > 0 ? Math.round(r.pt) : 0,
       Math.round(r.initialCTC), Math.round(r.finalCTC), Math.round(r.finalAnnual),
       r.pfApplicable === 'Y' ? Math.round(r.epfEe) : 'N/A',
-      r.esiEe > 0 ? Math.round(r.esiEe) : 0,
-      Math.round(r.cash)
+      r.esiEe > 0 ? Math.round(r.esiEe) : 0, Math.round(r.cash)
     ].join('\t');
   });
-  
   const text = [headers.join('\t')].concat(rows).join('\n');
-  
   navigator.clipboard.writeText(text)
-    .then(function() { 
-      showBulkExportStatus('✓ Copied!'); 
-      showToast('⎘ Bulk data copied to clipboard'); 
-    })
-    .catch(function() { 
-      showToast('⚠️ Copy failed'); 
-    });
+    .then(function() { showBulkExportStatus('✓ Copied!'); showToast('⎘ Bulk data copied to clipboard'); })
+    .catch(function() { showToast('⚠️ Copy failed'); });
 }
 
-// ── Bulk Template Download ──
 function bulkDownloadTemplate() {
   const csv = [
-    'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,PT State,LWF State,Salary Month,Gender,Gratuity,Leave Encashment Amount,Leaves per Year',
-    'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,KA,FKL,12,Male,,,15',
-    'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,MH,MH,12,Male,,500,18',
-    'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,,OTHER,12,Male,,,,15',
-    'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,GJ,OTHER,6,Female,,,20',
-    'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,AP,AP,12,Male,,,15',
-    'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,TS,OTHER,12,Female,,500,200,12',
-    'Rajesh Mehta,EMP007,Mumbai-HO,120000,15860,50000,Y,full_basic,N,,0,12,KA,FKL,12,Male,,,15',
-    'Pooja Joshi,EMP008,Kolkata-Branch,150000,16868,60000,Y,specific_amt,Y,10,20000,12.5,WB,WB,6,Female,,800,,18',
-    'Arun Rao,EMP009,Coimbatore-Site,80000,16868,,N,standard,N,,0,12.5,TN,TN,12,Male,,,15',
-    'Kavita Nair,EMP010,Tirupati-Branch,15000,14858,13000,Y,standard,N,,0,12,TS,,12,Male,,,15',
-    'Mohan Das,EMP011,Thiruvananthapuram,35000,16000,18000,Y,standard,N,,0,12.5,KL,SKL,6,Male,,,21',
-    'Ritu Sharma,EMP012,Jaipur-Branch,42000,16868,20000,Y,full_basic,N,,0,12,OD,OD,12,Female,,,15',
+    'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,PT State,LWF State,Salary Month,Gender,Health Insurance,Leave Encashment Amount,Leaves per Year',
+    'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,KA,FKL,12,Male,500,,15',
+    'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,MH,MH,12,Male,1000,500,18',
+    'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,,OTHER,12,Male,750,,15',
+    'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,GJ,OTHER,6,Female,800,,20',
+    'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,AP,AP,12,Male,500,,15',
+    'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,TS,OTHER,12,Female,600,500,12',
   ].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = 'CTC_Bulk_Upload_Template_v14.csv';
+  link.download = 'CTC_Bulk_Upload_Template_HealthIns.csv';
   link.click();
-  showToast('✓ Template v14 Downloaded');
+  showToast('✓ Template Downloaded');
 }
 
 function resetBulk() {
@@ -3080,13 +2771,10 @@ function resetBulk() {
   if (progressWrap)   progressWrap.style.display   = 'none';
   if (statusEl)       statusEl.style.display       = 'none';
   if (progressFill)   progressFill.style.width     = '0%';
-  
-  // ── Remove search bar on reset ──
   const searchBar = document.getElementById('bulkSearchBar');
   if (searchBar) searchBar.remove();
   const noResults = document.getElementById('bulkNoResults');
   if (noResults) noResults.remove();
-  
   initBulkTab();
   showToast('↺ Bulk upload reset');
 }
