@@ -44,6 +44,7 @@ let pfEmployerRate = '12.5';
 
 // ============== LWF STATE-WISE CONFIG ==============
 const LWF_STATES = {
+  PB: { name: 'Punjab', months: 'all', amount: 5, employerAmount: 20, formula: null },
   TN:    { name: 'Tamil Nadu',       months: 'dec',     amount: 20,   formula: null },
   AP:    { name: 'Andhra Pradesh',   months: 'dec',     amount: 30,   formula: null },
   SKL:   { name: 'Kerala',           months: 'all',     amount: 20,   formula: null },
@@ -61,6 +62,7 @@ const LWF_STATES = {
 };
 
 const LWF_STATE_ALIASES = {
+  'PB': ['PB', 'PUNJAB'],
   'TN':  ['TN','TAMIL NADU','TAMILNADU'],
   'AP':  ['AP','ANDHRA PRADESH','ANDHRAPRADESH'],
   'SKL': ['SKL','KL','KERALA'],
@@ -105,6 +107,25 @@ function computeLWFAuto(stateCode, month, gross, hasLeaves) {
   }
 }
 
+function computeLWFEmployerAuto(stateCode, month, gross) {
+  if (!stateCode || !LWF_STATES[stateCode]) return 0;
+  const state = LWF_STATES[stateCode];
+  const employerAmt = state.employerAmount !== undefined ? state.employerAmount : state.amount;
+  if (state.formula === 'hr') {
+    const hrVal = gross * 0.002;
+    return hrVal <= 34 ? Math.round(hrVal * 100) / 100 : 34;
+  }
+  const isDecember  = month === 12;
+  const isJuneOrDec = month === 6 || month === 12;
+  switch (state.months) {
+    case 'all':     return employerAmt;
+    case 'dec':     return isDecember ? employerAmt : 0;
+    case 'jun-dec': return isJuneOrDec ? employerAmt : 0;
+    case 'none':    return 0;
+    default:        return 0;
+  }
+}
+
 function getLWFHint(stateCode, month, gross) {
   if (!stateCode || !LWF_STATES[stateCode]) return 'Select a state to see LWF rule';
   const state     = LWF_STATES[stateCode];
@@ -114,6 +135,13 @@ function getLWFHint(stateCode, month, gross) {
     const hrVal = gross * 0.002;
     const cap   = hrVal <= 34 ? hrVal : 34;
     return 'HR Formula: Gross x 0.2% = Rs.' + hrVal.toFixed(2) + ' -> Capped at Rs.34 -> Result: Rs.' + cap.toFixed(2);
+  }
+  // Punjab - split employee/employer
+  if (state.employerAmount !== undefined && state.employerAmount !== state.amount) {
+    const appMonths = { 'all': 'every month', 'dec': 'December only', 'jun-dec': 'June & December only', 'none': 'never' };
+    const rule = appMonths[state.months] || '';
+    const isApplicable = computeLWFAuto(stateCode, month, gross, true) > 0;
+    return state.name + ': Employee Rs.' + state.amount + ' + Employer Rs.' + state.employerAmount + ' applicable ' + rule + '. ' + monthName + ' -> ' + (isApplicable ? 'APPLICABLE' : 'NOT applicable this month');
   }
   const appMonths    = { 'all': 'every month', 'dec': 'December only', 'jun-dec': 'June & December only', 'none': 'never' };
   const isApplicable = computeLWFAuto(stateCode, month, gross, true) > 0;
@@ -150,11 +178,21 @@ function updateLWFAuto() {
     liveCalc();
     return;
   }
-  const lwfVal = computeLWFAuto(stateCode, month, gross, true);
-  const hint   = getLWFHint(stateCode, month, gross);
+  const lwfVal     = computeLWFAuto(stateCode, month, gross, true);
+  const lwfEmpVal  = computeLWFEmployerAuto(stateCode, month, gross);
+  const hint       = getLWFHint(stateCode, month, gross);
+  const state      = LWF_STATES[stateCode];
+  const hasSplit   = state && state.employerAmount !== undefined && state.employerAmount !== state.amount;
   if (resultEl) {
-    resultEl.textContent = lwfVal > 0 ? 'Rs.' + lwfVal : 'Rs.0 (Not applicable this month)';
-    resultEl.style.color = lwfVal > 0 ? 'var(--accent3)' : 'var(--text-muted)';
+    if (lwfVal > 0) {
+      resultEl.textContent = hasSplit
+        ? 'Employee: Rs.' + lwfVal + ' | Employer: Rs.' + lwfEmpVal
+        : 'Rs.' + lwfVal;
+      resultEl.style.color = 'var(--accent3)';
+    } else {
+      resultEl.textContent = 'Rs.0 (Not applicable this month)';
+      resultEl.style.color = 'var(--text-muted)';
+    }
   }
   if (hintEl) hintEl.textContent = hint;
   liveCalc();
@@ -1258,7 +1296,19 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     ? Math.round(leaveOverride) : leaveAuto;
 
   // ✅ finalCTC: Health Insurance replaces Gratuity
-  const finalCTC   = initialCTC + esiEmployer + healthIns + lwf + leaveComponent;
+  // LWF employer contribution (Punjab ke liye alag)
+const lwfEmployerContrib = (function() {
+  if (lwfMode === 'auto') {
+    const stateEl = document.getElementById('lwfState');
+    if (stateEl && stateEl.value) {
+      return computeLWFEmployerAuto(stateEl.value, 
+        parseInt(document.getElementById('lwfMonth')?.value) || 12, gross);
+    }
+  }
+  return lwf; // manual mode mein same hi rahega
+})();
+
+const finalCTC = initialCTC + esiEmployer + healthIns + lwfEmployerContrib + leaveComponent;
   const cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
 
   const pfModeLabel = (function() {
