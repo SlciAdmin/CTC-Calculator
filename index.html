@@ -207,7 +207,35 @@
               <input type="text" id="empName" placeholder="e.g. Rahul Sharma" />
             </div>
 
-            <div class="field-group">
+            <!-- =================== INPUT MODE SELECTOR =================== -->
+            <div class="field-group input-mode-group">
+              <label>Calculation Mode</label>
+              <div class="input-mode-tabs" role="radiogroup" aria-label="Input Mode">
+                <button class="mode-tab active" id="modeGross" onclick="setInputMode('gross')" role="radio" aria-checked="true">
+                  <span class="mode-icon">📊</span>
+                  <span class="mode-title">Gross Salary</span>
+                  <span class="mode-sub">→ Calculate CTC</span>
+                </button>
+                <button class="mode-tab" id="modeFinalCTC" onclick="setInputMode('finalCTC')" role="radio" aria-checked="false">
+                  <span class="mode-icon">🎯</span>
+                  <span class="mode-title">Final CTC</span>
+                  <span class="mode-sub">→ Reverse to Gross</span>
+                </button>
+                <button class="mode-tab" id="modeInitialCTC" onclick="setInputMode('initialCTC')" role="radio" aria-checked="false">
+                  <span class="mode-icon">⚙️</span>
+                  <span class="mode-title">Initial CTC</span>
+                  <span class="mode-sub">→ Reverse to Gross</span>
+                </button>
+                <button class="mode-tab" id="modeCash" onclick="setInputMode('cash')" role="radio" aria-checked="false">
+                  <span class="mode-icon">💵</span>
+                  <span class="mode-title">Cash in Hand</span>
+                  <span class="mode-sub">→ Find Gross &amp; CTC</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- GROSS SALARY INPUT (shown in gross mode) -->
+            <div id="grossInputBlock" class="field-group">
               <label for="grossSalary">Monthly Gross Salary <span class="req">*</span></label>
               <div class="input-prefix">
                 <span>₹</span>
@@ -216,6 +244,36 @@
               <div id="minWageWarning" class="min-wage-warning hidden" role="alert">
                 ⚠️ Entered Gross Salary is below the minimum wage requirement. Please enter ₹<span id="minWageWarningAmt"></span> or higher.
               </div>
+            </div>
+
+            <!-- FINAL CTC INPUT (shown in finalCTC mode) -->
+            <div id="finalCTCInputBlock" class="field-group hidden">
+              <label for="inputFinalCTC">Desired Final CTC (Monthly) <span class="req">*</span></label>
+              <div class="input-prefix">
+                <span>₹</span>
+                <input type="number" id="inputFinalCTC" placeholder="e.g. 38000" min="0" oninput="liveCalc()" />
+              </div>
+              <div class="field-hint">Final CTC = Gross + Employer PF + EDLI + Bonus + ESI Emp + Health Ins + Leave + LWF (Emp)</div>
+            </div>
+
+            <!-- INITIAL CTC INPUT (shown in initialCTC mode) -->
+            <div id="initialCTCInputBlock" class="field-group hidden">
+              <label for="inputInitialCTC">Desired Initial CTC (Monthly) <span class="req">*</span></label>
+              <div class="input-prefix">
+                <span>₹</span>
+                <input type="number" id="inputInitialCTC" placeholder="e.g. 34000" min="0" oninput="liveCalc()" />
+              </div>
+              <div class="field-hint">Initial CTC = Gross + Employer EPF + EDLI + Bonus</div>
+            </div>
+
+            <!-- CASH IN HAND INPUT (shown in cash mode) -->
+            <div id="cashInputBlock" class="field-group hidden">
+              <label for="inputCash">Desired Cash in Hand (Monthly) <span class="req">*</span></label>
+              <div class="input-prefix">
+                <span>₹</span>
+                <input type="number" id="inputCash" placeholder="e.g. 24000" min="0" oninput="liveCalc()" />
+              </div>
+              <div class="field-hint">Cash in Hand = Gross − EPF Employee − ESI Employee − PT − LWF (Employee)</div>
             </div>
 
             <div class="field-group">
@@ -313,7 +371,7 @@
                   <span class="pt-result-label">Calculated PT:</span>
                   <span class="pt-result-value" id="ptAutoValue">Select state to calculate</span>
                 </div>
-                <div class="field-hint" id="ptAutoHint">Select state, month & gender to auto-calculate Professional Tax</div>
+                <div class="field-hint" id="ptAutoHint">Select state, month &amp; gender to auto-calculate Professional Tax</div>
               </div>
               <div id="ptManualWrapper" class="hidden" style="margin-top: 10px;">
                 <div class="input-prefix">
@@ -390,7 +448,7 @@
               </div>
             </div>
 
-            <!-- HEALTH INSURANCE (Gratuity ki jagah) -->
+            <!-- HEALTH INSURANCE -->
             <div class="field-group special-field hi-field">
               <label>
                 Health Insurance 

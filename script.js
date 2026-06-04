@@ -7,6 +7,8 @@
    ✅ BULK UPLOAD — FULL INDIVIDUAL-LEVEL PARITY
    ✅ computeCTC accepts leavesPerYear param
    ✅ BULK SEARCH — Search by Name/Code/Branch/Any Field
+   ✅ REVERSE CALC — Final CTC / Initial CTC / Cash → Gross
+   ✅ INPUT MODE SWITCHING — Gross / Final CTC / Initial CTC / Cash
    ============================================ */
 
 // 🔥 FIREBASE CONFIG
@@ -41,6 +43,9 @@ let pfAddVoluntary = false;
 let pfVoluntaryPct = 0;
 let pfSpecificAmt  = 0;
 let pfEmployerRate = '12.5';
+
+// ============== INPUT MODE (Reverse Calc) ==============
+let inputMode = 'gross'; // 'gross' | 'finalCTC' | 'initialCTC' | 'cash'
 
 // ============== LWF STATE-WISE CONFIG ==============
 const LWF_STATES = {
@@ -136,7 +141,6 @@ function getLWFHint(stateCode, month, gross) {
     const cap   = hrVal <= 34 ? hrVal : 34;
     return 'HR Formula: Gross x 0.2% = Rs.' + hrVal.toFixed(2) + ' -> Capped at Rs.34 -> Result: Rs.' + cap.toFixed(2);
   }
-  // Punjab - split employee/employer
   if (state.employerAmount !== undefined && state.employerAmount !== state.amount) {
     const appMonths = { 'all': 'every month', 'dec': 'December only', 'jun-dec': 'June & December only', 'none': 'never' };
     const rule = appMonths[state.months] || '';
@@ -627,7 +631,93 @@ onReady(function() {
   initBulkTab();
   injectPFModeUI();
   injectBulkSearchStyles();
+  injectInputModeStyles(); // ✅ Input Mode (Reverse Calc) styles
 });
+
+// ============== INJECT INPUT MODE STYLES ==============
+function injectInputModeStyles() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .input-mode-group { margin-bottom: 20px; }
+    .input-mode-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .mode-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      padding: 10px 12px;
+      border: 1.5px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+      font-family: inherit;
+    }
+    .mode-tab:hover {
+      border-color: rgba(99,179,237,0.35);
+      background: rgba(99,179,237,0.06);
+    }
+    .mode-tab.active {
+      border-color: var(--accent);
+      background: rgba(99,179,237,0.12);
+    }
+    .mode-icon { font-size: 16px; line-height: 1; }
+    .mode-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main, #e8ecf4);
+      letter-spacing: 0.01em;
+    }
+    .mode-tab.active .mode-title { color: var(--accent); }
+    .mode-sub {
+      font-size: 10px;
+      color: var(--text-muted, #4a5568);
+      font-weight: 400;
+    }
+    .mode-tab.active .mode-sub { color: var(--text-dim, #7a869a); }
+    .reverse-calc-note {
+      margin-top: 10px;
+      padding: 10px 14px;
+      background: rgba(246,173,85,0.08);
+      border: 1px solid rgba(246,173,85,0.3);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--accent4, #f6ad55);
+      line-height: 1.5;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// ============== INPUT MODE SWITCHING ==============
+function setInputMode(mode) {
+  inputMode = mode;
+  ['gross', 'finalCTC', 'initialCTC', 'cash'].forEach(function(m) {
+    var btn = document.getElementById('mode' + m.charAt(0).toUpperCase() + m.slice(1));
+    if (btn) {
+      btn.classList.toggle('active', m === mode);
+      btn.setAttribute('aria-checked', m === mode ? 'true' : 'false');
+    }
+  });
+  var blocks = {
+    gross      : document.getElementById('grossInputBlock'),
+    finalCTC   : document.getElementById('finalCTCInputBlock'),
+    initialCTC : document.getElementById('initialCTCInputBlock'),
+    cash       : document.getElementById('cashInputBlock'),
+  };
+  Object.keys(blocks).forEach(function(key) {
+    if (blocks[key]) blocks[key].classList.toggle('hidden', key !== mode);
+  });
+  if (mode !== 'finalCTC')   { var el = document.getElementById('inputFinalCTC');   if (el) el.value = ''; }
+  if (mode !== 'initialCTC') { var el = document.getElementById('inputInitialCTC'); if (el) el.value = ''; }
+  if (mode !== 'cash')       { var el = document.getElementById('inputCash');       if (el) el.value = ''; }
+  liveCalc();
+}
 
 // ============== INJECT BULK SEARCH STYLES ==============
 function injectBulkSearchStyles() {
@@ -1198,6 +1288,10 @@ function initializeCalculator() {
   const ptMonthEl    = document.getElementById('ptMonth');
   if (monthEl)   monthEl.value   = currentMonth;
   if (ptMonthEl) ptMonthEl.value = currentMonth;
+
+  // ✅ Init input mode
+  inputMode = 'gross';
+  setInputMode('gross');
 }
 
 // ============================================================
@@ -1209,19 +1303,19 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
 
   gross    = Math.round(gross);
   minWage  = Math.round(minWage);
-  
-  previousBasic = (previousBasic !== undefined && previousBasic !== null && !isNaN(previousBasic)) 
+
+  previousBasic = (previousBasic !== undefined && previousBasic !== null && !isNaN(previousBasic))
     ? Math.round(previousBasic) : null;
 
   const effectiveLeaves = (leavesPerYear !== undefined && leavesPerYear !== null && !isNaN(leavesPerYear))
     ? leavesPerYear
-    : (typeof leaveMode !== 'undefined' && leaveMode === 'manual' 
-        ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15) 
+    : (typeof leaveMode !== 'undefined' && leaveMode === 'manual'
+        ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15)
         : 15);
 
   const basicPct       = pf === 'Y' ? 0.55 : 0.53;
   const basicFromGross = Math.round(gross * basicPct);
-  
+
   let basic = basicFromGross;
   if (previousBasic !== null && previousBasic > 0) {
     basic = Math.max(basic, previousBasic);
@@ -1288,27 +1382,24 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
   const esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
   const esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
 
-  // ✅ Health Insurance — simple manual amount
   const healthIns = Math.round(healthInsuranceAmt || 0);
 
   const leaveAuto      = Math.round((basic / 26) * (effectiveLeaves / 12));
   const leaveComponent = (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0)
     ? Math.round(leaveOverride) : leaveAuto;
 
-  // ✅ finalCTC: Health Insurance replaces Gratuity
-  // LWF employer contribution (Punjab ke liye alag)
-const lwfEmployerContrib = (function() {
-  if (lwfMode === 'auto') {
-    const stateEl = document.getElementById('lwfState');
-    if (stateEl && stateEl.value) {
-      return computeLWFEmployerAuto(stateEl.value, 
-        parseInt(document.getElementById('lwfMonth')?.value) || 12, gross);
+  const lwfEmployerContrib = (function() {
+    if (lwfMode === 'auto') {
+      const stateEl = document.getElementById('lwfState');
+      if (stateEl && stateEl.value) {
+        return computeLWFEmployerAuto(stateEl.value,
+          parseInt(document.getElementById('lwfMonth')?.value) || 12, gross);
+      }
     }
-  }
-  return lwf; // manual mode mein same hi rahega
-})();
+    return lwf;
+  })();
 
-const finalCTC = initialCTC + esiEmployer + healthIns + lwfEmployerContrib + leaveComponent;
+  const finalCTC = initialCTC + esiEmployer + healthIns + lwfEmployerContrib + leaveComponent;
   const cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
 
   const pfModeLabel = (function() {
@@ -1352,6 +1443,66 @@ const finalCTC = initialCTC + esiEmployer + healthIns + lwfEmployerContrib + lea
     pfSpecAmt      : resolvedSpecAmt,
     leaveMode      : (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0) ? 'manual' : 'auto',
   };
+}
+
+// ============================================================
+//  ✅ REVERSE CALC: Final CTC → Gross (binary search)
+// ============================================================
+function reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic) {
+  var lo = minWage, hi = targetFinalCTC * 2, mid, result, iterations = 0;
+  while (lo < hi - 1 && iterations < 100) {
+    mid = Math.round((lo + hi) / 2);
+    result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+    if (result.finalCTC < targetFinalCTC) lo = mid;
+    else hi = mid;
+    iterations++;
+  }
+  var rLo = computeCTC(lo,   minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var rHi = computeCTC(hi,   minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var chosenGross = (Math.abs(rHi.finalCTC - targetFinalCTC) <= Math.abs(rLo.finalCTC - targetFinalCTC)) ? hi : lo;
+  return computeCTC(chosenGross, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
+    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+}
+
+// ============================================================
+//  ✅ REVERSE CALC: Initial CTC → Gross
+// ============================================================
+function reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic) {
+  var lo = minWage, hi = targetInitialCTC * 2, mid, result, iterations = 0;
+  while (lo < hi - 1 && iterations < 100) {
+    mid = Math.round((lo + hi) / 2);
+    result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+    if (result.initialCTC < targetInitialCTC) lo = mid;
+    else hi = mid;
+    iterations++;
+  }
+  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var chosenGross = (Math.abs(rHi.initialCTC - targetInitialCTC) <= Math.abs(rLo.initialCTC - targetInitialCTC)) ? hi : lo;
+  return computeCTC(chosenGross, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
+    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+}
+
+// ============================================================
+//  ✅ REVERSE CALC: Cash in Hand → Gross
+// ============================================================
+function reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic) {
+  var lo = minWage, hi = targetCash * 3, mid, result, iterations = 0;
+  while (lo < hi - 1 && iterations < 100) {
+    mid = Math.round((lo + hi) / 2);
+    result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+    if (result.cashInHand < targetCash) lo = mid;
+    else hi = mid;
+    iterations++;
+  }
+  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var chosenGross = (Math.abs(rHi.cashInHand - targetCash) <= Math.abs(rLo.cashInHand - targetCash)) ? hi : lo;
+  return computeCTC(chosenGross, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
+    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
 }
 
 // ============== INDIVIDUAL CALC HELPERS ==============
@@ -1419,14 +1570,32 @@ function updateLeavePlaceholder() {
     const basic    = Math.min(Math.max(Math.round(gross * basicPct), minWage), gross);
     const leaves   = (leaveMode === 'manual' && leaveCountInput) ? (parseInt(leaveCountInput.value) || 15) : 15;
     const autoVal  = Math.round((basic / 26) * (leaves / 12));
+    // autoVal available for display if needed
   }
 }
 
+// ============================================================
+//  ✅ LIVE CALC — supports all 4 input modes
+// ============================================================
 function liveCalc() {
   updateLeavePlaceholder();
   updatePFHint();
+  const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
+
+  // Non-gross modes: reverse calculation
+  if (inputMode !== 'gross') {
+    if (minWage > 0) {
+      var hasInput = false;
+      if (inputMode === 'finalCTC')   hasInput = (parseFloat(document.getElementById('inputFinalCTC')?.value) || 0) > 0;
+      if (inputMode === 'initialCTC') hasInput = (parseFloat(document.getElementById('inputInitialCTC')?.value) || 0) > 0;
+      if (inputMode === 'cash')       hasInput = (parseFloat(document.getElementById('inputCash')?.value) || 0) > 0;
+      if (hasInput) calculate(true);
+    }
+    return;
+  }
+
+  // Gross mode: original logic
   const gross     = parseFloat(document.getElementById('grossSalary')?.value) || 0;
-  const minWage   = parseFloat(document.getElementById('minWage')?.value) || 0;
   const warnEl    = document.getElementById('minWageWarning');
   const warnAmtEl = document.getElementById('minWageWarningAmt');
 
@@ -1449,40 +1618,79 @@ function liveCalc() {
   if (gross > 0 && minWage > 0) calculate(true);
 }
 
+// ============================================================
+//  ✅ CALCULATE — supports all 4 input modes
+// ============================================================
 function calculate(silent) {
-  const gross       = parseFloat(document.getElementById('grossSalary')?.value) || 0;
-  const minWage     = parseFloat(document.getElementById('minWage')?.value) || 0;
-  const prevBasic   = parseFloat(document.getElementById('previousBasic')?.value) || null;
-  const pt          = getPTValue();
-  const lwf         = getLWFValue();
-  // ✅ Health Insurance — direct value
+  const minWage      = parseFloat(document.getElementById('minWage')?.value) || 0;
+  const prevBasic    = parseFloat(document.getElementById('previousBasic')?.value) || null;
+  const pt           = getPTValue();
+  const lwf          = getLWFValue();
   const healthInsAmt = parseFloat(document.getElementById('healthInsurance')?.value) || 0;
-  
-  if (gross <= 0 || minWage <= 0) {
-    if (!silent) showToast('⚠️ Please enter Gross Salary and Minimum Wage');
+
+  if (minWage <= 0) {
+    if (!silent) showToast('⚠️ Please enter Minimum Wage');
     return;
-  }
-  if (gross < minWage) {
-    if (!silent) showToast('⚠️ Gross Salary minimum wages (Rs.' + minWage.toLocaleString('en-IN') + ') se kam hai!');
-    return;
-  }
-  
-  let leaveOverride = null;
-  if (leaveMode === 'manual') {
-    const val = parseFloat(document.getElementById('leaveCustom')?.value);
-    if (!isNaN(val) && val >= 0) leaveOverride = val;
   }
 
   const leavesPerYear = leaveMode === 'manual'
     ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15)
     : 15;
 
-  const r = computeCTC(
-    gross, minWage, pfApplicable, pt, lwf,
-    healthInsAmt, leaveOverride,
-    undefined, undefined, undefined, undefined, undefined,
-    leavesPerYear, prevBasic
-  );
+  let leaveOverride = null;
+  if (leaveMode === 'manual') {
+    const val = parseFloat(document.getElementById('leaveCustom')?.value);
+    if (!isNaN(val) && val >= 0) leaveOverride = val;
+  }
+
+  let r = null;
+
+  // =================== INPUT MODE SWITCHING ===================
+  if (inputMode === 'finalCTC') {
+    const targetFinalCTC = parseFloat(document.getElementById('inputFinalCTC')?.value) || 0;
+    if (targetFinalCTC <= 0) { if (!silent) showToast('⚠️ Please enter Final CTC'); return; }
+    if (targetFinalCTC < minWage) { if (!silent) showToast('⚠️ Final CTC cannot be less than Minimum Wage'); return; }
+    r = reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic);
+    const grossEl = document.getElementById('grossSalary');
+    if (grossEl) grossEl.value = r.gross;
+    if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Final CTC Rs.' + r.finalCTC.toLocaleString('en-IN'));
+  }
+  else if (inputMode === 'initialCTC') {
+    const targetInitialCTC = parseFloat(document.getElementById('inputInitialCTC')?.value) || 0;
+    if (targetInitialCTC <= 0) { if (!silent) showToast('⚠️ Please enter Initial CTC'); return; }
+    if (targetInitialCTC < minWage) { if (!silent) showToast('⚠️ Initial CTC cannot be less than Minimum Wage'); return; }
+    r = reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic);
+    const grossEl = document.getElementById('grossSalary');
+    if (grossEl) grossEl.value = r.gross;
+    if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Initial CTC Rs.' + r.initialCTC.toLocaleString('en-IN'));
+  }
+  else if (inputMode === 'cash') {
+    const targetCash = parseFloat(document.getElementById('inputCash')?.value) || 0;
+    if (targetCash <= 0) { if (!silent) showToast('⚠️ Please enter Cash in Hand'); return; }
+    if (targetCash < minWage * 0.5) { if (!silent) showToast('⚠️ Cash in Hand seems too low for this Minimum Wage'); return; }
+    r = reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic);
+    const grossEl = document.getElementById('grossSalary');
+    if (grossEl) grossEl.value = r.gross;
+    if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Cash Rs.' + r.cashInHand.toLocaleString('en-IN'));
+  }
+  else {
+    // Normal gross mode
+    const gross = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+    if (gross <= 0 || minWage <= 0) {
+      if (!silent) showToast('⚠️ Please enter Gross Salary and Minimum Wage');
+      return;
+    }
+    if (gross < minWage) {
+      if (!silent) showToast('⚠️ Gross Salary minimum wages (Rs.' + minWage.toLocaleString('en-IN') + ') se kam hai!');
+      return;
+    }
+    r = computeCTC(gross, minWage, pfApplicable, pt, lwf, healthInsAmt, leaveOverride,
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+    if (!silent) showToast('✓ CTC Calculated Successfully');
+  }
+  // =================== END INPUT MODE SWITCHING ===================
+
+  if (!r) return;
 
   updatePFPreview(r.basic);
 
@@ -1494,7 +1702,7 @@ function calculate(silent) {
     if (!stateEl || !stateEl.value) return 'Not Selected';
     return LWF_STATES[stateEl.value]?.name || stateEl.value;
   })();
-  
+
   r.ptMode      = ptMode;
   r.ptLabel     = getPTLabel();
   r.ptStateName = (function() {
@@ -1508,7 +1716,6 @@ function calculate(silent) {
   renderSummary(r);
   renderBreakdown(r);
   renderExportPreview(r);
-  if (!silent) showToast('✓ CTC Calculated Successfully');
 }
 
 function fmt(n) { return 'Rs.' + Math.round(n).toLocaleString('en-IN'); }
@@ -1675,11 +1882,11 @@ function switchTab(tab) {
 }
 
 function resetAll() {
-  ['empName', 'grossSalary', 'minWage', 'previousBasic', 'healthInsurance'].forEach(function(id) { 
-    const el = document.getElementById(id); 
-    if (el) el.value = id === 'healthInsurance' ? '0' : ''; 
+  ['empName', 'grossSalary', 'minWage', 'previousBasic', 'healthInsurance'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.value = id === 'healthInsurance' ? '0' : '';
   });
-  
+
   const warnEl = document.getElementById('minWageWarning');
   if (warnEl) warnEl.classList.add('hidden');
 
@@ -1711,12 +1918,20 @@ function resetAll() {
   const pfSpecEl = document.getElementById('pfSpecificAmtVal');  if (pfSpecEl) pfSpecEl.value = '';
   const pfPreview = document.getElementById('pfLivePreview');    if (pfPreview) pfPreview.style.display = 'none';
 
+  // ✅ Reset input mode
+  inputMode = 'gross';
+  setInputMode('gross');
+  var el;
+  el = document.getElementById('inputFinalCTC');   if (el) el.value = '';
+  el = document.getElementById('inputInitialCTC'); if (el) el.value = '';
+  el = document.getElementById('inputCash');       if (el) el.value = '';
+
   setText('r_initialCTC', '—');
   safeToggle('summaryEmpty', false);
   safeToggle('summaryResults', true);
   safeToggle('breakdownEmpty', false);
   safeToggle('breakdownContent', true);
-  
+
   const exportPreview = document.getElementById('exportPreview');
   if (exportPreview) exportPreview.innerHTML = '<div class="preview-empty">Calculate first to see export preview</div>';
   calcResult = null;
@@ -2347,7 +2562,6 @@ function processBulkFile() {
       lwfMode_row = 'manual';
     }
 
-    // ✅ Health Insurance — read from bulk column
     const hiRaw = getBulkField(row, ['Health Insurance','HealthInsurance','Health Ins','HI Amount','health_insurance','Health Insurance Amount','hi_amt','Medical Insurance','MedicalInsurance']);
     const healthInsAmtBulk = (!isNaN(cleanNum(hiRaw)) && cleanNum(hiRaw) >= 0) ? cleanNum(hiRaw) : 0;
 
@@ -2391,9 +2605,9 @@ function processBulkFile() {
         ptDeduction: r.ptDeduction, cash: r.cashInHand,
       });
     } catch (err) {
-      bulkCalcResults.push({ 
+      bulkCalcResults.push({
         name, rowNum, empCode, branch, previousBasic,
-        error: 'Calculation error: ' + err.message 
+        error: 'Calculation error: ' + err.message
       });
       errors++;
     }
@@ -2607,10 +2821,10 @@ function renderBulkResults(errors, total) {
 // ===================================================================
 function bulkExportCSV() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
-  
+
   function cell(v) { return '"' + String(v !== null && v !== undefined ? v : '').replace(/"/g, '""') + '"'; }
   function amt(n)  { return (n && !isNaN(n)) ? Math.round(n) : 0; }
-  
+
   const now = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
   const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 
