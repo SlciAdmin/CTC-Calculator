@@ -9,6 +9,7 @@
    ✅ BULK SEARCH — Search by Name/Code/Branch/Any Field
    ✅ REVERSE CALC — Final CTC / Initial CTC / Cash → Gross
    ✅ INPUT MODE SWITCHING — Gross / Final CTC / Initial CTC / Cash
+   ✅ BONUS — Configurable Base (Min Wage / Basic / Gross) + Bulk Support
    ============================================ */
 
 // 🔥 FIREBASE CONFIG
@@ -43,6 +44,10 @@ let pfAddVoluntary = false;
 let pfVoluntaryPct = 0;
 let pfSpecificAmt  = 0;
 let pfEmployerRate = '12.5';
+
+// ============== BONUS STATE ==============
+let bonusApplicable = 'Y';
+let bonusBase = 'minwage'; // 'minwage' | 'basic' | 'gross'
 
 // ============== INPUT MODE (Reverse Calc) ==============
 let inputMode = 'gross'; // 'gross' | 'finalCTC' | 'initialCTC' | 'cash'
@@ -482,6 +487,105 @@ function getPTLabel() {
   return 'PT - ' + state.name;
 }
 
+// ============== BONUS FUNCTIONS ==============
+function setBonusApplicable(val) {
+  bonusApplicable = val;
+  const yesBtn  = document.getElementById('bonusYes');
+  const noBtn   = document.getElementById('bonusNo');
+  const wrapper = document.getElementById('bonusOptionsWrapper');
+  if (yesBtn) {
+    yesBtn.classList.toggle('active', val === 'Y');
+    yesBtn.setAttribute('aria-checked', val === 'Y' ? 'true' : 'false');
+  }
+  if (noBtn) {
+    noBtn.classList.toggle('active', val === 'N');
+    noBtn.setAttribute('aria-checked', val === 'N' ? 'true' : 'false');
+  }
+  if (wrapper) wrapper.style.display = val === 'Y' ? 'block' : 'none';
+  updateBonusPreview();
+  liveCalc();
+}
+
+function setBonusBase(base) {
+  bonusBase = base;
+  ['minwage', 'basic', 'gross'].forEach(function(b) {
+    const btn = document.getElementById('bonusBase_' + b);
+    if (btn) btn.classList.toggle('active', b === base);
+  });
+  updateBonusPreview();
+  liveCalc();
+}
+
+function updateBonusPreview(basic, minWage, gross) {
+  const previewEl  = document.getElementById('bonusLivePreview');
+  const baseNameEl = document.getElementById('bonusPreviewBase');
+  const baseAmtEl  = document.getElementById('bonusPreviewBaseAmt');
+  const amountEl   = document.getElementById('bonusPreviewAmount');
+  const eligEl     = document.getElementById('bonusPreviewEligibility');
+  const hintEl     = document.getElementById('bonusHint');
+  if (!previewEl) return;
+  if (bonusApplicable !== 'Y') {
+    previewEl.style.display = 'none';
+    return;
+  }
+  previewEl.style.display = 'block';
+  // Get values if not passed
+  if (basic === undefined) {
+    const grossVal   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+    const minWageVal = parseFloat(document.getElementById('minWage')?.value) || 0;
+    const basicPct   = pfApplicable === 'Y' ? 0.55 : 0.53;
+    const basicFromGross = Math.round(grossVal * basicPct);
+    basic   = Math.min(Math.max(basicFromGross, minWageVal), grossVal);
+    minWage = minWageVal;
+    gross   = grossVal;
+  }
+  const isEligible = basic <= 21000;
+  let baseAmt = 0, baseLabel = '';
+  switch (bonusBase) {
+    case 'minwage': baseAmt = minWage || 0; baseLabel = 'Minimum Wage';  break;
+    case 'basic':   baseAmt = basic   || 0; baseLabel = 'Basic Salary';  break;
+    case 'gross':   baseAmt = gross   || 0; baseLabel = 'Gross Salary';  break;
+    default:        baseAmt = minWage || 0; baseLabel = 'Minimum Wage';
+  }
+  const bonusAmt = isEligible ? Math.round(baseAmt * 0.0833) : 0;
+  if (baseNameEl) baseNameEl.textContent = baseLabel;
+  if (baseAmtEl)  baseAmtEl.textContent  = baseAmt > 0 ? 'Rs.' + Math.round(baseAmt).toLocaleString('en-IN') : '—';
+  if (amountEl) {
+    amountEl.textContent = bonusAmt > 0 ? 'Rs.' + bonusAmt.toLocaleString('en-IN') : 'Rs.0';
+    amountEl.style.color = bonusAmt > 0 ? 'var(--accent4)' : 'var(--text-muted)';
+  }
+  if (eligEl) {
+    eligEl.textContent = isEligible
+      ? '✓ Eligible (Basic Rs.' + Math.round(basic).toLocaleString('en-IN') + ' ≤ Rs.21,000)'
+      : '✗ Not Eligible (Basic Rs.' + Math.round(basic).toLocaleString('en-IN') + ' > Rs.21,000)';
+    eligEl.style.color = isEligible ? 'var(--accent3)' : 'var(--danger)';
+  }
+  if (hintEl) {
+    hintEl.textContent = isEligible
+      ? 'Bonus = 8.33% × Rs.' + Math.round(baseAmt).toLocaleString('en-IN') + ' (' + baseLabel + ') = Rs.' + bonusAmt.toLocaleString('en-IN')
+      : 'No bonus: Basic (Rs.' + Math.round(basic).toLocaleString('en-IN') + ') > Rs.21,000 eligibility limit';
+  }
+}
+
+/**
+ * Core bonus computation — reads global bonusApplicable / bonusBase
+ * but can also accept overrides (used in bulk processing).
+ */
+function computeBonusAmount(basic, minWage, gross, applOverride, baseOverride) {
+  const appl = (applOverride !== undefined) ? applOverride : bonusApplicable;
+  const base = (baseOverride  !== undefined) ? baseOverride  : bonusBase;
+  if (appl !== 'Y') return 0;
+  if (basic > 21000) return 0;
+  let baseAmt = 0;
+  switch (base) {
+    case 'basic':   baseAmt = basic   || 0; break;
+    case 'gross':   baseAmt = gross   || 0; break;
+    case 'minwage':
+    default:        baseAmt = minWage || 0;
+  }
+  return Math.round(baseAmt * 0.0833);
+}
+
 // ============== PF MODE FUNCTIONS ==============
 function setPFApplicable(val) {
   pfApplicable = val;
@@ -630,9 +734,141 @@ onReady(function() {
   initializeCalculator();
   initBulkTab();
   injectPFModeUI();
+  injectBonusModeUI();      // ✅ Bonus UI injection
   injectBulkSearchStyles();
-  injectInputModeStyles(); // ✅ Input Mode (Reverse Calc) styles
+  injectInputModeStyles();
 });
+
+// ============== INJECT BONUS MODE UI ==============
+function injectBonusModeUI() {
+  if (document.getElementById('bonusModeSection')) return;
+
+  // Inject styles
+  const style = document.createElement('style');
+  style.textContent = `
+    .bonus-mode-section {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+    .bonus-mode-main-label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 600;
+      color: var(--text-main); margin-bottom: 8px;
+    }
+    .bonus-toggle-row {
+      display: flex; gap: 8px; margin-bottom: 10px;
+    }
+    .bonus-yn-btn {
+      flex: 1; padding: 8px 12px; border-radius: 8px;
+      border: 1.5px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      cursor: pointer; font-family: inherit;
+      font-size: 12px; font-weight: 700;
+      color: var(--text-dim); transition: all 0.2s;
+    }
+    .bonus-yn-btn:hover { border-color: rgba(255,255,255,0.18); color: var(--text-main); }
+    .bonus-yn-btn.active { border-color: var(--accent4); background: rgba(246,173,85,0.12); color: var(--accent4); }
+    .bonus-base-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px;
+    }
+    .bonus-base-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 10px 8px; border-radius: 10px;
+      border: 1.5px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      cursor: pointer; font-family: inherit;
+      text-align: center; color: var(--text-dim); transition: all 0.2s;
+    }
+    .bonus-base-btn:hover { border-color: rgba(255,255,255,0.18); color: var(--text-main); }
+    .bonus-base-btn.active { border-color: var(--accent4); background: rgba(246,173,85,0.10); color: var(--text-main); }
+    .bonus-base-btn .pfm-icon { font-size: 18px; line-height: 1; }
+    .bonus-base-btn .pfm-title { font-size: 11px; font-weight: 700; }
+    .bonus-base-btn .pfm-sub { font-size: 9.5px; color: var(--text-muted); }
+    .bonus-live-preview {
+      background: rgba(246,173,85,0.06);
+      border: 1px solid rgba(246,173,85,0.18);
+      border-radius: 10px; padding: 10px 14px; margin-top: 8px;
+    }
+    .bonus-preview-row {
+      display: flex; justify-content: space-between; align-items: center; padding: 3px 0;
+    }
+    .bonus-prev-label { font-size: 12px; color: var(--text-dim); }
+    .bonus-prev-val { font-size: 13px; font-weight: 700; font-family: monospace; }
+  `;
+  document.head.appendChild(style);
+
+  // Find a good anchor — after PF mode section, or after pfHint field-group
+  let anchor = document.getElementById('pfModeSection');
+  if (!anchor) {
+    document.querySelectorAll('.field-group').forEach(function(g) {
+      if (g.querySelector('#pfHint')) anchor = g;
+    });
+  }
+  if (!anchor) return;
+
+  const bonusHTML = `
+  <div id="bonusModeSection" class="bonus-mode-section">
+    <label class="bonus-mode-main-label">
+      Statutory Bonus
+      <span class="formula-badge">8.33% | Eligible if Basic ≤ Rs.21,000</span>
+    </label>
+    <div class="bonus-toggle-row">
+      <button class="bonus-yn-btn active" id="bonusYes"
+        onclick="setBonusApplicable('Y')" type="button"
+        role="switch" aria-checked="true">✓ Applicable</button>
+      <button class="bonus-yn-btn" id="bonusNo"
+        onclick="setBonusApplicable('N')" type="button"
+        role="switch" aria-checked="false">✗ Not Applicable</button>
+    </div>
+    <div id="bonusOptionsWrapper">
+      <div class="pf-group-label">Bonus Base <span style="font-size:10px;color:var(--text-muted)">(select one)</span></div>
+      <div class="bonus-base-grid">
+        <button class="bonus-base-btn active" id="bonusBase_minwage"
+          onclick="setBonusBase('minwage')" type="button">
+          <span class="pfm-icon">⚖️</span>
+          <span class="pfm-title">Min Wage</span>
+          <span class="pfm-sub">8.33% of<br>Minimum Wage</span>
+        </button>
+        <button class="bonus-base-btn" id="bonusBase_basic"
+          onclick="setBonusBase('basic')" type="button">
+          <span class="pfm-icon">🏛️</span>
+          <span class="pfm-title">Basic</span>
+          <span class="pfm-sub">8.33% of<br>Basic Salary</span>
+        </button>
+        <button class="bonus-base-btn" id="bonusBase_gross"
+          onclick="setBonusBase('gross')" type="button">
+          <span class="pfm-icon">💰</span>
+          <span class="pfm-title">Gross</span>
+          <span class="pfm-sub">8.33% of<br>Gross Salary</span>
+        </button>
+      </div>
+      <div class="bonus-live-preview" id="bonusLivePreview" style="display:none;">
+        <div class="bonus-preview-row">
+          <span class="bonus-prev-label">Base</span>
+          <span class="bonus-prev-val" id="bonusPreviewBase" style="color:var(--accent4)">—</span>
+        </div>
+        <div class="bonus-preview-row">
+          <span class="bonus-prev-label">Base Amount</span>
+          <span class="bonus-prev-val" id="bonusPreviewBaseAmt" style="color:var(--text-dim)">—</span>
+        </div>
+        <div class="bonus-preview-row">
+          <span class="bonus-prev-label">Bonus (8.33%)</span>
+          <span class="bonus-prev-val" id="bonusPreviewAmount" style="color:var(--accent4)">—</span>
+        </div>
+        <div class="bonus-preview-row">
+          <span class="bonus-prev-label">Eligibility</span>
+          <span class="bonus-prev-val" id="bonusPreviewEligibility" style="font-size:11px;">—</span>
+        </div>
+      </div>
+      <div class="field-hint" id="bonusHint" style="margin-top:6px;">
+        Bonus = 8.33% of selected base (only if Basic ≤ Rs.21,000)
+      </div>
+    </div>
+  </div>`;
+
+  anchor.insertAdjacentHTML('afterend', bonusHTML);
+}
 
 // ============== INJECT INPUT MODE STYLES ==============
 function injectInputModeStyles() {
@@ -645,50 +881,23 @@ function injectInputModeStyles() {
       gap: 8px;
     }
     .mode-tab {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 2px;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
       padding: 10px 12px;
-      border: 1.5px solid rgba(255,255,255,0.08);
-      border-radius: 10px;
-      background: rgba(255,255,255,0.03);
-      cursor: pointer;
-      transition: all 0.2s;
-      text-align: left;
-      font-family: inherit;
+      border: 1.5px solid rgba(255,255,255,0.08); border-radius: 10px;
+      background: rgba(255,255,255,0.03); cursor: pointer; transition: all 0.2s;
+      text-align: left; font-family: inherit;
     }
-    .mode-tab:hover {
-      border-color: rgba(99,179,237,0.35);
-      background: rgba(99,179,237,0.06);
-    }
-    .mode-tab.active {
-      border-color: var(--accent);
-      background: rgba(99,179,237,0.12);
-    }
+    .mode-tab:hover { border-color: rgba(99,179,237,0.35); background: rgba(99,179,237,0.06); }
+    .mode-tab.active { border-color: var(--accent); background: rgba(99,179,237,0.12); }
     .mode-icon { font-size: 16px; line-height: 1; }
-    .mode-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-main, #e8ecf4);
-      letter-spacing: 0.01em;
-    }
+    .mode-title { font-size: 12px; font-weight: 700; color: var(--text-main, #e8ecf4); letter-spacing: 0.01em; }
     .mode-tab.active .mode-title { color: var(--accent); }
-    .mode-sub {
-      font-size: 10px;
-      color: var(--text-muted, #4a5568);
-      font-weight: 400;
-    }
+    .mode-sub { font-size: 10px; color: var(--text-muted, #4a5568); font-weight: 400; }
     .mode-tab.active .mode-sub { color: var(--text-dim, #7a869a); }
     .reverse-calc-note {
-      margin-top: 10px;
-      padding: 10px 14px;
-      background: rgba(246,173,85,0.08);
-      border: 1px solid rgba(246,173,85,0.3);
-      border-radius: 8px;
-      font-size: 12px;
-      color: var(--accent4, #f6ad55);
-      line-height: 1.5;
+      margin-top: 10px; padding: 10px 14px;
+      background: rgba(246,173,85,0.08); border: 1px solid rgba(246,173,85,0.3);
+      border-radius: 8px; font-size: 12px; color: var(--accent4, #f6ad55); line-height: 1.5;
     }
   `;
   document.head.appendChild(style);
@@ -724,20 +933,12 @@ function injectBulkSearchStyles() {
   const style = document.createElement('style');
   style.textContent = `
     .bulk-search-bar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 16px 0 10px 0;
-      padding: 14px 16px;
+      display: flex; align-items: center; gap: 10px;
+      margin: 16px 0 10px 0; padding: 14px 16px;
       background: rgba(255,255,255,0.03);
-      border: 1.5px solid rgba(255,255,255,0.08);
-      border-radius: 14px;
-      transition: border-color 0.2s;
+      border: 1.5px solid rgba(255,255,255,0.08); border-radius: 14px; transition: border-color 0.2s;
     }
-    .bulk-search-bar:focus-within {
-      border-color: rgba(99,179,237,0.45);
-      background: rgba(99,179,237,0.04);
-    }
+    .bulk-search-bar:focus-within { border-color: rgba(99,179,237,0.45); background: rgba(99,179,237,0.04); }
     .bulk-search-icon { font-size: 16px; color: var(--text-muted); flex-shrink: 0; user-select: none; }
     .bulk-search-input {
       flex: 1; background: transparent; border: none; outline: none;
@@ -857,6 +1058,7 @@ function _insertPFModeAfter(pfField) {
       </div>
     </div>
   </div>`;
+
   const style = document.createElement('style');
   style.textContent = `
     .pf-mode-section { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px; }
@@ -888,24 +1090,16 @@ function _insertPFModeAfter(pfField) {
     .pf-prev-val.accent { color:var(--accent, #63b3ed); }
     .min-wage-warning {
       margin-top: 8px; padding: 10px 14px;
-      background: rgba(252,129,129,0.12);
-      border: 1.5px solid rgba(252,129,129,0.45);
+      background: rgba(252,129,129,0.12); border: 1.5px solid rgba(252,129,129,0.45);
       border-radius: 10px; color: #fc8181;
       font-size: 13px; font-weight: 600; line-height: 1.5;
       animation: fadeInWarn 0.25s ease;
     }
     .min-wage-warning.hidden { display: none; }
-    @keyframes fadeInWarn {
-      from { opacity:0; transform:translateY(-4px); }
-      to   { opacity:1; transform:translateY(0); }
-    }
+    @keyframes fadeInWarn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
     .hi-field {
-      background: rgba(246,173,85,0.04);
-      border: 1px solid rgba(246,173,85,0.2);
-      border-radius: 10px;
-      padding: 14px 14px 10px;
-      margin-bottom: 14px;
-      transition: border-color 0.2s;
+      background: rgba(246,173,85,0.04); border: 1px solid rgba(246,173,85,0.2);
+      border-radius: 10px; padding: 14px 14px 10px; margin-bottom: 14px; transition: border-color 0.2s;
     }
     .hi-field:hover { border-color: rgba(246,173,85,0.35); }
   `;
@@ -939,8 +1133,8 @@ function updatePFPreview(basic) {
 function getPFBaseWagesFromGlobals(basic) {
   if (pfApplicable !== 'Y') return 0;
   switch (pfBaseMode) {
-    case 'standard':    return Math.min(basic, 15000);
-    case 'full_basic':  return basic;
+    case 'standard':     return Math.min(basic, 15000);
+    case 'full_basic':   return basic;
     case 'specific_amt': return Math.max(0, parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0);
     default: return Math.min(basic, 15000);
   }
@@ -1035,15 +1229,17 @@ function setupEventListeners() {
       if (tab !== 'admin' || isAdmin) switchTab(tab);
     });
   });
-  const grossInput = document.getElementById('grossSalary');
+  const grossInput   = document.getElementById('grossSalary');
   const minWageInput = document.getElementById('minWage');
   if (grossInput) grossInput.addEventListener('input', function() {
     if (lwfMode === 'auto') updateLWFAuto();
     if (ptMode  === 'auto') updatePTAuto();
     setPFApplicable(pfApplicable);
+    updateBonusPreview(); // ✅ update bonus on gross change
   });
   if (minWageInput) minWageInput.addEventListener('input', function() {
     setPFApplicable(pfApplicable);
+    updateBonusPreview(); // ✅ update bonus on minWage change
   });
 }
 
@@ -1092,9 +1288,9 @@ async function handleLogin(e) {
   try { await auth.signInWithEmailAndPassword(email, password); }
   catch (error) {
     let msg = 'Login failed';
-    if (error.code === 'auth/user-not-found')        msg = 'No account with this email';
-    else if (error.code === 'auth/wrong-password')   msg = 'Incorrect password';
-    else if (error.code === 'auth/invalid-email')    msg = 'Invalid email format';
+    if (error.code === 'auth/user-not-found')         msg = 'No account with this email';
+    else if (error.code === 'auth/wrong-password')    msg = 'Incorrect password';
+    else if (error.code === 'auth/invalid-email')     msg = 'Invalid email format';
     else if (error.code === 'auth/too-many-requests') msg = 'Too many attempts. Try later.';
     showError(errorEl, msg);
   }
@@ -1289,20 +1485,28 @@ function initializeCalculator() {
   if (monthEl)   monthEl.value   = currentMonth;
   if (ptMonthEl) ptMonthEl.value = currentMonth;
 
+  // ✅ Init bonus
+  bonusApplicable = 'Y';
+  bonusBase       = 'minwage';
+  setBonusApplicable('Y');
+  setBonusBase('minwage');
+  updateBonusPreview();
+
   // ✅ Init input mode
   inputMode = 'gross';
   setInputMode('gross');
 }
 
 // ============================================================
-//  ✅ CORE CTC ENGINE — Health Insurance replaces Gratuity
+//  ✅ CORE CTC ENGINE — Bonus Base configurable, Health Insurance
 // ============================================================
 function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverride,
                     pfBaseModeOverride, pfVoluntaryOverride, pfVolPctOverride,
-                    pfSpecAmtOverride, pfEmpRateOverride, leavesPerYear, previousBasic) {
+                    pfSpecAmtOverride, pfEmpRateOverride, leavesPerYear, previousBasic,
+                    bonusApplOverride, bonusBaseOverride) {
 
-  gross    = Math.round(gross);
-  minWage  = Math.round(minWage);
+  gross   = Math.round(gross);
+  minWage = Math.round(minWage);
 
   previousBasic = (previousBasic !== undefined && previousBasic !== null && !isNaN(previousBasic))
     ? Math.round(previousBasic) : null;
@@ -1375,7 +1579,8 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
   const edliEmployer = (pf === 'Y' && resolvedEmpRate === '12') ? 0
     : (pf === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0);
 
-  const bonus = basic <= 21000 ? Math.round(minWage * 0.0833) : 0;
+  // ✅ BONUS — configurable base with overrides for bulk
+  const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride);
 
   const initialCTC = gross + epfEmployer + edliEmployer + bonus;
 
@@ -1399,7 +1604,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     return lwf;
   })();
 
-  const finalCTC = initialCTC + esiEmployer + healthIns + lwfEmployerContrib + leaveComponent;
+  const finalCTC   = initialCTC + esiEmployer + healthIns + lwfEmployerContrib + leaveComponent;
   const cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
 
   const pfModeLabel = (function() {
@@ -1442,40 +1647,38 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     pfVolPct       : resolvedVolPct,
     pfSpecAmt      : resolvedSpecAmt,
     leaveMode      : (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0) ? 'manual' : 'auto',
+    // ✅ Bonus info in result
+    bonusApplicable: bonusApplOverride !== undefined ? bonusApplOverride : bonusApplicable,
+    bonusBase      : bonusBaseOverride  !== undefined ? bonusBaseOverride  : bonusBase,
   };
 }
 
 // ============================================================
-//  ✅ REVERSE CALC: Final CTC → Gross (binary search)
+//  ✅ REVERSE CALC helpers — pass bonus overrides through
 // ============================================================
 function reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic) {
   var lo = minWage, hi = targetFinalCTC * 2, mid, result, iterations = 0;
   while (lo < hi - 1 && iterations < 100) {
-    mid = Math.round((lo + hi) / 2);
+    mid    = Math.round((lo + hi) / 2);
     result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
       undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
-    if (result.finalCTC < targetFinalCTC) lo = mid;
-    else hi = mid;
+    if (result.finalCTC < targetFinalCTC) lo = mid; else hi = mid;
     iterations++;
   }
-  var rLo = computeCTC(lo,   minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
-  var rHi = computeCTC(hi,   minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
   var chosenGross = (Math.abs(rHi.finalCTC - targetFinalCTC) <= Math.abs(rLo.finalCTC - targetFinalCTC)) ? hi : lo;
   return computeCTC(chosenGross, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
     undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
 }
 
-// ============================================================
-//  ✅ REVERSE CALC: Initial CTC → Gross
-// ============================================================
 function reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic) {
   var lo = minWage, hi = targetInitialCTC * 2, mid, result, iterations = 0;
   while (lo < hi - 1 && iterations < 100) {
-    mid = Math.round((lo + hi) / 2);
+    mid    = Math.round((lo + hi) / 2);
     result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
       undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
-    if (result.initialCTC < targetInitialCTC) lo = mid;
-    else hi = mid;
+    if (result.initialCTC < targetInitialCTC) lo = mid; else hi = mid;
     iterations++;
   }
   var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
@@ -1485,17 +1688,13 @@ function reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthIns
     undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
 }
 
-// ============================================================
-//  ✅ REVERSE CALC: Cash in Hand → Gross
-// ============================================================
 function reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic) {
   var lo = minWage, hi = targetCash * 3, mid, result, iterations = 0;
   while (lo < hi - 1 && iterations < 100) {
-    mid = Math.round((lo + hi) / 2);
+    mid    = Math.round((lo + hi) / 2);
     result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
       undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
-    if (result.cashInHand < targetCash) lo = mid;
-    else hi = mid;
+    if (result.cashInHand < targetCash) lo = mid; else hi = mid;
     iterations++;
   }
   var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
@@ -1534,8 +1733,8 @@ function setLeaveMode(mode) {
 }
 
 function updateLeaveCalc() {
-  const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
-  const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
+  const gross         = parseFloat(document.getElementById('grossSalary')?.value) || 0;
+  const minWage       = parseFloat(document.getElementById('minWage')?.value) || 0;
   const leaveInput    = document.getElementById('leaveCountInput');
   const previewBasic  = document.getElementById('leavePreviewBasic');
   const previewLeaves = document.getElementById('leavePreviewLeaves');
@@ -1555,8 +1754,8 @@ function updateLeaveCalc() {
   const leaveAmount    = basic > 0 ? Math.round((basic / 26) * (leaves / 12)) : 0;
 
   if (previewBasic)  previewBasic.textContent  = basic > 0 ? Math.round(basic).toLocaleString('en-IN') : '—';
-  if (previewLeaves) previewLeaves.textContent  = leaves;
-  if (previewAmount) previewAmount.textContent  = leaveAmount > 0 ? leaveAmount.toLocaleString('en-IN') : '0';
+  if (previewLeaves) previewLeaves.textContent = leaves;
+  if (previewAmount) previewAmount.textContent = leaveAmount > 0 ? leaveAmount.toLocaleString('en-IN') : '0';
 
   liveCalc();
 }
@@ -1569,8 +1768,7 @@ function updateLeavePlaceholder() {
     const basicPct = pfApplicable === 'Y' ? 0.55 : 0.53;
     const basic    = Math.min(Math.max(Math.round(gross * basicPct), minWage), gross);
     const leaves   = (leaveMode === 'manual' && leaveCountInput) ? (parseInt(leaveCountInput.value) || 15) : 15;
-    const autoVal  = Math.round((basic / 26) * (leaves / 12));
-    // autoVal available for display if needed
+    Math.round((basic / 26) * (leaves / 12)); // autoVal available if needed
   }
 }
 
@@ -1586,15 +1784,15 @@ function liveCalc() {
   if (inputMode !== 'gross') {
     if (minWage > 0) {
       var hasInput = false;
-      if (inputMode === 'finalCTC')   hasInput = (parseFloat(document.getElementById('inputFinalCTC')?.value) || 0) > 0;
+      if (inputMode === 'finalCTC')   hasInput = (parseFloat(document.getElementById('inputFinalCTC')?.value)   || 0) > 0;
       if (inputMode === 'initialCTC') hasInput = (parseFloat(document.getElementById('inputInitialCTC')?.value) || 0) > 0;
-      if (inputMode === 'cash')       hasInput = (parseFloat(document.getElementById('inputCash')?.value) || 0) > 0;
+      if (inputMode === 'cash')       hasInput = (parseFloat(document.getElementById('inputCash')?.value)       || 0) > 0;
       if (hasInput) calculate(true);
     }
     return;
   }
 
-  // Gross mode: original logic
+  // Gross mode
   const gross     = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const warnEl    = document.getElementById('minWageWarning');
   const warnAmtEl = document.getElementById('minWageWarningAmt');
@@ -1694,6 +1892,11 @@ function calculate(silent) {
 
   updatePFPreview(r.basic);
 
+  // ✅ Update bonus preview with actual computed values
+  const grossVal   = parseFloat(document.getElementById('grossSalary')?.value) || r.gross || 0;
+  const minWageVal = parseFloat(document.getElementById('minWage')?.value)     || r.minWage || 0;
+  updateBonusPreview(r.basic, minWageVal, grossVal);
+
   r.lwfMode      = lwfMode;
   r.lwfLabel     = getLWFLabel();
   r.lwfStateName = (function() {
@@ -1756,10 +1959,14 @@ function renderBreakdown(r) {
     : '';
   const edliNote = r.pfEmployerRate === '12' ? ' (Rs.0 - Employer@12%)' : ' (0.5% of Basic, max Rs.75)';
 
+  // ✅ Bonus label shows base used
+  const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
+  const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
+  const bonusApplLabel    = r.bonusApplicable === 'N' ? ' (Disabled)' : '';
   const empRows = [
     ['EPF – Employer @ ' + r.pfEmployerRate + '% of PF Wages ' + pfModeBadge, r.pfEmployerRate + '%', r.epfEmployer],
     ['EDLI – Employer' + edliNote, r.pfEmployerRate === '12' ? 'N/A' : '0.5%', r.edliEmployer],
-    ['Bonus (8.33% of Min Wage, if Basic ≤ Rs.21,000)', '8.33%', r.bonus],
+    ['Bonus (8.33% of ' + bonusBaseLabel + ', Basic ≤ Rs.21,000)' + bonusApplLabel, '8.33%', r.bonus],
   ];
   let empHtml = '';
   empRows.forEach(function(item) {
@@ -1802,6 +2009,11 @@ function renderBreakdown(r) {
     : 'PF: <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;">Not Applicable</span>';
   const edliDisplay = r.edliEmployer > 0 ? fmt(r.edliEmployer) : 'Rs.0 (N/A)';
 
+  // ✅ Bonus display label
+  const bonusDisplayLabel = r.bonusApplicable === 'N'
+    ? 'Bonus: <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;">Disabled</span>'
+    : 'Bonus (8.33% of ' + bonusBaseLabel + ') <span style="font-size:9px;color:var(--accent4);font-weight:600;background:rgba(246,173,85,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">' + bonusBaseLabel.toUpperCase() + '</span>';
+
   const finalItemsData = [
     { label: 'Gross Salary',                val: fmt(r.gross),             sub: 'Monthly',                        cls: '' },
     { label: 'Initial CTC',                 val: fmt(r.initialCTC),        sub: 'Gross + Employer Contributions', cls: '' },
@@ -1815,6 +2027,7 @@ function renderBreakdown(r) {
     { label: 'Cash in Hand',               val: fmt(r.cashInHand),        sub: 'After all deductions', cls: 'green' },
     { label: pfModeDisplayLabel,           val: r.pfApplicable === 'Y' ? fmt(r.epfEmployee) : 'Rs.0',
       sub: r.pfApplicable === 'Y' ? 'Employee: 12%+Vol% | Employer: ' + r.pfEmployerRate + '% | EDLI: ' + edliDisplay + ' | PF Wages: Rs.' + Math.round(r.pfWages).toLocaleString('en-IN') : 'No PF applicable', cls: 'purple' },
+    { label: bonusDisplayLabel,            val: r.bonus > 0 ? fmt(r.bonus) : 'Rs.0', sub: r.bonus > 0 ? '8.33% × Rs.' + Math.round(r.bonusBase === 'basic' ? r.basic : r.bonusBase === 'gross' ? r.gross : r.minWage).toLocaleString('en-IN') + ' (' + bonusBaseLabel + ')' : (r.bonusApplicable === 'N' ? 'Disabled' : 'Not eligible (Basic > Rs.21,000)'), cls: 'amber' },
   ];
 
   if (r.isHighGross) {
@@ -1835,6 +2048,9 @@ function renderBreakdown(r) {
 function setTextContent(elementId, html) { const el = document.getElementById(elementId); if (el) el.innerHTML = html; }
 
 function renderExportPreview(r) {
+  const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
+  const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
+
   const rows = [['SALARY STRUCTURE', '', true], ['Basic', fmt(r.basic), false], ['HRA', fmt(r.hra), false]];
   if (r.isHighGross) {
     rows.push(['Defray Expenses (10%)', fmt(r.deferAllowance), false]);
@@ -1847,7 +2063,7 @@ function renderExportPreview(r) {
     ['EMPLOYER CONTRIBUTIONS', '', true],
     ['EPF – Employer (' + r.pfEmployerRate + '%)', fmt(r.epfEmployer), false],
     ['EDLI – Employer' + (r.pfEmployerRate === '12' ? ' (N/A)' : ''), r.edliEmployer > 0 ? fmt(r.edliEmployer) : 'Rs.0', false],
-    ['Bonus', fmt(r.bonus), false],
+    ['Bonus 8.33% of ' + bonusBaseLabel + (r.bonusApplicable === 'N' ? ' (Disabled)' : ''), fmt(r.bonus), false],
     ['Initial CTC', fmt(r.initialCTC), false],
     ['ESI – Employer', fmt(r.esiEmployer), false],
     ['Health Insurance (Monthly)', fmt(r.healthInsurance), false],
@@ -1914,9 +2130,16 @@ function resetAll() {
   pfEmployerRate = '12.5';
   setPFApplicable('Y');
   _syncPFUI();
-  const pfVolEl  = document.getElementById('pfVoluntaryPct');    if (pfVolEl)  pfVolEl.value  = '';
-  const pfSpecEl = document.getElementById('pfSpecificAmtVal');  if (pfSpecEl) pfSpecEl.value = '';
-  const pfPreview = document.getElementById('pfLivePreview');    if (pfPreview) pfPreview.style.display = 'none';
+  const pfVolEl  = document.getElementById('pfVoluntaryPct');   if (pfVolEl)  pfVolEl.value  = '';
+  const pfSpecEl = document.getElementById('pfSpecificAmtVal'); if (pfSpecEl) pfSpecEl.value = '';
+  const pfPreview = document.getElementById('pfLivePreview');   if (pfPreview) pfPreview.style.display = 'none';
+
+  // ✅ Reset bonus
+  bonusApplicable = 'Y';
+  bonusBase       = 'minwage';
+  setBonusApplicable('Y');
+  setBonusBase('minwage');
+  updateBonusPreview();
 
   // ✅ Reset input mode
   inputMode = 'gross';
@@ -1941,9 +2164,12 @@ function resetAll() {
 // ============== EXPORT FUNCTIONS ==============
 function exportPDF() {
   if (!calcResult) { showToast('Please calculate first'); return; }
-  const r = calcResult;
+  const r       = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
-  const now = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+  const now     = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+  const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
+  const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   const PW = 210, PH = 297, M = 12, CW = PW - (M * 2), HH = 25, FH = 15;
@@ -1976,9 +2202,10 @@ function exportPDF() {
     const info = [
       ['Employee Name', empName], ['Report Date', now],
       ['PF Status', r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable'],
+      ['Bonus', r.bonusApplicable === 'N' ? 'Disabled' : 'Applicable (' + bonusBaseLabel + ')'],
       ['Minimum Wage', fmtP(r.minWage)],
       ['LWF State', r.lwfStateName || 'Not Selected'],
-      ['PT State', r.ptStateName || 'Not Selected'],
+      ['PT State', r.ptStateName  || 'Not Selected'],
       ['Health Insurance', fmtP(r.healthInsurance)]
     ];
     info.forEach(function(it, i) {
@@ -2047,7 +2274,7 @@ function exportPDF() {
   const empRows = [
     ['EPF - Employer', r.pfApplicable === 'Y' ? fmtP(r.epfEmployer) : 'N/A'],
     ['EDLI - Employer', r.edliEmployer > 0 ? fmtP(r.edliEmployer) : 'Rs. 0'],
-    ['Bonus', r.bonus > 0 ? fmtP(r.bonus) : 'N/A'],
+    ['Bonus (8.33% of ' + bonusBaseLabel + ')', r.bonus > 0 ? fmtP(r.bonus) : (r.bonusApplicable === 'N' ? 'Disabled' : 'N/A')],
     ['-------------------------', '--------------'],
     ['Initial CTC', fmtP(r.initialCTC)],
     ['ESI - Employer', r.esiEmployer > 0 ? fmtP(r.esiEmployer) : 'N/A'],
@@ -2082,6 +2309,8 @@ function exportCSV() {
   const r       = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
   const now     = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+  const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
+  const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
   function cell(v) { return '"' + String(v !== null && v !== undefined ? v : '').replace(/"/g, '""') + '"'; }
   function amt(n)  { return n > 0 ? Math.round(n) : 0; }
   const rows = [
@@ -2089,6 +2318,7 @@ function exportCSV() {
     ['PF Status', r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable', ''],
     ['PF Mode', r.pfApplicable === 'Y' ? r.pfModeLabel : 'N/A', ''],
     ['Employer PF Rate', r.pfApplicable === 'Y' ? r.pfEmployerRate + '%' : 'N/A', ''],
+    ['Bonus', r.bonusApplicable === 'N' ? 'Disabled' : 'Applicable (' + bonusBaseLabel + ')', ''],
     ['State Minimum Wage', amt(r.minWage), ''], ['LWF State', r.lwfStateName||'N/A', ''],
     ['Professional Tax State', r.ptStateName||'N/A', ''], ['', '', ''],
     ['SALARY STRUCTURE', '', 'Monthly Amount (Rs.)'],
@@ -2098,7 +2328,7 @@ function exportCSV() {
     ['EMPLOYER CONTRIBUTIONS', '', 'Monthly Amount (Rs.)'],
     ['EPF – Employer (' + r.pfEmployerRate + '%)', '', r.pfApplicable === 'Y' ? amt(r.epfEmployer) : 'N/A'],
     ['EDLI – Employer', '', r.edliEmployer > 0 ? amt(r.edliEmployer) : 'N/A'],
-    ['Bonus', '', r.bonus > 0 ? amt(r.bonus) : 'N/A'],
+    ['Bonus 8.33% of ' + bonusBaseLabel, '', r.bonus > 0 ? amt(r.bonus) : (r.bonusApplicable === 'N' ? 'Disabled' : 'N/A')],
     ['Initial CTC', '', amt(r.initialCTC)],
     ['ESI – Employer (3.25%)', '', r.esiEmployer > 0 ? amt(r.esiEmployer) : 'N/A'],
     ['Health Insurance (Monthly)', '', amt(r.healthInsurance)],
@@ -2127,6 +2357,8 @@ function copyToClipboard() {
   if (!calcResult) { showToast('⚠️ Please calculate first'); return; }
   const r       = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
+  const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
+  const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
   const allowanceLines = r.isHighGross
     ? ['Defray Expenses (10%)\t' + r.deferAllowance, 'Conveyance\t' + r.conv]
     : ['Conveyance\t' + r.conv];
@@ -2136,7 +2368,7 @@ function copyToClipboard() {
       'Gross\t' + r.gross,
       'EPF Employer (' + r.pfEmployerRate + '%)\t' + r.epfEmployer,
       'EDLI Employer\t' + r.edliEmployer,
-      'Bonus\t' + r.bonus,
+      'Bonus (8.33% of ' + bonusBaseLabel + ')\t' + r.bonus,
       'ESI Employer\t' + r.esiEmployer,
       'Health Insurance (Monthly)\t' + r.healthInsurance,
       'Leave Encashment (' + r.leavesPerYear + ' leaves)\t' + r.leaveComponent,
@@ -2368,7 +2600,7 @@ function filterBulkTable(query) {
   if (!tbody) return;
   const q = (query || '').trim().toLowerCase();
   if (clearBtn) clearBtn.style.display = q ? 'inline-block' : 'none';
-  const rows      = Array.from(tbody.querySelectorAll('tr'));
+  const rows       = Array.from(tbody.querySelectorAll('tr'));
   let visibleCount = 0;
   const total      = rows.length;
   if (!q) {
@@ -2391,9 +2623,9 @@ function filterBulkTable(query) {
       const nameCell = row.querySelector('.td-name');
       if (nameCell) {
         if (!nameCell.dataset.originalText) nameCell.dataset.originalText = nameCell.textContent;
-        const original = nameCell.dataset.originalText;
+        const original  = nameCell.dataset.originalText;
         const lowerOrig = original.toLowerCase();
-        const idx = lowerOrig.indexOf(q);
+        const idx       = lowerOrig.indexOf(q);
         if (idx >= 0) {
           nameCell.innerHTML = escapeHtml(original.slice(0, idx)) +
             '<span class="bulk-search-highlight">' + escapeHtml(original.slice(idx, idx + q.length)) + '</span>' +
@@ -2425,7 +2657,7 @@ function clearBulkSearch() {
 }
 
 // ===================================================================
-//  ✅ BULK PROCESS — Health Insurance replaces Gratuity
+//  ✅ BULK PROCESS — Bonus configurable per row
 // ===================================================================
 function processBulkFile() {
   if (!bulkRawData || bulkRawData.length === 0) {
@@ -2450,7 +2682,7 @@ function processBulkFile() {
 
   bulkCalcResults = [];
   let errors = 0;
-  const total = rows.length;
+  const total        = rows.length;
   const currentMonth = new Date().getMonth() + 1;
 
   rows.forEach(function(row, i) {
@@ -2493,9 +2725,9 @@ function processBulkFile() {
     let bulkPfBase = 'standard';
     if (pfBaseModeRaw) {
       const s = pfBaseModeRaw.toString().trim().toLowerCase();
-      if (s.includes('full'))                                    bulkPfBase = 'full_basic';
-      else if (s.includes('specific') || s.includes('fixed'))   bulkPfBase = 'specific_amt';
-      else                                                       bulkPfBase = 'standard';
+      if (s.includes('full'))                                  bulkPfBase = 'full_basic';
+      else if (s.includes('specific') || s.includes('fixed')) bulkPfBase = 'specific_amt';
+      else                                                     bulkPfBase = 'standard';
     }
 
     const pfVolRaw   = getBulkField(row, ['Voluntary PF','Has Voluntary','pfvoluntary','voluntary_pf','Voluntary Add-on']);
@@ -2541,7 +2773,7 @@ function processBulkFile() {
     } else if (!isNaN(ptAmtManual) && ptAmtManual >= 0) {
       pt = Math.max(0, ptAmtManual);
       ptStateName = 'Manual';
-      ptMode_row = 'manual';
+      ptMode_row  = 'manual';
     }
 
     const lwfStateRaw  = getBulkField(row, ['LWF State','LWFState','Labour Welfare Fund State','lwf_state','State LWF','LWF (State)','LWF State Code']);
@@ -2554,19 +2786,19 @@ function processBulkFile() {
       if (resolvedLWFCode && LWF_STATES[resolvedLWFCode]) {
         lwf = computeLWFAuto(resolvedLWFCode, bulkMonth, gross, true);
         lwfStateName = LWF_STATES[resolvedLWFCode].name;
-        lwfMode_row = 'auto';
+        lwfMode_row  = 'auto';
       }
     } else if (!isNaN(lwfAmtManual) && lwfAmtManual >= 0) {
       lwf = Math.max(0, lwfAmtManual);
       lwfStateName = 'Manual';
-      lwfMode_row = 'manual';
+      lwfMode_row  = 'manual';
     }
 
     const hiRaw = getBulkField(row, ['Health Insurance','HealthInsurance','Health Ins','HI Amount','health_insurance','Health Insurance Amount','hi_amt','Medical Insurance','MedicalInsurance']);
     const healthInsAmtBulk = (!isNaN(cleanNum(hiRaw)) && cleanNum(hiRaw) >= 0) ? cleanNum(hiRaw) : 0;
 
-    const leaveAmtRaw    = getBulkField(row, ['Leave Encashment Amount','Leave Amount','Monthly Leave Amount','leave_enc_amount']);
-    const leaveOverride  = (leaveAmtRaw && !isNaN(cleanNum(leaveAmtRaw))) ? cleanNum(leaveAmtRaw) : null;
+    const leaveAmtRaw   = getBulkField(row, ['Leave Encashment Amount','Leave Amount','Monthly Leave Amount','leave_enc_amount']);
+    const leaveOverride = (leaveAmtRaw && !isNaN(cleanNum(leaveAmtRaw))) ? cleanNum(leaveAmtRaw) : null;
 
     const leavesRaw = getBulkField(row, ['Leaves per Year','Leaves','Leave Count','Leaves Count','No of Leaves','leaves_per_year','Annual Leaves','Yearly Leaves']);
     let bulkLeaves = 15;
@@ -2575,13 +2807,29 @@ function processBulkFile() {
       if (!isNaN(parsed) && parsed >= 0 && parsed <= 365) bulkLeaves = parsed;
     }
 
+    // ✅ Bonus fields for bulk
+    const bonusApplRaw  = getBulkField(row, ['Bonus','Bonus Applicable','Bonus (Y/N)','bonus_applicable','StatutoryBonus','Bonus Status']);
+    const bulkBonusAppl = (bonusApplRaw && bonusApplRaw.toString().trim().toUpperCase() === 'N') ? 'N' : 'Y';
+
+    const bonusBaseRaw = getBulkField(row, ['Bonus Base','BonusBase','bonus_base','Bonus On','BonusOn','Bonus Calculation Base']);
+    let bulkBonusBase  = 'minwage';
+    if (bonusBaseRaw) {
+      const s = bonusBaseRaw.toString().trim().toLowerCase();
+      if (s.includes('basic'))      bulkBonusBase = 'basic';
+      else if (s.includes('gross')) bulkBonusBase = 'gross';
+      else                          bulkBonusBase = 'minwage';
+    }
+
     try {
       const r = computeCTC(
         gross, minWage, pf, pt, lwf,
         healthInsAmtBulk, leaveOverride,
         bulkPfBase, bulkHasVol, bulkVolPct, bulkSpecAmt, bulkEmpRate,
-        bulkLeaves, previousBasic
+        bulkLeaves, previousBasic,
+        bulkBonusAppl, bulkBonusBase   // ✅ Pass bonus overrides
       );
+
+      const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
 
       bulkCalcResults.push({
         name, rowNum, empCode, branch, error: null,
@@ -2603,6 +2851,10 @@ function processBulkFile() {
         finalCTC: r.finalCTC, finalAnnual: r.finalCTCAnnual,
         epfEe: r.epfEmployee, esiEe: r.esiEmployee, lwfEmployee: r.lwfEmployee,
         ptDeduction: r.ptDeduction, cash: r.cashInHand,
+        // ✅ Bonus info
+        bonusApplicable: bulkBonusAppl,
+        bonusBase      : bulkBonusBase,
+        bonusBaseLabel : bonusBaseLabelMap[bulkBonusBase] || 'Min Wage',
       });
     } catch (err) {
       bulkCalcResults.push({
@@ -2628,20 +2880,20 @@ function bulkFmt(n) {
 }
 
 // ===================================================================
-//  ✅ BULK RESULTS TABLE — Health Insurance column
+//  ✅ BULK RESULTS TABLE — Bonus column added
 // ===================================================================
 function renderBulkResults(errors, total) {
   const valid        = bulkCalcResults.filter(function(r) { return !r.error; });
-  const totalMonthly = valid.reduce(function(s, r) { return s + (r.finalCTC   || 0); }, 0);
+  const totalMonthly = valid.reduce(function(s, r) { return s + (r.finalCTC    || 0); }, 0);
   const totalAnnual  = valid.reduce(function(s, r) { return s + (r.finalAnnual || 0); }, 0);
   const avgCash      = valid.length ? Math.round(valid.reduce(function(s, r) { return s + (r.cash || 0); }, 0) / valid.length) : 0;
   const avgCTC       = valid.length ? Math.round(totalMonthly / valid.length) : 0;
   const minCTC       = valid.length ? Math.min.apply(null, valid.map(function(r) { return r.finalCTC || 0; })) : 0;
   const maxCTC       = valid.length ? Math.max.apply(null, valid.map(function(r) { return r.finalCTC || 0; })) : 0;
-  const totalEpfEmp  = valid.reduce(function(s, r) { return s + (r.epfEmp || 0); }, 0);
-  const totalBonus   = valid.reduce(function(s, r) { return s + (r.bonus || 0); }, 0);
-  const totalHI      = valid.reduce(function(s, r) { return s + (r.healthInsurance || 0); }, 0);
-  const totalLeave   = valid.reduce(function(s, r) { return s + (r.leaveUsed || 0); }, 0);
+  const totalEpfEmp  = valid.reduce(function(s, r) { return s + (r.epfEmp         || 0); }, 0);
+  const totalBonus   = valid.reduce(function(s, r) { return s + (r.bonus          || 0); }, 0);
+  const totalHI      = valid.reduce(function(s, r) { return s + (r.healthInsurance|| 0); }, 0);
+  const totalLeave   = valid.reduce(function(s, r) { return s + (r.leaveUsed      || 0); }, 0);
   const withPrevBasic = valid.filter(function(r) { return r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0; }).length;
 
   const summaryEl = document.getElementById('bulkSummaryCards');
@@ -2671,7 +2923,7 @@ function renderBulkResults(errors, total) {
       <th>Month</th><th>Gender</th><th>Prev Basic</th>
       <th>PF</th><th>PF Mode</th><th>PF Wages</th><th>Emp Rate</th><th>Voluntary</th>
       <th>Gross</th><th>Basic</th><th>HRA</th><th>Defray(10%)</th><th>Conveyance</th>
-      <th>EPF Employer</th><th>EDLI</th><th>Bonus</th><th>ESI Employer</th>
+      <th>EPF Employer</th><th>EDLI</th><th>Bonus Base</th><th>Bonus</th><th>ESI Employer</th>
       <th>Health Ins.</th><th>Leave Enc.</th><th>Leaves/Yr</th>
       <th>LWF State</th><th>LWF</th><th>PT State</th><th>PT</th>
       <th>Initial CTC</th><th>Final CTC/Mo</th><th>Annual CTC</th>
@@ -2693,7 +2945,7 @@ function renderBulkResults(errors, total) {
       bodyHtml += '<tr class="error-row ' + alt + '">' +
         '<td style="color:var(--text-muted)">' + r.rowNum + '</td>' +
         '<td class="td-name">' + escapeHtml(r.name) + '</td>' +
-        '<td colspan="33" style="font-size:11px;color:var(--danger);padding:8px 12px;">' + escapeHtml(r.error) + '</td>' +
+        '<td colspan="34" style="font-size:11px;color:var(--danger);padding:8px 12px;">' + escapeHtml(r.error) + '</td>' +
         '<td class="td-err">⚠ Error</td>' +
         '</tr>';
       return;
@@ -2709,12 +2961,19 @@ function renderBulkResults(errors, total) {
       ? '<span style="color:var(--accent3);font-size:10px">+' + r.pfVolPct + '%</span>'
       : '<span style="color:var(--text-muted);font-size:10px">—</span>';
 
-    const deferCell = r.isHighGross ? bulkFmt(r.deferAllowance) : '<span style="color:var(--text-muted)">—</span>';
-    const edliCell  = r.edliEmployer > 0 ? bulkFmt(r.edliEmployer) : '<span style="color:var(--text-muted)">Rs.0</span>';
-    const bonusCell = r.bonus > 0 ? bulkFmt(r.bonus) : '<span style="color:var(--text-muted)">—</span>';
+    const deferCell  = r.isHighGross ? bulkFmt(r.deferAllowance) : '<span style="color:var(--text-muted)">—</span>';
+    const edliCell   = r.edliEmployer > 0 ? bulkFmt(r.edliEmployer) : '<span style="color:var(--text-muted)">Rs.0</span>';
     const esiEmpCell = r.esiEmp > 0 ? bulkFmt(r.esiEmp) : '<span style="color:var(--text-muted)">—</span>';
-    const esiEeCell  = r.esiEe > 0  ? bulkFmt(r.esiEe)  : '<span style="color:var(--text-muted)">—</span>';
+    const esiEeCell  = r.esiEe  > 0 ? bulkFmt(r.esiEe)  : '<span style="color:var(--text-muted)">—</span>';
     const epfEeCell  = r.pfApplicable === 'Y' ? '<span style="color:var(--danger)">' + bulkFmt(r.epfEe) + '</span>' : '<span style="color:var(--text-muted)">N/A</span>';
+
+    // ✅ Bonus cells
+    const bonusBaseCell = r.bonusApplicable === 'N'
+      ? '<span style="color:var(--text-muted);font-size:10px">Disabled</span>'
+      : '<span style="font-size:10px;color:var(--accent4)">' + (r.bonusBaseLabel || 'Min Wage') + '</span>';
+    const bonusCell = r.bonusApplicable === 'N'
+      ? '<span style="color:var(--text-muted)">—</span>'
+      : (r.bonus > 0 ? '<span style="color:var(--accent4)">' + bulkFmt(r.bonus) + '</span>' : '<span style="color:var(--text-muted)">—</span>');
 
     const lwfStateCell = r.lwfStateName !== 'N/A'
       ? '<span style="font-size:10px;color:' + (r.lwfMode === 'auto' ? 'var(--accent3)' : 'var(--accent2)') + '">' + r.lwfStateName + (r.lwfMode === 'auto' ? ' ●' : ' ○') + '</span>'
@@ -2758,6 +3017,7 @@ function renderBulkResults(errors, total) {
       '<td class="td-right">' + bulkFmt(r.conv) + '</td>' +
       '<td class="td-right">' + (r.pfApplicable === 'Y' ? bulkFmt(r.epfEmp) : '<span style="color:var(--text-muted)">N/A</span>') + '</td>' +
       '<td class="td-right">' + edliCell + '</td>' +
+      '<td class="td-right">' + bonusBaseCell + '</td>' +
       '<td class="td-right">' + bonusCell + '</td>' +
       '<td class="td-right">' + esiEmpCell + '</td>' +
       '<td class="td-right">' + hiCell + '</td>' +
@@ -2787,6 +3047,7 @@ function renderBulkResults(errors, total) {
       '<td class="td-right">' + bulkFmt(tot.conv) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.epfEmp) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.edliEmployer) + '</td>' +
+      '<td></td>' + // bonus base
       '<td class="td-right">' + bulkFmt(tot.bonus) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.esiEmp) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.healthInsurance) + '</td>' +
@@ -2817,7 +3078,7 @@ function renderBulkResults(errors, total) {
 }
 
 // ===================================================================
-//  ✅ BULK EXPORT CSV — Health Insurance
+//  ✅ BULK EXPORT CSV — Bonus columns
 // ===================================================================
 function bulkExportCSV() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
@@ -2825,7 +3086,7 @@ function bulkExportCSV() {
   function cell(v) { return '"' + String(v !== null && v !== undefined ? v : '').replace(/"/g, '""') + '"'; }
   function amt(n)  { return (n && !isNaN(n)) ? Math.round(n) : 0; }
 
-  const now = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+  const now        = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
   const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 
   const metaRows = [
@@ -2840,7 +3101,9 @@ function bulkExportCSV() {
     'Previous Basic (Rs.)', 'PF Status', 'PF Mode', 'PF Wages (Rs.)', 'Employer PF Rate', 'Voluntary PF %',
     'Gross Salary', 'Basic Salary', 'HRA',
     'Defray Expenses 10%', 'Conveyance',
-    'EPF – Employer (Rs.)', 'EDLI – Employer (Rs.)', 'Bonus (Rs.)', 'ESI – Employer (Rs.)',
+    'EPF – Employer (Rs.)', 'EDLI – Employer (Rs.)',
+    'Bonus Applicable', 'Bonus Base', 'Bonus Amount (Rs.)',
+    'ESI – Employer (Rs.)',
     'Health Insurance (Rs.)', 'Leave Encashment (Rs.)', 'Leave Mode', 'Leaves Per Year',
     'LWF State', 'LWF Mode', 'LWF Amount (Rs.)',
     'PT State', 'PT Mode', 'Professional Tax (Rs.)',
@@ -2852,7 +3115,7 @@ function bulkExportCSV() {
   const dataRows = bulkCalcResults.map(function(r) {
     if (r.error) {
       const blanks = new Array(headers.length - 3).fill('');
-      return [r.rowNum, r.name, r.empCode || '', r.branch || '', '', '', '', ...blanks, 'Error: ' + r.error];
+      return [r.rowNum, r.name, r.empCode || '', r.branch || '', ...blanks, 'Error: ' + r.error];
     }
     const prevBasicVal = (r.previousBasic !== null && r.previousBasic !== undefined && r.previousBasic > 0) ? amt(r.previousBasic) : 'N/A';
     return [
@@ -2869,7 +3132,9 @@ function bulkExportCSV() {
       amt(r.conv),
       r.pfApplicable === 'Y' ? amt(r.epfEmp) : 'N/A',
       r.edliEmployer > 0 ? amt(r.edliEmployer) : 0,
-      r.bonus > 0 ? amt(r.bonus) : 0,
+      r.bonusApplicable === 'N' ? 'No' : 'Yes',
+      r.bonusApplicable === 'N' ? 'N/A' : (r.bonusBaseLabel || 'Min Wage'),
+      r.bonusApplicable === 'N' ? 0 : amt(r.bonus),
       r.esiEmp > 0 ? amt(r.esiEmp) : 0,
       amt(r.healthInsurance || 0),
       amt(r.leaveUsed), r.leaveMode === 'manual' ? 'Manual' : 'Auto (Formula)',
@@ -2885,8 +3150,8 @@ function bulkExportCSV() {
     ];
   });
 
-  const valid = bulkCalcResults.filter(function(r) { return !r.error; });
-  const totRow = [
+  const valid   = bulkCalcResults.filter(function(r) { return !r.error; });
+  const totRow  = [
     'TOTAL (' + valid.length + ')', '', '', '', '', '', 'N/A', '', '', '', '', '',
     valid.reduce(function(s,r){ return s+amt(r.gross); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.basic); }, 0),
@@ -2895,6 +3160,7 @@ function bulkExportCSV() {
     valid.reduce(function(s,r){ return s+amt(r.conv); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.epfEmp); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.edliEmployer); }, 0),
+    '', '', // bonus applicable, base
     valid.reduce(function(s,r){ return s+amt(r.bonus); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.esiEmp); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.healthInsurance||0); }, 0),
@@ -2910,7 +3176,7 @@ function bulkExportCSV() {
   ];
 
   const allRows = metaRows.concat([headers]).concat(dataRows).concat([totRow]);
-  const csv = allRows.map(function(row) {
+  const csv     = allRows.map(function(row) {
     return (Array.isArray(row) ? row : [row]).map(function(c) { return cell(c); }).join(',');
   }).join('\n');
 
@@ -2954,7 +3220,7 @@ function bulkExportTXT() {
     txt += tableRow('Conveyance', bulkFmt(r.conv));
     txt += SEP + '\n';
     txt += tableRow('EPF – Employer', r.pfApplicable === 'Y' ? bulkFmt(r.epfEmp) : 'N/A');
-    txt += tableRow('Bonus', r.bonus > 0 ? bulkFmt(r.bonus) : 'N/A');
+    txt += tableRow('Bonus (' + (r.bonusBaseLabel||'Min Wage') + ')', r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? bulkFmt(r.bonus) : 'N/A'));
     txt += tableRow('Initial CTC', bulkFmt(r.initialCTC));
     txt += tableRow('ESI – Employer', r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A');
     txt += tableRow('Health Insurance (Monthly)', bulkFmt(r.healthInsurance || 0));
@@ -2981,14 +3247,15 @@ function bulkExportTXT() {
 
 function bulkCopyClipboard() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
-  const valid = bulkCalcResults.filter(function(r) { return !r.error; });
-  const headers = ['#','Employee Name','Emp Code','Branch','Gross','Basic','HRA','EPF Emp','Bonus','ESI Emp','Health Ins.','Leave Enc.','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Employee','ESI Employee','Cash in Hand'];
-  const rows = valid.map(function(r, i) {
+  const valid   = bulkCalcResults.filter(function(r) { return !r.error; });
+  const headers = ['#','Employee Name','Emp Code','Branch','Gross','Basic','HRA','EPF Emp','Bonus Base','Bonus','ESI Emp','Health Ins.','Leave Enc.','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Employee','ESI Employee','Cash in Hand'];
+  const rows    = valid.map(function(r, i) {
     return [
       i+1, r.name, r.empCode || '', r.branch || '',
       Math.round(r.gross), Math.round(r.basic), Math.round(r.hra),
       r.pfApplicable === 'Y' ? Math.round(r.epfEmp) : 'N/A',
-      r.bonus > 0 ? Math.round(r.bonus) : 0,
+      r.bonusApplicable === 'N' ? 'Disabled' : (r.bonusBaseLabel || 'Min Wage'),
+      r.bonusApplicable === 'N' ? 0 : Math.round(r.bonus),
       r.esiEmp > 0 ? Math.round(r.esiEmp) : 0,
       Math.round(r.healthInsurance || 0),
       Math.round(r.leaveUsed), r.lwf > 0 ? Math.round(r.lwf) : 0,
@@ -3004,20 +3271,21 @@ function bulkCopyClipboard() {
     .catch(function() { showToast('⚠️ Copy failed'); });
 }
 
+// ✅ Updated template with Bonus columns
 function bulkDownloadTemplate() {
   const csv = [
-    'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,PT State,LWF State,Salary Month,Gender,Health Insurance,Leave Encashment Amount,Leaves per Year',
-    'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,KA,FKL,12,Male,500,,15',
-    'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,MH,MH,12,Male,1000,500,18',
-    'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,,OTHER,12,Male,750,,15',
-    'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,GJ,OTHER,6,Female,800,,20',
-    'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,AP,AP,12,Male,500,,15',
-    'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,TS,OTHER,12,Female,600,500,12',
+    'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,Bonus (Y/N),Bonus Base,PT State,LWF State,Salary Month,Gender,Health Insurance,Leave Encashment Amount,Leaves per Year',
+    'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,Y,minwage,KA,FKL,12,Male,500,,15',
+    'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,Y,basic,MH,MH,12,Male,1000,500,18',
+    'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,Y,minwage,,OTHER,12,Male,750,,15',
+    'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,N,,GJ,OTHER,6,Female,800,,20',
+    'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,Y,gross,AP,AP,12,Male,500,,15',
+    'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,Y,basic,TS,OTHER,12,Female,600,500,12',
   ].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = 'CTC_Bulk_Upload_Template_HealthIns.csv';
+  link.download = 'CTC_Bulk_Upload_Template_WithBonus.csv';
   link.click();
   showToast('✓ Template Downloaded');
 }
