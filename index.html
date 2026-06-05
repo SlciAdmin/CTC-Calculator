@@ -461,6 +461,27 @@
               <div class="field-hint">Enter monthly health insurance premium (employer contribution added to CTC)</div>
             </div>
 
+            <!-- GRATUITY -->
+<div class="field-group special-field hi-field" id="gratuityField">
+  <label>
+    Gratuity
+    <span class="formula-badge">Basic × 4.81%</span>
+  </label>
+  <div class="toggle-group" role="radiogroup" aria-label="Gratuity">
+    <button class="toggle-btn active" id="gratuityYes"
+      onclick="setGratuity('Y')" type="button" role="radio" aria-checked="true">
+      ✓ Applicable
+    </button>
+    <button class="toggle-btn" id="gratuityNo"
+      onclick="setGratuity('N')" type="button" role="radio" aria-checked="false">
+      ✗ Not Applicable
+    </button>
+  </div>
+  <div class="field-hint" id="gratuityHint">
+    Monthly Gratuity = Basic × 4.81% (added to Final CTC)
+  </div>
+</div>
+
             <!-- LEAVE ENCASHMENT -->
             <div class="field-group special-field">
               <label>

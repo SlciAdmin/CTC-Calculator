@@ -32,6 +32,7 @@ let currentUser   = null;
 let isAdmin       = false;
 let currentUserId = null;
 let leaveCountManual = 15;
+let gratuityApplicable = 'Y';
 
 let pfApplicable = 'Y';
 let calcResult   = null;
@@ -135,6 +136,21 @@ function computeLWFEmployerAuto(stateCode, month, gross) {
     case 'none':    return 0;
     default:        return 0;
   }
+}
+
+function setGratuity(val) {
+  gratuityApplicable = val;
+  const yesBtn = document.getElementById('gratuityYes');
+  const noBtn  = document.getElementById('gratuityNo');
+  const hint   = document.getElementById('gratuityHint');
+  if (yesBtn) { yesBtn.classList.toggle('active', val === 'Y'); yesBtn.setAttribute('aria-checked', val === 'Y'); }
+  if (noBtn)  { noBtn.classList.toggle('active', val === 'N');  noBtn.setAttribute('aria-checked', val === 'N'); }
+  if (hint)   { hint.textContent = val === 'Y'
+    ? 'Monthly Gratuity = Basic × 4.81% (added to Final CTC)'
+    : 'Gratuity disabled — Rs.0 added to Final CTC';
+    hint.style.color = val === 'Y' ? 'var(--text-muted)' : 'var(--danger)';
+  }
+  liveCalc();
 }
 
 function getLWFHint(stateCode, month, gross) {
@@ -1478,6 +1494,8 @@ function initializeCalculator() {
   pfEmployerRate = '12.5';
   _syncPFUI();
   setLeaveMode('auto');
+  gratuityApplicable = 'Y';
+  setGratuity('Y');
   setLWFMode('auto');
   setPTMode('auto');
   const currentMonth = new Date().getMonth() + 1;
@@ -1614,7 +1632,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     return lwf;
   })();
 
-  const finalCTC   = initialCTC + esiEmployer + healthIns + lwfEmployerContrib + leaveComponent;
+  const gratuityComponent = (typeof gratuityApplicable !== 'undefined' && gratuityApplicable === 'Y')
+  ? Math.round(basic * 0.0481)
+  : 0;
+
+  const finalCTC = initialCTC + esiEmployer + healthIns + lwfEmployerContrib + leaveComponent + gratuityComponent;
   const cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
 
   const pfModeLabel = (function() {
@@ -1643,6 +1665,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     esiEmployer, esiEmployee,
     healthInsurance: healthIns,
     leaveComponent, leaveAuto,
+    gratuityComponent,
     leavesPerYear  : effectiveLeaves,
     lwf, pt,
     finalCTC,
@@ -2116,6 +2139,10 @@ function renderBreakdown(r) {
     { label: 'Cash in Hand',               val: fmt(r.cashInHand),        sub: 'After all deductions', cls: 'green' },
     { label: pfModeDisplayLabel,           val: r.pfApplicable === 'Y' ? fmt(r.epfEmployee) : 'Rs.0',
       sub: r.pfApplicable === 'Y' ? 'Employee: 12%+Vol% | Employer: ' + r.pfEmployerRate + '% | EDLI: ' + edliDisplay + ' | PF Wages: Rs.' + Math.round(r.pfWages).toLocaleString('en-IN') : 'No PF applicable', cls: 'purple' },
+    { label: 'Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' <span style="font-size:9px;color:var(--danger);font-weight:600;background:rgba(252,129,129,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">DISABLED</span>' : ' <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">4.81% of Basic</span>'),
+  val: fmt(r.gratuityComponent || 0),
+  sub: gratuityApplicable === 'Y' ? '4.81% × Rs.' + Math.round(r.basic).toLocaleString('en-IN') + ' = Rs.' + (r.gratuityComponent || 0).toLocaleString('en-IN') : 'Gratuity disabled',
+  cls: 'green' },
     { label: bonusDisplayLabel,            val: r.bonus > 0 ? fmt(r.bonus) : 'Rs.0', sub: r.bonus > 0 ? '8.33% × Rs.' + Math.round(r.bonusBase === 'basic' ? r.basic : r.bonusBase === 'gross' ? r.gross : r.minWage).toLocaleString('en-IN') + ' (' + bonusBaseLabel + ')' : (r.bonusApplicable === 'N' ? 'Disabled' : 'Not eligible (Basic > Rs.21,000)'), cls: 'amber' },
   ];
 
@@ -2290,6 +2317,10 @@ function resetAll() {
   setBonusApplicable('Y');
   setBonusBase('minwage');
   updateBonusPreview();
+
+
+  gratuityApplicable = 'Y';
+  setGratuity('Y');
 
   // ✅ Reset input mode
   inputMode = 'gross';
