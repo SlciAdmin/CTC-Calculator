@@ -2051,39 +2051,98 @@ function renderExportPreview(r) {
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
 
-  const rows = [['SALARY STRUCTURE', '', true], ['Basic', fmt(r.basic), false], ['HRA', fmt(r.hra), false]];
+  // [label, monthly_value, show_annual, is_section_header]
+  // show_annual: true = show ×12, 'custom' = use custom annual value, false = dash
+  const rows = [
+    ['SALARY STRUCTURE', null, false, true],
+    ['Basic', r.basic, true, false],
+    ['HRA (50% of Basic)', r.hra, true, false],
+  ];
+
   if (r.isHighGross) {
-    rows.push(['Defray Expenses (10%)', fmt(r.deferAllowance), false]);
-    rows.push(['Conveyance', fmt(r.conv), false]);
+    rows.push(['Defray Expenses (10%)', r.deferAllowance, true, false]);
+    rows.push([r.convLabel + ' (Residual)', r.conv, true, false]);
   } else {
-    rows.push([r.convLabel, fmt(r.conv), false]);
+    rows.push([r.convLabel, r.conv, true, false]);
   }
+
   rows.push(
-    ['Gross Salary', fmt(r.gross), false],
-    ['EMPLOYER CONTRIBUTIONS', '', true],
-    ['EPF – Employer (' + r.pfEmployerRate + '%)', fmt(r.epfEmployer), false],
-    ['EDLI – Employer' + (r.pfEmployerRate === '12' ? ' (N/A)' : ''), r.edliEmployer > 0 ? fmt(r.edliEmployer) : 'Rs.0', false],
-    ['Bonus 8.33% of ' + bonusBaseLabel + (r.bonusApplicable === 'N' ? ' (Disabled)' : ''), fmt(r.bonus), false],
-    ['Initial CTC', fmt(r.initialCTC), false],
-    ['ESI – Employer', fmt(r.esiEmployer), false],
-    ['Health Insurance (Monthly)', fmt(r.healthInsurance), false],
-    ['Leave Encashment (' + r.leavesPerYear + ' leaves/yr)', fmt(r.leaveComponent), false],
-    ['EMPLOYEE DEDUCTIONS', '', true],
-    ['EPF – Employee', fmt(r.epfEmployee), false],
-    ['ESI – Employee', fmt(r.esiEmployee), false],
-    ['Professional Tax – ' + (r.ptStateName||'N/A'), fmt(r.ptDeduction), false],
-    ['LWF – ' + (r.lwfStateName||'N/A'), fmt(r.lwf), false],
-    ['FINAL TOTALS', '', true],
-    ['Final CTC (Monthly)', fmt(r.finalCTC), false],
-    ['Final CTC (Annual)', fmt(r.finalCTCAnnual), false],
-    ['Cash in Hand', fmt(r.cashInHand), false]
+    ['Gross Salary', r.gross, true, false],
+    ['EMPLOYER CONTRIBUTIONS', null, false, true],
+    ['EPF – Employer (' + r.pfEmployerRate + '%)', r.epfEmployer, true, false],
+    ['EDLI – Employer' + (r.pfEmployerRate === '12' ? ' (N/A)' : ''), r.edliEmployer, true, false],
+    ['Bonus 8.33% of ' + bonusBaseLabel + (r.bonusApplicable === 'N' ? ' (Disabled)' : ''), r.bonus, true, false],
+    ['Initial CTC', r.initialCTC, true, false],
+    ['ESI – Employer (3.25%)', r.esiEmployer, true, false],
+    ['Health Insurance (Monthly)', r.healthInsurance, false, false],
+    ['Leave Encashment (' + r.leavesPerYear + ' leaves/yr)', r.leaveComponent, true, false],
+    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf, false, false],
+    ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
+    ['EMPLOYEE DEDUCTIONS', null, false, true],
+    ['EPF – Employee', r.epfEmployee, true, false],
+    ['ESI – Employee (0.75%)', r.esiEmployee, true, false],
+    ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
+    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf, false, false],
+    ['FINAL TOTALS', null, false, true],
+    ['Final CTC (Monthly)', r.finalCTC, false, false],
+    ['Final CTC (Annual)', null, false, false, fmt(r.finalCTCAnnual)],
+    ['Cash in Hand (Monthly)', r.cashInHand, true, false],
   );
 
   let html = '<table class="preview-table">';
+  // Header row
+  html += '<tr class="section-head"><td colspan="3" style="text-align:left;padding-bottom:4px;">CTC BREAKDOWN — MONTHLY &amp; ANNUAL</td></tr>';
+  html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1)">'
+        + '<td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);padding-bottom:6px;">Component</td>'
+        + '<td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);padding-bottom:6px;text-align:right;">Monthly</td>'
+        + '<td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);padding-bottom:6px;text-align:right;">Annual (×12)</td>'
+        + '</tr>';
+
   rows.forEach(function(item) {
-    if (item[2]) html += '<tr class="section-head"><td colspan="2">' + item[0] + '</td></tr>';
-    else         html += '<tr><td>' + item[0] + '</td><td>' + item[1] + '</td></tr>';
+    const label      = item[0];
+    const monthly    = item[1];
+    const showAnnual = item[2];
+    const isHeader   = item[3];
+    const customVal  = item[4]; // optional custom value for annual cell
+
+    if (isHeader) {
+      html += '<tr class="section-head"><td colspan="3">' + label + '</td></tr>';
+      return;
+    }
+
+    // Monthly cell
+    let monthlyCell = '';
+    if (customVal !== undefined) {
+      monthlyCell = '—';
+    } else if (monthly !== null && monthly !== undefined) {
+      monthlyCell = fmt(monthly);
+    } else {
+      monthlyCell = '—';
+    }
+
+    // Annual cell
+    let annualCell = '';
+    if (customVal !== undefined) {
+      annualCell = '<span style="color:var(--accent2);font-weight:700;">' + customVal + '</span>';
+    } else if (showAnnual && monthly !== null && monthly !== undefined && monthly > 0) {
+      annualCell = '<span style="color:var(--accent3);">' + fmt(monthly * 12) + '</span>';
+    } else if (monthly !== null && monthly !== undefined && !showAnnual && monthly > 0) {
+      annualCell = '<span style="color:var(--text-muted);font-size:11px;">state-based</span>';
+    } else {
+      annualCell = '<span style="color:var(--text-muted);">—</span>';
+    }
+
+    // Highlight final CTC rows
+    const isHighlight = label.includes('Final CTC') || label.includes('Cash in Hand') || label === 'Gross Salary' || label === 'Initial CTC';
+    const rowStyle = isHighlight ? ' style="background:rgba(99,179,237,0.04);"' : '';
+
+    html += '<tr' + rowStyle + '>'
+          + '<td>' + label + '</td>'
+          + '<td style="text-align:right;">' + monthlyCell + '</td>'
+          + '<td style="text-align:right;">' + annualCell + '</td>'
+          + '</tr>';
   });
+
   html += '</table>';
   setTextContent('exportPreview', html);
 }

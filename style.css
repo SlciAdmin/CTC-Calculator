@@ -709,8 +709,17 @@ input::placeholder { color: var(--text-muted); }
 .preview-table { width: 100%; font-size: 12px; border-collapse: collapse; }
 .preview-table tr { border-bottom: 1px solid var(--border); }
 .preview-table td { padding: 6px 8px; color: var(--text); }
-.preview-table td:last-child { text-align: right; color: var(--accent); font-weight: 600; }
-.preview-table tr.section-head td { color: var(--text-dim); font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; background: rgba(255,255,255,0.03); }
+.preview-table td:nth-child(2) { text-align: right; color: var(--accent); font-weight: 600; min-width: 90px; }
+.preview-table td:nth-child(3) { text-align: right; color: var(--accent3); font-weight: 600; min-width: 105px; }
+.preview-table td:last-child   { text-align: right; color: var(--accent); font-weight: 600; }
+.preview-table tr.section-head td { 
+  color: var(--text-dim); 
+  font-weight: 700; 
+  text-transform: uppercase; 
+  font-size: 10px; 
+  letter-spacing: 0.05em; 
+  background: rgba(255,255,255,0.03);
+}
 
 /* =================== TOAST =================== */
 .toast {
