@@ -461,67 +461,6 @@
               <div class="field-hint">Enter monthly health insurance premium (employer contribution added to CTC)</div>
             </div>
 
-            <!-- =================== STATUTORY BONUS =================== -->
-            <div class="field-group special-field bonus-field" id="bonusFieldContainer">
-              <label>
-                Statutory Bonus
-                <span class="formula-badge">8.33% of Selected Base</span>
-              </label>
-
-              <div class="toggle-group" role="radiogroup" aria-label="Bonus Applicable">
-                <button class="toggle-btn active" id="bonusYes" onclick="setBonusApplicable('Y')" role="radio" aria-checked="true">Yes (Bonus Applicable)</button>
-                <button class="toggle-btn" id="bonusNo" onclick="setBonusApplicable('N')" role="radio" aria-checked="false">No Bonus</button>
-              </div>
-
-              <div id="bonusOptionsWrapper" style="margin-top: 12px;">
-                <div class="pf-group-label" style="margin-bottom: 6px;">
-                  Bonus Base <span style="font-size:10px;color:var(--text-muted)">(select one)</span>
-                </div>
-
-                <div class="bonus-base-grid">
-                  <button class="bonus-base-btn active" id="bonusBase_minwage" onclick="setBonusBase('minwage')" type="button">
-                    <span class="pfm-icon">📋</span>
-                    <span class="pfm-title">Min Wage</span>
-                    <span class="pfm-sub">8.33% of Minimum Wage</span>
-                  </button>
-                  <button class="bonus-base-btn" id="bonusBase_basic" onclick="setBonusBase('basic')" type="button">
-                    <span class="pfm-icon">🏦</span>
-                    <span class="pfm-title">Basic Salary</span>
-                    <span class="pfm-sub">8.33% of Basic</span>
-                  </button>
-                  <button class="bonus-base-btn" id="bonusBase_gross" onclick="setBonusBase('gross')" type="button">
-                    <span class="pfm-icon">💰</span>
-                    <span class="pfm-title">Gross Salary</span>
-                    <span class="pfm-sub">8.33% of Gross</span>
-                  </button>
-                </div>
-
-                <div class="bonus-live-preview" id="bonusLivePreview" style="margin-top: 10px;">
-                  <div class="pf-preview-row">
-                    <span class="pf-prev-label">Bonus Base Selected</span>
-                    <span class="pf-prev-val" id="bonusPreviewBase" style="color:var(--accent4);">Min Wage</span>
-                  </div>
-                  <div class="pf-preview-row">
-                    <span class="pf-prev-label">Base Amount</span>
-                    <span class="pf-prev-val" id="bonusPreviewBaseAmt" style="color:var(--text-dim);font-size:11px;">—</span>
-                  </div>
-                  <div class="pf-preview-row">
-                    <span class="pf-prev-label">Bonus (8.33%)</span>
-                    <span class="pf-prev-val" id="bonusPreviewAmount" style="color:var(--accent4);font-weight:700;">—</span>
-                  </div>
-                  <div class="pf-preview-row">
-                    <span class="pf-prev-label">Eligibility (Basic ≤ ₹21,000)</span>
-                    <span class="pf-prev-val" id="bonusPreviewEligibility" style="font-size:11px;">—</span>
-                  </div>
-                </div>
-
-                <div class="field-hint" id="bonusHint" style="margin-top: 6px;">
-                  Statutory Bonus = 8.33% of selected base (only if Basic ≤ ₹21,000)
-                </div>
-              </div>
-            </div>
-            <!-- =================== END BONUS =================== -->
-
             <!-- LEAVE ENCASHMENT -->
             <div class="field-group special-field">
               <label>
