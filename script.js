@@ -36,6 +36,7 @@ let leaveCountManual = 15;
 let pfApplicable = 'Y';
 let calcResult   = null;
 let leaveMode    = 'auto';
+let leaveApplicable = 'Y'; // 'Y' = Leave applicable, 'N' = No leave
 let lwfMode      = 'auto';
 let ptMode       = 'auto';
 
@@ -1492,6 +1493,12 @@ function initializeCalculator() {
   setBonusBase('minwage');
   updateBonusPreview();
 
+
+  // ✅ Init leave applicable
+  leaveApplicable = 'Y';
+  injectLeaveApplicableToggle();
+  setLeaveApplicable('Y');
+
   // ✅ Init input mode
   inputMode = 'gross';
   setInputMode('gross');
@@ -1590,8 +1597,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
   const healthIns = Math.round(healthInsuranceAmt || 0);
 
   const leaveAuto      = Math.round((basic / 26) * (effectiveLeaves / 12));
-  const leaveComponent = (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0)
+  const leaveRaw       = (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0)
     ? Math.round(leaveOverride) : leaveAuto;
+  // ✅ If leaveApplicable is 'N', force leaveComponent to 0
+  const leaveAppl      = (typeof leaveApplicable !== 'undefined') ? leaveApplicable : 'Y';
+  const leaveComponent = leaveAppl === 'N' ? 0 : leaveRaw;
 
   const lwfEmployerContrib = (function() {
     if (lwfMode === 'auto') {
@@ -1707,6 +1717,7 @@ function reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesP
 // ============== INDIVIDUAL CALC HELPERS ==============
 function setLeaveMode(mode) {
   leaveMode = mode;
+  injectLeaveApplicableToggle();
   const autoBtn     = document.getElementById('leaveAuto');
   const manualBtn   = document.getElementById('leaveManual');
   const manualInput = document.getElementById('leaveManualWrapper');
@@ -1729,6 +1740,81 @@ function setLeaveMode(mode) {
   }
 
   if (mode === 'manual') updateLeaveCalc();
+  liveCalc();
+}
+
+// ============== LEAVE APPLICABLE TOGGLE ==============
+function injectLeaveApplicableToggle() {
+  if (document.getElementById('leaveApplicableToggle')) return;
+
+  // Find leave field container
+  const leaveAutoBtn = document.getElementById('leaveAuto');
+  if (!leaveAutoBtn) return;
+  const leaveField = leaveAutoBtn.closest('.special-field') || leaveAutoBtn.closest('.field-group');
+  if (!leaveField) return;
+
+  const toggleHTML = `
+    <div id="leaveApplicableToggle" style="margin-bottom:10px;">
+      <div class="toggle-group" role="radiogroup" aria-label="Leave Encashment Applicable">
+        <button class="toggle-btn active" id="leaveAppYes"
+          onclick="setLeaveApplicable('Y')" type="button"
+          role="radio" aria-checked="true">
+          ✓ Leave Applicable
+        </button>
+        <button class="toggle-btn" id="leaveAppNo"
+          onclick="setLeaveApplicable('N')" type="button"
+          role="radio" aria-checked="false">
+          ✗ No Leave
+        </button>
+      </div>
+      <div class="field-hint" id="leaveApplicableHint" style="margin-top:4px;">
+        Leave Encashment = Basic ÷ 26 × Leaves ÷ 12 (added to Final CTC)
+      </div>
+    </div>
+  `;
+
+  // Insert before the existing Auto/Manual toggle
+  const existingToggle = leaveField.querySelector('.toggle-group');
+  if (existingToggle) {
+    existingToggle.insertAdjacentHTML('beforebegin', toggleHTML);
+  } else {
+    leaveField.insertAdjacentHTML('afterbegin', toggleHTML);
+  }
+}
+
+function setLeaveApplicable(val) {
+  leaveApplicable = val;
+
+  const yesBtn    = document.getElementById('leaveAppYes');
+  const noBtn     = document.getElementById('leaveAppNo');
+  const hintEl    = document.getElementById('leaveApplicableHint');
+  const autoGroup = document.getElementById('leaveAuto')?.closest('.toggle-group');
+  const manualWrapper = document.getElementById('leaveManualWrapper');
+  const leaveHint = document.getElementById('leaveHint');
+  const leaveBadge = document.getElementById('leaveFormulaBadge');
+
+  if (yesBtn) {
+    yesBtn.classList.toggle('active', val === 'Y');
+    yesBtn.setAttribute('aria-checked', val === 'Y' ? 'true' : 'false');
+  }
+  if (noBtn) {
+    noBtn.classList.toggle('active', val === 'N');
+    noBtn.setAttribute('aria-checked', val === 'N' ? 'true' : 'false');
+  }
+
+  // Auto/Manual toggle aur manual wrapper hide/show karo
+  if (autoGroup) autoGroup.style.display = val === 'Y' ? 'flex' : 'none';
+  if (manualWrapper) manualWrapper.classList.toggle('hidden', val === 'N' || leaveMode !== 'manual');
+  if (leaveHint) leaveHint.style.display = val === 'Y' ? 'block' : 'none';
+  if (leaveBadge) leaveBadge.style.display = val === 'Y' ? 'inline-flex' : 'none';
+
+  if (hintEl) {
+    hintEl.textContent = val === 'Y'
+      ? 'Leave Encashment = Basic ÷ 26 × Leaves ÷ 12 (added to Final CTC)'
+      : 'Leave Encashment disabled — Rs.0 will be added to Final CTC';
+    hintEl.style.color = val === 'Y' ? 'var(--text-muted)' : 'var(--danger)';
+  }
+
   liveCalc();
 }
 
@@ -1994,9 +2080,12 @@ function renderBreakdown(r) {
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
 
   const userLeavesDisplay = r.leavesPerYear || 15;
-  const leaveLabel = r.leaveMode === 'manual'
-    ? 'Leave Component <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">' + userLeavesDisplay + ' LEAVES</span>'
-    : 'Leave Component <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;">' + userLeavesDisplay + ' LEAVES (Auto)</span>';
+  const leaveApplStatus = (typeof leaveApplicable !== 'undefined' && leaveApplicable === 'N');
+  const leaveLabel = leaveApplStatus
+    ? 'Leave Component <span style="font-size:9px;color:var(--danger);font-weight:600;background:rgba(252,129,129,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">DISABLED</span>'
+    : (r.leaveMode === 'manual'
+        ? 'Leave Component <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">' + userLeavesDisplay + ' LEAVES</span>'
+        : 'Leave Component <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;">' + userLeavesDisplay + ' LEAVES (Auto)</span>');
 
   const lwfLabel = r.lwfMode === 'manual'
     ? 'LWF – Employee <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>'
@@ -2075,7 +2164,7 @@ function renderExportPreview(r) {
     ['Initial CTC', r.initialCTC, true, false],
     ['ESI – Employer (3.25%)', r.esiEmployer, true, false],
     ['Health Insurance (Monthly)', r.healthInsurance, false, false],
-    ['Leave Encashment (' + r.leavesPerYear + ' leaves/yr)', r.leaveComponent, true, false],
+    ['Leave Encashment' + (leaveApplicable === 'N' ? ' (Disabled)' : ' (' + r.leavesPerYear + ' leaves/yr)'), r.leaveComponent, leaveApplicable !== 'N', false],
     ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf, false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
     ['EMPLOYEE DEDUCTIONS', null, false, true],
@@ -2180,6 +2269,8 @@ function resetAll() {
   const ptMonthEl  = document.getElementById('ptMonth');     if (ptMonthEl)  ptMonthEl.value = new Date().getMonth() + 1;
 
   leaveMode = 'auto'; setLeaveMode('auto');
+  leaveApplicable = 'Y';
+  setLeaveApplicable('Y');
   const leaveCountInput = document.getElementById('leaveCountInput'); if (leaveCountInput) leaveCountInput.value = '15';
   leaveCountManual = 15;
 
