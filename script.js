@@ -709,32 +709,35 @@ function updatePFHint() {
 
   const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
-  const basicPct = pfApplicable === 'Y' ? 0.55 : 0.53;
-  const basicFromGross = Math.round(gross * basicPct);
-  const basic = Math.min(Math.max(basicFromGross, minWage), gross);
+
+  // Basic ab 50% of InitialCTC se aata hai — estimate for hint only
+  const basicEstimate = Math.max(Math.round(gross * 0.50), minWage);
+  const basic = Math.min(basicEstimate, gross);
   const isPFMandatory = basic <= 15000;
 
   const mandatoryBadge = isPFMandatory ? ' 🔒 MANDATORY' : '';
 
   if (pfApplicable === 'N') {
-    hint.textContent = '53% of Gross or Min Wage -> Basic. No PF deducted.' + mandatoryBadge;
+    hint.textContent = '50% of Initial CTC → Basic (min: MinWage). No PF deducted.' + mandatoryBadge;
     return;
   }
+
   const vpct    = parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0;
   const sAmt    = parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0;
   const addText = pfAddVoluntary ? ' + Voluntary ' + vpct + '% (Employee Only)' : '';
   const empRateText = pfEmployerRate === '12'
     ? 'Employer: 12% of PF Wages | EDLI: Rs.0'
     : 'Employer: 12.5% of PF Wages | EDLI: 0.5% of Basic (max Rs.75)';
+
   switch (pfBaseMode) {
     case 'standard':
-      hint.textContent = basicPct*100 + '% of Gross/MinWage -> Basic. PF Wages = min(Basic, Rs.15,000). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
+      hint.textContent = '50% of Initial CTC → Basic (min: MinWage). PF Wages = min(Basic, Rs.15,000). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
       break;
     case 'full_basic':
-      hint.textContent = basicPct*100 + '% of Gross/MinWage -> Basic. PF Wages = Full Basic. Employee: 12% + Vol% of Basic. ' + empRateText + '.' + addText + mandatoryBadge;
+      hint.textContent = '50% of Initial CTC → Basic (min: MinWage). PF Wages = Full Basic. Employee: 12% + Vol% of Basic. ' + empRateText + '.' + addText + mandatoryBadge;
       break;
     case 'specific_amt':
-      hint.textContent = basicPct*100 + '% of Gross/MinWage -> Basic. PF Wages = Rs.' + sAmt.toLocaleString('en-IN') + ' (fixed). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
+      hint.textContent = '50% of Initial CTC → Basic (min: MinWage). PF Wages = Rs.' + sAmt.toLocaleString('en-IN') + ' (fixed). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
       break;
   }
 }
@@ -1542,21 +1545,126 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
         ? (parseInt(document.getElementById('leaveCountInput')?.value) || 15)
         : 15);
 
-  const basicPct       = pf === 'Y' ? 0.55 : 0.53;
-  const basicFromGross = Math.round(gross * basicPct);
+  const resolvedBase    = pfBaseModeOverride  ?? (typeof pfBaseMode !== 'undefined' ? pfBaseMode : 'standard');
+  const resolvedHasVol  = pfVoluntaryOverride ?? (typeof pfAddVoluntary !== 'undefined' ? pfAddVoluntary : false);
+  const resolvedVolPct  = pfVolPctOverride    ?? (parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0);
+  const resolvedSpecAmt = pfSpecAmtOverride   ?? (parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0);
+  const resolvedEmpRate = pfEmpRateOverride   ?? (typeof pfEmployerRate !== 'undefined' ? pfEmployerRate : '12.5');
 
-  let basic = basicFromGross;
-  if (previousBasic !== null && previousBasic > 0) {
-    basic = Math.max(basic, previousBasic);
+  // ============================================================
+  // ITERATIVE SOLVE: Basic = 50% of InitialCTC
+  // InitialCTC = Gross + EPF_Emp + EDLI + Bonus + ESI_Emp
+  // ESI_Emp depends on Basic, EPF depends on Basic, Bonus depends on Basic
+  // So we iterate until Basic converges
+  // ============================================================
+
+  let basic = minWage; // starting estimate
+
+  for (let iter = 0; iter < 30; iter++) {
+
+    // PF mandatory check
+    let pfCurrent = pf;
+    if (basic <= 15000 && pfCurrent !== 'Y') pfCurrent = 'Y';
+
+    // PF Wages
+    let pfWages = 0;
+    if (pfCurrent === 'Y') {
+      switch (resolvedBase) {
+        case 'standard':     pfWages = Math.min(basic, 15000); break;
+        case 'full_basic':   pfWages = basic; break;
+        case 'specific_amt': pfWages = Math.max(0, resolvedSpecAmt); break;
+        default:             pfWages = Math.min(basic, 15000);
+      }
+    }
+
+    // EPF Employer
+    let epfEmployer = 0;
+    if (pfCurrent === 'Y') {
+      epfEmployer = Math.round(pfWages * parseFloat(resolvedEmpRate) / 100);
+    }
+
+    // EDLI
+    const edliEmployer = (pfCurrent === 'Y' && resolvedEmpRate === '12') ? 0
+      : (pfCurrent === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0);
+
+    // Bonus
+    const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride);
+
+    // ESI Employer (3.25% of Basic if Basic <= 21000)
+    const esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
+
+    // Initial CTC = Gross + EPF Emp + EDLI + Bonus + ESI Emp
+    const initialCTC = gross + epfEmployer + edliEmployer + bonus + esiEmployer;
+
+    // New Basic = 50% of Initial CTC
+    let newBasic = Math.round(initialCTC * 0.50);
+
+    // Apply constraints: MAX(newBasic, minWage, previousBasic) but MIN(gross)
+    if (previousBasic !== null && previousBasic > 0) {
+      newBasic = Math.max(newBasic, previousBasic);
+    }
+    newBasic = Math.max(newBasic, minWage);
+    newBasic = Math.min(newBasic, gross);
+
+    // Convergence check
+    if (Math.abs(newBasic - basic) <= 1) {
+      basic = newBasic;
+      break;
+    }
+    basic = newBasic;
   }
-  basic = Math.max(basic, minWage);
-  basic = Math.min(basic, gross);
 
-  if (basic <= 15000 && pf !== 'Y') pf = 'Y';
+  // ============================================================
+  // FINAL CALCULATION with converged basic
+  // ============================================================
 
+  let pfFinal = pf;
+  if (basic <= 15000 && pfFinal !== 'Y') pfFinal = 'Y';
+
+  // PF Wages final
+  let pfWages = 0;
+  if (pfFinal === 'Y') {
+    switch (resolvedBase) {
+      case 'standard':     pfWages = Math.min(basic, 15000); break;
+      case 'full_basic':   pfWages = basic; break;
+      case 'specific_amt': pfWages = Math.max(0, resolvedSpecAmt); break;
+      default:             pfWages = Math.min(basic, 15000);
+    }
+  }
+
+  // EPF Employee
+  let epfEmployee = 0;
+  if (pfFinal === 'Y') {
+    const basePF         = Math.round(pfWages * 0.12);
+    const voluntaryExtra = resolvedHasVol ? Math.round(pfWages * resolvedVolPct / 100) : 0;
+    epfEmployee          = basePF + voluntaryExtra;
+  }
+
+  // EPF Employer
+  let epfEmployer = 0;
+  if (pfFinal === 'Y') {
+    epfEmployer = Math.round(pfWages * parseFloat(resolvedEmpRate) / 100);
+  }
+
+  // EDLI
+  const edliEmployer = (pfFinal === 'Y' && resolvedEmpRate === '12') ? 0
+    : (pfFinal === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0);
+
+  // Bonus
+  const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride);
+
+  // ESI
+  const esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
+  const esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
+
+  // Initial CTC (now includes ESI Employer)
+  const initialCTC = gross + epfEmployer + edliEmployer + bonus + esiEmployer;
+
+  // HRA = 50% of Basic
   let hra = Math.round(basic * 0.5);
   if (basic + hra > gross) hra = Math.max(gross - basic, 0);
 
+  // Conveyance / Defray
   let deferAllowance = 0;
   let conv           = 0;
   if (gross > 100000) {
@@ -1572,55 +1680,16 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     conv = Math.max(gross - basic - hra, 0);
   }
 
-  const resolvedBase    = pfBaseModeOverride  ?? (typeof pfBaseMode !== 'undefined' ? pfBaseMode : 'standard');
-  const resolvedHasVol  = pfVoluntaryOverride ?? (typeof pfAddVoluntary !== 'undefined' ? pfAddVoluntary : false);
-  const resolvedVolPct  = pfVolPctOverride    ?? (parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0);
-  const resolvedSpecAmt = pfSpecAmtOverride   ?? (parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0);
-  const resolvedEmpRate = pfEmpRateOverride   ?? (typeof pfEmployerRate !== 'undefined' ? pfEmployerRate : '12');
-
-  let pfWages = 0;
-  if (pf === 'Y') {
-    switch (resolvedBase) {
-      case 'standard':     pfWages = Math.min(basic, 15000); break;
-      case 'full_basic':   pfWages = basic; break;
-      case 'specific_amt': pfWages = Math.max(0, resolvedSpecAmt); break;
-      default:             pfWages = Math.min(basic, 15000);
-    }
-  }
-
-  let epfEmployee = 0;
-  if (pf === 'Y') {
-    const basePF         = Math.round(pfWages * 0.12);
-    const voluntaryExtra = resolvedHasVol ? Math.round(pfWages * resolvedVolPct / 100) : 0;
-    epfEmployee          = basePF + voluntaryExtra;
-  }
-
-  let epfEmployer = 0;
-  if (pf === 'Y') {
-    const rate  = parseFloat(resolvedEmpRate) / 100;
-    epfEmployer = Math.round(pfWages * rate);
-  }
-
-  const edliEmployer = (pf === 'Y' && resolvedEmpRate === '12') ? 0
-    : (pf === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0);
-
-  // ✅ BONUS — configurable base with overrides for bulk
-  const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride);
-
-  const initialCTC = gross + epfEmployer + edliEmployer + bonus;
-
-  const esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
-  const esiEmployee = basic <= 21000 ? Math.round(basic * 0.0075) : 0;
-
   const healthIns = Math.round(healthInsuranceAmt || 0);
 
+  // Leave Component
   const leaveAuto      = Math.round((basic / 26) * (effectiveLeaves / 12));
   const leaveRaw       = (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0)
     ? Math.round(leaveOverride) : leaveAuto;
-  // ✅ If leaveApplicable is 'N', force leaveComponent to 0
   const leaveAppl      = (typeof leaveApplicable !== 'undefined') ? leaveApplicable : 'Y';
   const leaveComponent = leaveAppl === 'N' ? 0 : leaveRaw;
 
+  // LWF Employer
   const lwfEmployerContrib = (function() {
     if (lwfMode === 'auto') {
       const stateEl = document.getElementById('lwfState');
@@ -1632,15 +1701,19 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     return lwf;
   })();
 
+  // Gratuity
   const gratuityComponent = (typeof gratuityApplicable !== 'undefined' && gratuityApplicable === 'Y')
-  ? Math.round(basic * 0.0481)
-  : 0;
+    ? Math.round(basic * 0.0481)
+    : 0;
 
-  const finalCTC = initialCTC + esiEmployer + healthIns + lwfEmployerContrib + leaveComponent + gratuityComponent;
+  // Final CTC
+  const finalCTC = initialCTC + healthIns + lwfEmployerContrib + leaveComponent + gratuityComponent;
+
+  // Cash in Hand
   const cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
 
   const pfModeLabel = (function() {
-    if (pf !== 'Y') return 'No PF';
+    if (pfFinal !== 'Y') return 'No PF';
     const volSuffix  = resolvedHasVol ? ' + Voluntary ' + resolvedVolPct + '% (Emp Only)' : '';
     const rateSuffix = resolvedEmpRate === '12' ? ' | Empl@12% | EDLI=0' : '';
     switch (resolvedBase) {
@@ -1658,7 +1731,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     isHighGross    : gross > 100000,
     minWage,
     previousBasic,
-    pfApplicable   : pf,
+    pfApplicable   : pfFinal,
     pfWages,
     pfEmployerRate : resolvedEmpRate,
     epfEmployer, edliEmployer, bonus, initialCTC,
@@ -1680,7 +1753,6 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     pfVolPct       : resolvedVolPct,
     pfSpecAmt      : resolvedSpecAmt,
     leaveMode      : (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0) ? 'manual' : 'auto',
-    // ✅ Bonus info in result
     bonusApplicable: bonusApplOverride !== undefined ? bonusApplOverride : bonusApplicable,
     bonusBase      : bonusBaseOverride  !== undefined ? bonusBaseOverride  : bonusBase,
   };
