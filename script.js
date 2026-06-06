@@ -2192,6 +2192,7 @@ function renderExportPreview(r) {
     ['ESI – Employer (3.25%)', r.esiEmployer, true, false],
     ['Health Insurance (Monthly)', r.healthInsurance, false, false],
     ['Leave Encashment' + (leaveApplicable === 'N' ? ' (Disabled)' : ' (' + r.leavesPerYear + ' leaves/yr)'), r.leaveComponent, leaveApplicable !== 'N', false],
+    ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - Disabled' : ''), r.gratuityComponent || 0, gratuityApplicable === 'Y', false],
     ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf, false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
     ['EMPLOYEE DEDUCTIONS', null, false, true],
