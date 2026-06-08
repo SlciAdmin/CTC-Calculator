@@ -19,6 +19,13 @@
   
   <!-- jsPDF Library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    (function() {
+      var t = localStorage.getItem('ctcTheme');
+      if (!t) t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    })();
+  </script>
   
   <link rel="stylesheet" href="style.css">
 </head>
@@ -186,6 +193,14 @@
           <span class="topbar-tag">As per New Labour Codes — Gross Based</span>
         </div>
         <div class="topbar-actions">
+          <button
+    class="theme-toggle-btn"
+    onclick="toggleTheme()"
+    title="Switch to Light Mode"
+    aria-label="Toggle dark/light mode">
+    <span class="theme-icon">☀️</span>
+    <span class="theme-label">Light</span>
+  </button>
           <button class="btn-reset" onclick="resetAll()" aria-label="Reset all fields">↺ Reset</button>
           <button class="btn-calc" onclick="calculate()">Calculate →</button>
         </div>

@@ -3579,3 +3579,62 @@ function showBulkExportStatus(msg) {
   el.textContent = msg;
   setTimeout(function() { el.textContent = ''; }, 3000);
 }
+
+/* =====================================================
+   THEME TOGGLE — Add this JS to the END of script.js
+   (or inside the onReady callback)
+   ===================================================== */
+
+// ============== DARK / LIGHT MODE ==============
+(function() {
+  // 1. Read saved theme from localStorage (or system preference)
+  function getInitialTheme() {
+    const saved = localStorage.getItem('ctcTheme');
+    if (saved) return saved;
+    // Fallback to system preference
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+
+  // 2. Apply theme to <html> data attribute
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : '');
+    localStorage.setItem('ctcTheme', theme);
+
+    // Update all toggle buttons
+    document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+      var icon  = btn.querySelector('.theme-icon');
+      var label = btn.querySelector('.theme-label');
+      if (theme === 'light') {
+        if (icon)  icon.textContent  = '🌙';
+        if (label) label.textContent = 'Dark';
+        btn.title = 'Switch to Dark Mode';
+        btn.setAttribute('aria-label', 'Switch to Dark Mode');
+      } else {
+        if (icon)  icon.textContent  = '☀️';
+        if (label) label.textContent = 'Light';
+        btn.title = 'Switch to Light Mode';
+        btn.setAttribute('aria-label', 'Switch to Light Mode');
+      }
+    });
+  }
+
+  // 3. Toggle function (called by onclick)
+  window.toggleTheme = function() {
+    var current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    var next    = current === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    showToast((next === 'light' ? '☀️ Light Mode' : '🌙 Dark Mode') + ' enabled');
+  };
+
+  // 4. On page load — apply saved/system theme immediately
+  //    (Run before DOMContentLoaded to avoid flash)
+  var initialTheme = getInitialTheme();
+  if (initialTheme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+
+  // 5. After DOM ready — sync button state
+  document.addEventListener('DOMContentLoaded', function() {
+    applyTheme(getInitialTheme());
+  });
+})();
