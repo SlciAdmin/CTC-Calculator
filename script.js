@@ -2238,22 +2238,20 @@ function setTextContent(elementId, html) { const el = document.getElementById(el
 function renderExportPreview(r) {
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
-
-  // [label, monthly_value, show_annual, is_section_header]
-  // show_annual: true = show ×12, 'custom' = use custom annual value, false = dash
+ 
   const rows = [
     ['SALARY STRUCTURE', null, false, true],
     ['Basic', r.basic, true, false],
     ['HRA (50% of Basic)', r.hra, true, false],
   ];
-
+ 
   if (r.isHighGross) {
     rows.push(['Defray Expenses (10%)', r.deferAllowance, true, false]);
     rows.push([r.convLabel + ' (Residual)', r.conv, true, false]);
   } else {
     rows.push([r.convLabel, r.conv, true, false]);
   }
-
+ 
   rows.push(
     ['Gross Salary', r.gross, true, false],
     ['EMPLOYER CONTRIBUTIONS', null, false, true],
@@ -2273,65 +2271,51 @@ function renderExportPreview(r) {
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
     ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf, false, false],
     ['FINAL TOTALS', null, false, true],
-    ['Final CTC (Monthly)', r.finalCTC, false, false],
-    ['Final CTC (Annual)', null, false, false, fmt(r.finalCTCAnnual)],
+    // FIX: Single row for Final CTC with Annual shown in Annual column
+    ['Final CTC ', r.finalCTC, true, false],
     ['Cash in Hand (Monthly)', r.cashInHand, true, false],
   );
-
+ 
   let html = '<table class="preview-table">';
-  // Header row
   html += '<tr class="section-head"><td colspan="3" style="text-align:left;padding-bottom:4px;">CTC BREAKDOWN — MONTHLY &amp; ANNUAL</td></tr>';
   html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1)">'
         + '<td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);padding-bottom:6px;">Component</td>'
         + '<td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);padding-bottom:6px;text-align:right;">Monthly</td>'
         + '<td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);padding-bottom:6px;text-align:right;">Annual (×12)</td>'
         + '</tr>';
-
+ 
   rows.forEach(function(item) {
     const label      = item[0];
     const monthly    = item[1];
     const showAnnual = item[2];
     const isHeader   = item[3];
-    const customVal  = item[4]; // optional custom value for annual cell
-
+ 
     if (isHeader) {
       html += '<tr class="section-head"><td colspan="3">' + label + '</td></tr>';
       return;
     }
-
-    // Monthly cell
-    let monthlyCell = '';
-    if (customVal !== undefined) {
-      monthlyCell = '—';
-    } else if (monthly !== null && monthly !== undefined) {
-      monthlyCell = fmt(monthly);
-    } else {
-      monthlyCell = '—';
-    }
-
-    // Annual cell
+ 
+    let monthlyCell = (monthly !== null && monthly !== undefined) ? fmt(monthly) : '—';
+ 
     let annualCell = '';
-    if (customVal !== undefined) {
-      annualCell = '<span style="color:var(--accent2);font-weight:700;">' + customVal + '</span>';
-    } else if (showAnnual && monthly !== null && monthly !== undefined && monthly > 0) {
+    if (showAnnual && monthly !== null && monthly !== undefined && monthly > 0) {
       annualCell = '<span style="color:var(--accent3);">' + fmt(monthly * 12) + '</span>';
-    } else if (monthly !== null && monthly !== undefined && !showAnnual && monthly > 0) {
+    } else if (!showAnnual && monthly !== null && monthly !== undefined && monthly > 0) {
       annualCell = '<span style="color:var(--text-muted);font-size:11px;">state-based</span>';
     } else {
       annualCell = '<span style="color:var(--text-muted);">—</span>';
     }
-
-    // Highlight final CTC rows
+ 
     const isHighlight = label.includes('Final CTC') || label.includes('Cash in Hand') || label === 'Gross Salary' || label === 'Initial CTC';
     const rowStyle = isHighlight ? ' style="background:rgba(99,179,237,0.04);"' : '';
-
+ 
     html += '<tr' + rowStyle + '>'
           + '<td>' + label + '</td>'
           + '<td style="text-align:right;">' + monthlyCell + '</td>'
           + '<td style="text-align:right;">' + annualCell + '</td>'
           + '</tr>';
   });
-
+ 
   html += '</table>';
   setTextContent('exportPreview', html);
 }
@@ -2423,15 +2407,20 @@ function exportPDF() {
   const now     = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
-
+ 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   const PW = 210, PH = 297, M = 12, CW = PW - (M * 2), HH = 25, FH = 15;
   let Y = HH + 10;
-  function fmtP(n) { return 'Rs. ' + Math.round(n).toLocaleString('en-IN'); }
+ 
+  function fmtP(n) { return 'Rs.' + Math.round(n).toLocaleString('en-IN'); }
+  function fmtA(n) { return 'Rs.' + Math.round(n * 12).toLocaleString('en-IN'); }
+ 
   function needPage(need) {
-    if (Y + need > PH - FH - 10) { doc.addPage(); Y = 18; addMiniHeader(); return true; } return false;
+    if (Y + need > PH - FH - 10) { doc.addPage(); Y = 18; addMiniHeader(); return true; }
+    return false;
   }
+ 
   function addMainHeader() {
     doc.setFillColor(28, 58, 108); doc.rect(0, 0, PW, HH, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
@@ -2440,123 +2429,230 @@ function exportPDF() {
     doc.text('New Labour Code Compliance - Gross Based', PW/2, 18, {align:'center'});
     doc.text('SLCI Solutions', PW/2, 23, {align:'center'});
   }
+ 
   function addMiniHeader() {
     doc.setFillColor(28, 58, 108); doc.rect(0, 0, PW, 10, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
-    doc.text('CTC Report - ' + empName.substring(0,20), PW/2, 6.5, {align:'center'}); Y = 15;
+    doc.text('CTC Report - ' + empName.substring(0,20), PW/2, 6.5, {align:'center'});
+    Y = 15;
   }
+ 
   function addFooter(pn, tp) {
-    const fy = PH - 10; doc.setDrawColor(200, 200, 200); doc.line(M, fy, PW-M, fy);
+    const fy = PH - 10;
+    doc.setDrawColor(200, 200, 200); doc.line(M, fy, PW-M, fy);
     doc.setTextColor(120, 120, 120); doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
     doc.text('Generated: ' + now, M, fy + 4);
     doc.text('Page ' + pn + ' of ' + tp, PW-M, fy + 4, {align:'right'});
   }
+ 
   function addInfo() {
-    needPage(35); doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-    const info = [
-      ['Employee Name', empName], ['Report Date', now],
-      ['PF Status', r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable'],
-      ['Bonus', r.bonusApplicable === 'N' ? 'Disabled' : 'Applicable (' + bonusBaseLabel + ')'],
-      ['Minimum Wage', fmtP(r.minWage)],
-      ['LWF State', r.lwfStateName || 'Not Selected'],
-      ['PT State', r.ptStateName  || 'Not Selected'],
-      ['Health Insurance', fmtP(r.healthInsurance)]
+    needPage(45);
+    // Light info box background
+    doc.setFillColor(248, 250, 255);
+    doc.setDrawColor(200, 210, 230); doc.setLineWidth(0.3);
+    const infoBoxH = 38;
+    doc.rect(M, Y - 2, CW, infoBoxH, 'FD');
+ 
+    doc.setTextColor(35, 35, 35); doc.setFontSize(8);
+    const col1X = M + 3, col2X = M + CW/2 + 3;
+    const col1LabelW = 36, col2LabelW = 36;
+ 
+    // 2-column info layout — 6 rows × 2 columns = 12 items, line height 6mm
+    const infoLeft = [
+      ['Employee',    empName.length > 22 ? empName.substring(0,21)+'…' : empName],
+      ['Report Date', now],
+      ['Min Wage',    fmtP(r.minWage)],
+      ['Health Ins.', fmtP(r.healthInsurance)],
+      ['Leaves/Year', String(r.leavesPerYear || 15)],
+      ['Gratuity',    gratuityApplicable === 'Y' ? 'Applicable' : 'Not Applicable'],
     ];
-    info.forEach(function(it, i) {
-      doc.setFont('helvetica', 'bold'); doc.text(it[0] + ':', M, Y + (i * 5));
-      doc.setFont('helvetica', 'normal'); doc.text(it[1], M + 42, Y + (i * 5));
+    const infoRight = [
+      ['PF Status',   r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable'],
+      ['PF Mode',     r.pfApplicable === 'Y' ? (r.pfModeLabel || '').substring(0,28) : 'N/A'],
+      ['Employer Rate', r.pfApplicable === 'Y' ? r.pfEmployerRate + '%' : 'N/A'],
+      ['Bonus',       r.bonusApplicable === 'N' ? 'Disabled' : '8.33% of ' + bonusBaseLabel],
+      ['LWF State',   r.lwfStateName || 'Not Selected'],
+      ['PT State',    r.ptStateName  || 'Not Selected'],
+    ];
+ 
+    infoLeft.forEach(function(it, i) {
+      const rowY = Y + (i * 6);
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 100, 140);
+      doc.text(it[0] + ':', col1X, rowY);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(35, 35, 35);
+      doc.text(String(it[1]), col1X + col1LabelW, rowY);
     });
-    Y += (info.length * 5) + 12;
+    infoRight.forEach(function(it, i) {
+      const rowY = Y + (i * 6);
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 100, 140);
+      doc.text(it[0] + ':', col2X, rowY);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(35, 35, 35);
+      doc.text(String(it[1]), col2X + col2LabelW, rowY);
+    });
+ 
+    Y += infoBoxH + 6;
   }
+ 
   function addTitle(txt) {
     needPage(20);
     doc.setFillColor(240, 240, 240); doc.rect(M, Y-2, CW, 8, 'F');
     doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.3);
     doc.line(M, Y-2, M+CW, Y-2); doc.line(M, Y+6, M+CW, Y+6);
     doc.setTextColor(28, 58, 108); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-    doc.text(txt, M+5, Y+3); Y += 16;
+    doc.text(txt, M+5, Y+3);
+    Y += 16;
   }
-  function addBorderedTable(headers, rows, highlightLast) {
-    const col1W = CW * 0.62, col2W = CW - col1W, RH = 7;
-    needPage((rows.length + 1) * RH + 15); doc.setFontSize(8);
-    doc.setFillColor(28, 58, 108); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
-    doc.rect(M, Y, col1W, RH, 'F'); doc.rect(M+col1W, Y, col2W, RH, 'F');
-    doc.text(headers[0], M+3, Y+4.5); doc.text(headers[1], M+col1W+3, Y+4.5, {align:'right'});
-    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y, CW, RH, 'S'); Y += RH;
-    doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal');
-    rows.forEach(function(row, ri) {
-      needPage(RH + 5);
-      if (ri % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(M, Y, CW, RH, 'F'); }
-      if (highlightLast && ri === rows.length-1) { doc.setTextColor(0, 95, 60); doc.setFont('helvetica', 'bold'); }
-      doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.2);
-      doc.rect(M, Y, col1W, RH, 'S'); doc.rect(M+col1W, Y, col2W, RH, 'S');
-      let label = String(row[0]); if (label.length > 38) label = label.substring(0, 35) + '...';
-      doc.text(label, M+3, Y+4.5); doc.text(String(row[1]), M+col1W+3, Y+4.5, {align:'right'});
-      doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal'); Y += RH;
-    });
-    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y-RH, CW, RH, 'S'); Y += 8;
-  }
-  function addBorderedTable3(headers, rows) {
-    const W1 = CW * 0.42, W2 = CW * 0.29, W3 = CW - W1 - W2, RH = 7;
-    needPage((rows.length + 1) * RH + 15); doc.setFontSize(8);
+ 
+  // 3-column table: Component | Monthly | Annual
+  function addTable3Col(headers, rows) {
+    const W1 = CW * 0.50, W2 = CW * 0.25, W3 = CW - W1 - W2, RH = 7;
+    // FIX: Only check space for header row — each data row does its own needPage check
+    needPage(RH + 8);
+    doc.setFontSize(8);
+ 
+    // Header row
     doc.setFillColor(28, 58, 108); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
     doc.rect(M, Y, W1, RH, 'F'); doc.rect(M+W1, Y, W2, RH, 'F'); doc.rect(M+W1+W2, Y, W3, RH, 'F');
-    doc.text(headers[0], M+3, Y+4.5); doc.text(headers[1], M+W1+3, Y+4.5, {align:'right'}); doc.text(headers[2], M+W1+W2+3, Y+4.5, {align:'right'});
-    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y, CW, RH, 'S'); Y += RH;
+    doc.text(headers[0], M+3, Y+4.5);
+    doc.text(headers[1], M+W1+W2-2, Y+4.5, {align:'right'});
+    doc.text(headers[2], M+W1+W2+W3-2, Y+4.5, {align:'right'});
+    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4);
+    doc.rect(M, Y, CW, RH, 'S');
+    Y += RH;
+ 
     doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal');
+    // Track alternating row index only for non-section-header rows
+    let dataRowIndex = 0;
+ 
     rows.forEach(function(row, ri) {
+      const isSectionHeader = row[3] === true;
+      const isHighlight     = row[4] === true;
+ 
+      if (isSectionHeader) {
+        // Count how many rows follow until next section header (for keep-together)
+        let followRows = 0;
+        for (var k = ri + 1; k < rows.length && rows[k][3] !== true; k++) followRows++;
+        // Keep section header + at least 2 following rows together (avoid orphan)
+        const keepTogether = Math.min(followRows, 2);
+        needPage(RH * (1 + keepTogether) + 4);
+ 
+        doc.setFillColor(230, 237, 250); doc.rect(M, Y, CW, RH, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(28, 58, 108);
+        doc.text(String(row[0]), M+3, Y+4.5);
+        doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.2);
+        doc.rect(M, Y, CW, RH, 'S');
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(35, 35, 35);
+        Y += RH;
+        dataRowIndex = 0; // reset alternating for each section
+        return;
+      }
+ 
+      // Per-row page check
       needPage(RH + 5);
-      if (ri % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(M, Y, CW, RH, 'F'); }
+ 
+      // Always draw background — ensures visibility after page break
+      if (isHighlight) {
+        doc.setFillColor(220, 235, 255);
+      } else if (dataRowIndex % 2 === 0) {
+        doc.setFillColor(250, 250, 250);
+      } else {
+        doc.setFillColor(255, 255, 255);
+      }
+      doc.rect(M, Y, CW, RH, 'F');
+ 
+      if (isHighlight) { doc.setFont('helvetica', 'bold'); }
+ 
       doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.2);
       doc.rect(M, Y, W1, RH, 'S'); doc.rect(M+W1, Y, W2, RH, 'S'); doc.rect(M+W1+W2, Y, W3, RH, 'S');
-      let label = String(row[0]); if (label.length > 32) label = label.substring(0, 29) + '...';
-      doc.text(label, M+3, Y+4.5); doc.text(String(row[1]), M+W1+3, Y+4.5, {align:'right'}); doc.text(String(row[2]), M+W1+W2+3, Y+4.5, {align:'right'});
+ 
+      let label = String(row[0]); if (label.length > 42) label = label.substring(0, 39) + '...';
+      doc.setTextColor(35, 35, 35);
+      doc.text(label, M+3, Y+4.5);
+ 
+      // Monthly
+      const monthlyVal = row[1];
+      if (monthlyVal !== null && monthlyVal !== undefined && monthlyVal !== '—') {
+        doc.setTextColor(isHighlight ? 28 : 35, isHighlight ? 58 : 35, isHighlight ? 108 : 35);
+        doc.text(String(monthlyVal), M+W1+W2-2, Y+4.5, {align:'right'});
+      } else {
+        doc.setTextColor(180,180,180); doc.text('—', M+W1+W2-2, Y+4.5, {align:'right'});
+      }
+      doc.setTextColor(35,35,35);
+ 
+      // Annual
+      const annualVal = row[2];
+      if (annualVal && annualVal !== '—') {
+        doc.setTextColor(0, 120, 60);
+        doc.text(String(annualVal), M+W1+W2+W3-2, Y+4.5, {align:'right'});
+        doc.setTextColor(35, 35, 35);
+      } else {
+        doc.setTextColor(180,180,180); doc.text('—', M+W1+W2+W3-2, Y+4.5, {align:'right'}); doc.setTextColor(35,35,35);
+      }
+ 
+      if (isHighlight) { doc.setFont('helvetica', 'normal'); }
+      dataRowIndex++;
       Y += RH;
     });
-    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4); doc.rect(M, Y-RH, CW, RH, 'S'); Y += 8;
+    // Bottom border on last row
+    doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4);
+    doc.rect(M, Y - RH, CW, RH, 'S');
+    Y += 8;
   }
+ 
+  // Build all rows for the combined table
+  function na(val) { return val > 0 ? fmtP(val) : 'N/A'; }
+  function naAnn(val) { return val > 0 ? fmtA(val) : '—'; }
+ 
+  const allRows = [
+    // [label, monthly, annual, isSectionHeader, isHighlight]
+    ['SALARY STRUCTURE', null, null, true, false],
+    ['Basic Salary',          fmtP(r.basic),          fmtA(r.basic),          false, false],
+    ['HRA (50% of Basic)',    fmtP(r.hra),            fmtA(r.hra),            false, false],
+  ];
+ 
+  if (r.isHighGross) {
+    allRows.push(['Defray Expenses (10%)', fmtP(r.deferAllowance), fmtA(r.deferAllowance), false, false]);
+    allRows.push([(r.convLabel || 'Conveyance') + ' (Residual)', fmtP(r.conv), fmtA(r.conv), false, false]);
+  } else {
+    allRows.push([(r.convLabel || 'Conveyance'), fmtP(r.conv), fmtA(r.conv), false, false]);
+  }
+ 
+  allRows.push(
+    ['Gross Salary',              fmtP(r.gross),          fmtA(r.gross),          false, true],
+    ['EMPLOYER CONTRIBUTIONS',    null, null, true, false],
+    ['EPF – Employer (' + r.pfEmployerRate + '%)', r.pfApplicable === 'Y' ? fmtP(r.epfEmployer) : 'N/A', r.pfApplicable === 'Y' ? naAnn(r.epfEmployer) : '—', false, false],
+    ['EDLI – Employer' + (r.pfEmployerRate === '12' ? ' (N/A)' : ''), r.edliEmployer > 0 ? fmtP(r.edliEmployer) : 'Rs.0', r.edliEmployer > 0 ? fmtA(r.edliEmployer) : '—', false, false],
+    ['Bonus 8.33% of ' + bonusBaseLabel + (r.bonusApplicable === 'N' ? ' (Disabled)' : ''), r.bonus > 0 ? fmtP(r.bonus) : (r.bonusApplicable === 'N' ? 'Disabled' : 'N/A'), r.bonus > 0 ? naAnn(r.bonus) : '—', false, false],
+    ['ESI – Employer (3.25%)',    r.esiEmployer > 0 ? fmtP(r.esiEmployer) : 'N/A', r.esiEmployer > 0 ? naAnn(r.esiEmployer) : '—', false, false],
+    ['Initial CTC',               fmtP(r.initialCTC),     fmtA(r.initialCTC),     false, true],
+    ['Health Insurance (Monthly)',fmtP(r.healthInsurance), '—', false, false],
+    ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' DISABLED' : ''), r.leaveComponent > 0 ? fmtP(r.leaveComponent) : 'Rs.0', r.leaveComponent > 0 && leaveApplicable !== 'N' ? naAnn(r.leaveComponent) : '—', false, false],
+    ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' DISABLED' : ''), r.gratuityComponent > 0 ? fmtP(r.gratuityComponent) : 'Rs.0', r.gratuityComponent > 0 ? naAnn(r.gratuityComponent) : '—', false, false],
+    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf > 0 ? fmtP(r.lwf) : 'Rs.0', '—', false, false],
+    ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs.0', '—', false, false],
+    ['EMPLOYEE DEDUCTIONS',       null, null, true, false],
+    ['EPF – Employee (12%)',       r.pfApplicable === 'Y' ? fmtP(r.epfEmployee) : 'N/A', r.pfApplicable === 'Y' ? naAnn(r.epfEmployee) : '—', false, false],
+    ['ESI – Employee (0.75%)',     r.esiEmployee > 0 ? fmtP(r.esiEmployee) : 'N/A', r.esiEmployee > 0 ? naAnn(r.esiEmployee) : '—', false, false],
+    ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs.0', '—', false, false],
+    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf > 0 ? fmtP(r.lwf) : 'Rs.0', '—', false, false],
+    ['FINAL SUMMARY',             null, null, true, false],
+    ['Final CTC',                 fmtP(r.finalCTC),       fmtP(r.finalCTCAnnual), false, true],
+    ['Net Cash in Hand',          fmtP(r.cashInHand),     fmtA(r.cashInHand),     false, true],
+  );
+ 
   addMainHeader();
   addInfo();
-  addTitle('SALARY STRUCTURE (Monthly)');
-  let salRows = [['Basic Salary', fmtP(r.basic)], ['HRA', fmtP(r.hra)]];
-  if (r.isHighGross) { salRows.push(['Defray Expenses (10%)', fmtP(r.deferAllowance)]); salRows.push([r.convLabel || 'Conveyance', fmtP(r.conv)]); }
-  else { salRows.push([r.convLabel || 'Conveyance', fmtP(r.conv)]); }
-  salRows.push(['-------------------------', '--------------']);
-  salRows.push(['GROSS SALARY', fmtP(r.gross)]);
-  addBorderedTable(['Component', 'Amount'], salRows);
-  addTitle('EMPLOYER CONTRIBUTIONS');
-  const empRows = [
-    ['EPF - Employer', r.pfApplicable === 'Y' ? fmtP(r.epfEmployer) : 'N/A'],
-    ['EDLI - Employer', r.edliEmployer > 0 ? fmtP(r.edliEmployer) : 'Rs. 0'],
-    ['Bonus (8.33% of ' + bonusBaseLabel + ')', r.bonus > 0 ? fmtP(r.bonus) : (r.bonusApplicable === 'N' ? 'Disabled' : 'N/A')],
-    ['-------------------------', '--------------'],
-    ['Initial CTC', fmtP(r.initialCTC)],
-    ['ESI - Employer', r.esiEmployer > 0 ? fmtP(r.esiEmployer) : 'N/A'],
-    ['Health Insurance (Monthly)', fmtP(r.healthInsurance)],
-    ['Leave Encashment (' + r.leavesPerYear + ' leaves)', fmtP(r.leaveComponent)],
-    ['LWF', r.lwf > 0 ? fmtP(r.lwf) : 'Rs. 0']
-  ];
-  addBorderedTable(['Component', 'Amount'], empRows);
-  addTitle('EMPLOYEE DEDUCTIONS');
-  const dedRows = [
-    ['EPF - Employee', r.pfApplicable === 'Y' ? fmtP(r.epfEmployee) : 'N/A'],
-    ['ESI - Employee', r.esiEmployee > 0 ? fmtP(r.esiEmployee) : 'N/A'],
-    ['Professional Tax', r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs. 0'],
-    ['LWF', r.lwf > 0 ? fmtP(r.lwf) : 'Rs. 0']
-  ];
-  addBorderedTable(['Deduction', 'Amount'], dedRows);
-  addTitle('FINAL SUMMARY');
-  const finalRows = [
-    ['Final CTC', fmtP(r.finalCTC), fmtP(r.finalCTCAnnual)],
-    ['Net Cash in Hand', fmtP(r.cashInHand), fmtP(r.cashInHand * 12)]
-  ];
-  addBorderedTable3(['Particulars', 'Monthly', 'Annual'], finalRows);
+  addTitle('COMPLETE CTC BREAKDOWN — MONTHLY & ANNUAL');
+  addTable3Col(['Component', 'Monthly', 'Annual (×12)'], allRows);
+ 
   const tp = doc.internal.getNumberOfPages();
   for (let p = 1; p <= tp; p++) { doc.setPage(p); addFooter(p, tp); }
+ 
   const safe = empName.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 22);
   doc.save('CTC_Report_' + safe + '_' + new Date().toISOString().slice(0,10) + '.pdf');
   showToast('PDF downloaded successfully');
 }
+
 
 function exportCSV() {
   if (!calcResult) { showToast('⚠️ Please calculate first'); return; }
@@ -2565,39 +2661,61 @@ function exportCSV() {
   const now     = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
+ 
   function cell(v) { return '"' + String(v !== null && v !== undefined ? v : '').replace(/"/g, '""') + '"'; }
   function amt(n)  { return n > 0 ? Math.round(n) : 0; }
+  function amtAnn(n) { return n > 0 ? Math.round(n * 12) : 0; }
+  function naStr(n, label) { return n > 0 ? Math.round(n) : (label || 'N/A'); }
+ 
   const rows = [
-    ['CTC SALARY REPORT', '', ''], ['Employee Name', empName, ''], ['Date', now, ''],
+    ['CTC SALARY REPORT — MONTHLY & ANNUAL', '', ''],
+    ['Employee Name', empName, ''],
+    ['Date', now, ''],
     ['PF Status', r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable', ''],
     ['PF Mode', r.pfApplicable === 'Y' ? r.pfModeLabel : 'N/A', ''],
     ['Employer PF Rate', r.pfApplicable === 'Y' ? r.pfEmployerRate + '%' : 'N/A', ''],
     ['Bonus', r.bonusApplicable === 'N' ? 'Disabled' : 'Applicable (' + bonusBaseLabel + ')', ''],
-    ['State Minimum Wage', amt(r.minWage), ''], ['LWF State', r.lwfStateName||'N/A', ''],
-    ['Professional Tax State', r.ptStateName||'N/A', ''], ['', '', ''],
-    ['SALARY STRUCTURE', '', 'Monthly Amount (Rs.)'],
-    ['Basic Salary', '', amt(r.basic)], ['HRA', '', amt(r.hra)],
-    ...(r.isHighGross ? [['Defray Expenses (10%)', '', amt(r.deferAllowance)], ['Conveyance', '', amt(r.conv)]] : [['Conveyance', '', amt(r.conv)]]),
-    ['Gross Salary', '', amt(r.gross)], ['', '', ''],
-    ['EMPLOYER CONTRIBUTIONS', '', 'Monthly Amount (Rs.)'],
-    ['EPF – Employer (' + r.pfEmployerRate + '%)', '', r.pfApplicable === 'Y' ? amt(r.epfEmployer) : 'N/A'],
-    ['EDLI – Employer', '', r.edliEmployer > 0 ? amt(r.edliEmployer) : 'N/A'],
-    ['Bonus 8.33% of ' + bonusBaseLabel, '', r.bonus > 0 ? amt(r.bonus) : (r.bonusApplicable === 'N' ? 'Disabled' : 'N/A')],
-    ['Initial CTC', '', amt(r.initialCTC)],
-    ['ESI – Employer (3.25%)', '', r.esiEmployer > 0 ? amt(r.esiEmployer) : 'N/A'],
-    ['Health Insurance (Monthly)', '', amt(r.healthInsurance)],
-    ['Leave Encashment (' + r.leavesPerYear + ' leaves/yr)', '', amt(r.leaveComponent)],
-    ['LWF', '', r.lwf > 0 ? amt(r.lwf) : 'N/A'], ['', '', ''],
-    ['EMPLOYEE DEDUCTIONS', '', 'Monthly Amount (Rs.)'],
-    ['EPF – Employee', '', r.pfApplicable === 'Y' ? amt(r.epfEmployee) : 'N/A'],
-    ['ESI – Employee (0.75%)', '', r.esiEmployee > 0 ? amt(r.esiEmployee) : 'N/A'],
-    ['Professional Tax – ' + (r.ptStateName||'N/A'), '', r.ptDeduction > 0 ? amt(r.ptDeduction) : 'N/A'],
-    ['LWF – ' + (r.lwfStateName||'N/A'), '', r.lwf > 0 ? amt(r.lwf) : 'N/A'], ['', '', ''],
-    ['FINAL SUMMARY', '', 'Amount (Rs.)'],
-    ['Final CTC (Monthly)', '', amt(r.finalCTC)],
-    ['Final CTC (Annual)', '', amt(r.finalCTCAnnual)],
-    ['Net Cash in Hand (Monthly)', '', amt(r.cashInHand)],
+    ['Gratuity', gratuityApplicable === 'Y' ? 'Applicable (4.81% of Basic)' : 'Disabled', ''],
+    ['State Minimum Wage', amt(r.minWage), ''],
+    ['LWF State', r.lwfStateName || 'N/A', ''],
+    ['Professional Tax State', r.ptStateName || 'N/A', ''],
+    ['Leaves per Year', r.leavesPerYear || 15, ''],
+    ['', '', ''],
+    ['COMPONENT', 'MONTHLY (Rs.)', 'ANNUAL (Rs.)'],
+    ['--- SALARY STRUCTURE ---', '', ''],
+    ['Basic Salary', amt(r.basic), amtAnn(r.basic)],
+    ['HRA (50% of Basic)', amt(r.hra), amtAnn(r.hra)],
+    ...(r.isHighGross
+      ? [
+          ['Defray Expenses (10%)', amt(r.deferAllowance), amtAnn(r.deferAllowance)],
+          [(r.convLabel || 'Conveyance') + ' (Residual)', amt(r.conv), amtAnn(r.conv)],
+        ]
+      : [[(r.convLabel || 'Conveyance'), amt(r.conv), amtAnn(r.conv)]]),
+    ['Gross Salary', amt(r.gross), amtAnn(r.gross)],
+    ['', '', ''],
+    ['--- EMPLOYER CONTRIBUTIONS ---', '', ''],
+    ['EPF – Employer (' + r.pfEmployerRate + '%)', r.pfApplicable === 'Y' ? amt(r.epfEmployer) : 'N/A', r.pfApplicable === 'Y' ? amtAnn(r.epfEmployer) : 'N/A'],
+    ['EDLI – Employer', r.edliEmployer > 0 ? amt(r.edliEmployer) : 0, r.edliEmployer > 0 ? amtAnn(r.edliEmployer) : 0],
+    ['Bonus (8.33% of ' + bonusBaseLabel + ')', r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? amt(r.bonus) : 'N/A'), r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? amtAnn(r.bonus) : 'N/A')],
+    ['ESI – Employer (3.25%)', r.esiEmployer > 0 ? amt(r.esiEmployer) : 0, r.esiEmployer > 0 ? amtAnn(r.esiEmployer) : 0],
+    ['Initial CTC', amt(r.initialCTC), amtAnn(r.initialCTC)],
+    ['Health Insurance (Monthly)', amt(r.healthInsurance), '—'],
+    ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' - DISABLED' : ''), amt(r.leaveComponent), leaveApplicable !== 'N' ? amtAnn(r.leaveComponent) : '—'],
+    ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - DISABLED' : ''), amt(r.gratuityComponent || 0), gratuityApplicable === 'Y' ? amtAnn(r.gratuityComponent || 0) : '—'],
+    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf > 0 ? amt(r.lwf) : 0, '—'],
+    ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? amt(r.ptDeduction) : 0, '—'],
+    ['', '', ''],
+    ['--- EMPLOYEE DEDUCTIONS ---', '', ''],
+    ['EPF – Employee (12%)', r.pfApplicable === 'Y' ? amt(r.epfEmployee) : 'N/A', r.pfApplicable === 'Y' ? amtAnn(r.epfEmployee) : 'N/A'],
+    ['ESI – Employee (0.75%)', r.esiEmployee > 0 ? amt(r.esiEmployee) : 0, r.esiEmployee > 0 ? amtAnn(r.esiEmployee) : 0],
+    ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? amt(r.ptDeduction) : 0, '—'],
+    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf > 0 ? amt(r.lwf) : 0, '—'],
+    ['', '', ''],
+    ['--- FINAL TOTALS ---', '', ''],
+    ['Final CTC', amt(r.finalCTC), amt(r.finalCTCAnnual)],
+    ['Net Cash in Hand', amt(r.cashInHand), amtAnn(r.cashInHand)],
   ];
+ 
   const csv = rows.map(function(row) { return row.map(function(c) { return cell(c); }).join(','); }).join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
