@@ -2508,9 +2508,8 @@ function exportPDF() {
   function addMainHeader() {
     doc.setFillColor(28, 58, 108); doc.rect(0, 0, PW, HH, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
-    doc.text('CTC SALARY REPORT', PW/2, 14, {align:'center'});
+    doc.text('CTC ANNEXURE', PW/2, 14, {align:'center'});
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-    doc.text('New Labour Code Compliance', PW/2, 21, {align:'center'});
   }
  
   function addMiniHeader() {
