@@ -50,6 +50,8 @@ let pfEmployerRate = '12.5';
 // ============== BONUS STATE ==============
 let bonusApplicable = 'Y';
 let bonusBase = 'minwage'; // 'minwage' | 'basic' | 'gross'
+let bonusPercentMode = 'default'; // 'default' | 'custom'
+let bonusCustomPercent = 8.33;
 
 // ============== INPUT MODE (Reverse Calc) ==============
 let inputMode = 'gross'; // 'gross' | 'finalCTC' | 'initialCTC' | 'cash'
@@ -533,6 +535,33 @@ function setBonusBase(base) {
   liveCalc();
 }
 
+// ✅ Bonus percentage mode: default 8.33% or custom
+function setBonusPercentMode(mode) {
+  bonusPercentMode = mode;
+  const defaultBtn = document.getElementById('bonusPercentDefault');
+  const customBtn  = document.getElementById('bonusPercentCustom');
+  const customWrap = document.getElementById('bonusCustomPercentWrapper');
+  if (defaultBtn) defaultBtn.classList.toggle('active', mode === 'default');
+  if (customBtn)  customBtn.classList.toggle('active', mode === 'custom');
+  if (customWrap) customWrap.classList.toggle('hidden', mode !== 'custom');
+  updateBonusPreview();
+  liveCalc();
+}
+
+function updateBonusCustomPercent() {
+  const input = document.getElementById('bonusCustomPercentInput');
+  let val = parseFloat(input?.value);
+  if (isNaN(val) || val < 0) val = 8.33;
+  if (val > 100) val = 100;
+  bonusCustomPercent = val;
+  updateBonusPreview();
+  liveCalc();
+}
+
+function getBonusPercent() {
+  return bonusPercentMode === 'custom' ? bonusCustomPercent : 8.33;
+}
+
 function updateBonusPreview(basic, minWage, gross) {
   const previewEl  = document.getElementById('bonusLivePreview');
   const baseNameEl = document.getElementById('bonusPreviewBase');
@@ -556,6 +585,7 @@ function updateBonusPreview(basic, minWage, gross) {
     minWage = minWageVal;
     gross   = grossVal;
   }
+  const bonusPct   = getBonusPercent();
   const isEligible = basic <= 21000;
   let baseAmt = 0, baseLabel = '';
   switch (bonusBase) {
@@ -564,7 +594,7 @@ function updateBonusPreview(basic, minWage, gross) {
     case 'gross':   baseAmt = gross   || 0; baseLabel = 'Gross Salary';  break;
     default:        baseAmt = minWage || 0; baseLabel = 'Minimum Wage';
   }
-  const bonusAmt = isEligible ? Math.round(baseAmt * 0.0833) : 0;
+  const bonusAmt = isEligible ? Math.round(baseAmt * (bonusPct / 100)) : 0;
   if (baseNameEl) baseNameEl.textContent = baseLabel;
   if (baseAmtEl)  baseAmtEl.textContent  = baseAmt > 0 ? 'Rs.' + Math.round(baseAmt).toLocaleString('en-IN') : '—';
   if (amountEl) {
@@ -579,18 +609,21 @@ function updateBonusPreview(basic, minWage, gross) {
   }
   if (hintEl) {
     hintEl.textContent = isEligible
-      ? 'Bonus = 8.33% × Rs.' + Math.round(baseAmt).toLocaleString('en-IN') + ' (' + baseLabel + ') = Rs.' + bonusAmt.toLocaleString('en-IN')
+      ? 'Bonus = ' + bonusPct + '% × Rs.' + Math.round(baseAmt).toLocaleString('en-IN') + ' (' + baseLabel + ') = Rs.' + bonusAmt.toLocaleString('en-IN')
       : 'No bonus: Basic (Rs.' + Math.round(basic).toLocaleString('en-IN') + ') > Rs.21,000 eligibility limit';
   }
+  const badgeEl = document.getElementById('bonusFormulaBadge');
+  if (badgeEl) badgeEl.textContent = bonusPct + '% | Eligible if Basic ≤ Rs.21,000';
 }
 
 /**
- * Core bonus computation — reads global bonusApplicable / bonusBase
+ * Core bonus computation — reads global bonusApplicable / bonusBase / percent
  * but can also accept overrides (used in bulk processing).
  */
-function computeBonusAmount(basic, minWage, gross, applOverride, baseOverride) {
-  const appl = (applOverride !== undefined) ? applOverride : bonusApplicable;
-  const base = (baseOverride  !== undefined) ? baseOverride  : bonusBase;
+function computeBonusAmount(basic, minWage, gross, applOverride, baseOverride, percentOverride) {
+  const appl    = (applOverride !== undefined) ? applOverride : bonusApplicable;
+  const base    = (baseOverride  !== undefined) ? baseOverride  : bonusBase;
+  const percent = (percentOverride !== undefined && percentOverride !== null && !isNaN(percentOverride)) ? percentOverride : getBonusPercent();
   if (appl !== 'Y') return 0;
   if (basic > 21000) return 0;
   let baseAmt = 0;
@@ -600,7 +633,7 @@ function computeBonusAmount(basic, minWage, gross, applOverride, baseOverride) {
     case 'minwage':
     default:        baseAmt = minWage || 0;
   }
-  return Math.round(baseAmt * 0.0833);
+  return Math.round(baseAmt * (percent / 100));
 }
 
 // ============== PF MODE FUNCTIONS ==============
@@ -831,7 +864,7 @@ function injectBonusModeUI() {
   <div id="bonusModeSection" class="bonus-mode-section">
     <label class="bonus-mode-main-label">
       Statutory Bonus
-      <span class="formula-badge">8.33% | Eligible if Basic ≤ Rs.21,000</span>
+      <span class="formula-badge" id="bonusFormulaBadge">8.33% | Eligible if Basic ≤ Rs.21,000</span>
     </label>
     <div class="bonus-toggle-row">
       <button class="bonus-yn-btn active" id="bonusYes"
@@ -848,20 +881,34 @@ function injectBonusModeUI() {
           onclick="setBonusBase('minwage')" type="button">
           <span class="pfm-icon">⚖️</span>
           <span class="pfm-title">Min Wage</span>
-          <span class="pfm-sub">8.33% of<br>Minimum Wage</span>
+          <span class="pfm-sub">% of<br>Minimum Wage</span>
         </button>
         <button class="bonus-base-btn" id="bonusBase_basic"
           onclick="setBonusBase('basic')" type="button">
           <span class="pfm-icon">🏛️</span>
           <span class="pfm-title">Basic</span>
-          <span class="pfm-sub">8.33% of<br>Basic Salary</span>
+          <span class="pfm-sub">% of<br>Basic Salary</span>
         </button>
         <button class="bonus-base-btn" id="bonusBase_gross"
           onclick="setBonusBase('gross')" type="button">
           <span class="pfm-icon">💰</span>
           <span class="pfm-title">Gross</span>
-          <span class="pfm-sub">8.33% of<br>Gross Salary</span>
+          <span class="pfm-sub">% of<br>Gross Salary</span>
         </button>
+      </div>
+      <div class="pf-group-label" style="margin-top:10px;">Bonus Percentage <span style="font-size:10px;color:var(--text-muted)">(select one)</span></div>
+      <div class="toggle-group" role="radiogroup" aria-label="Bonus Percent Mode">
+        <button class="toggle-btn active" id="bonusPercentDefault" onclick="setBonusPercentMode('default')" type="button" role="radio" aria-checked="true">Default (8.33%)</button>
+        <button class="toggle-btn" id="bonusPercentCustom" onclick="setBonusPercentMode('custom')" type="button" role="radio" aria-checked="false">Custom %</button>
+      </div>
+      <div id="bonusCustomPercentWrapper" class="hidden" style="margin-top:10px;">
+        <label class="pt-sub-label">Custom Bonus Percentage</label>
+        <div class="input-prefix">
+          <span>%</span>
+          <input type="number" id="bonusCustomPercentInput" placeholder="e.g. 10" min="0" max="100" step="0.01" value="8.33"
+                 oninput="updateBonusCustomPercent()" style="padding-left:36px;" />
+        </div>
+        <div class="field-hint">Enter your own bonus percentage (overrides default 8.33%)</div>
       </div>
       <div class="bonus-live-preview" id="bonusLivePreview" style="display:none;">
         <div class="bonus-preview-row">
@@ -873,7 +920,7 @@ function injectBonusModeUI() {
           <span class="bonus-prev-val" id="bonusPreviewBaseAmt" style="color:var(--text-dim)">—</span>
         </div>
         <div class="bonus-preview-row">
-          <span class="bonus-prev-label">Bonus (8.33%)</span>
+          <span class="bonus-prev-label">Bonus</span>
           <span class="bonus-prev-val" id="bonusPreviewAmount" style="color:var(--accent4)">—</span>
         </div>
         <div class="bonus-preview-row">
@@ -1510,6 +1557,8 @@ function initializeCalculator() {
   // ✅ Init bonus
   bonusApplicable = 'Y';
   bonusBase       = 'minwage';
+  bonusPercentMode = 'default';
+  bonusCustomPercent = 8.33;
   setBonusApplicable('Y');
   setBonusBase('minwage');
   updateBonusPreview();
@@ -1531,7 +1580,7 @@ function initializeCalculator() {
 function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverride,
                     pfBaseModeOverride, pfVoluntaryOverride, pfVolPctOverride,
                     pfSpecAmtOverride, pfEmpRateOverride, leavesPerYear, previousBasic,
-                    bonusApplOverride, bonusBaseOverride) {
+                    bonusApplOverride, bonusBaseOverride, bonusPercentOverride) {
 
   gross   = Math.round(gross);
   minWage = Math.round(minWage);
@@ -1550,6 +1599,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
   const resolvedVolPct  = pfVolPctOverride    ?? (parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0);
   const resolvedSpecAmt = pfSpecAmtOverride   ?? (parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0);
   const resolvedEmpRate = pfEmpRateOverride   ?? (typeof pfEmployerRate !== 'undefined' ? pfEmployerRate : '12.5');
+
+  // ✅ Resolved bonus percentage (default 8.33% or custom, or bulk override)
+  const resolvedBonusPercent = (bonusPercentOverride !== undefined && bonusPercentOverride !== null && !isNaN(bonusPercentOverride))
+    ? bonusPercentOverride
+    : (typeof getBonusPercent === 'function' ? getBonusPercent() : 8.33);
 
   // ============================================================
   // ITERATIVE SOLVE: Basic = 50% of InitialCTC
@@ -1588,7 +1642,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
       : (pfCurrent === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0);
 
     // Bonus
-    const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride);
+    const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride, resolvedBonusPercent);
 
     // ESI Employer (3.25% of Basic if Basic <= 21000)
     const esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
@@ -1651,7 +1705,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     : (pfFinal === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0);
 
   // Bonus
-  const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride);
+  const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride, resolvedBonusPercent);
 
   // ESI
   const esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
@@ -1755,6 +1809,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     leaveMode      : (leaveOverride !== null && leaveOverride !== undefined && !isNaN(leaveOverride) && leaveOverride >= 0) ? 'manual' : 'auto',
     bonusApplicable: bonusApplOverride !== undefined ? bonusApplOverride : bonusApplicable,
     bonusBase      : bonusBaseOverride  !== undefined ? bonusBaseOverride  : bonusBase,
+    bonusPercent   : resolvedBonusPercent,
   };
 }
 
@@ -2140,14 +2195,15 @@ function renderBreakdown(r) {
     : '';
   const edliNote = r.pfEmployerRate === '12' ? ' (Rs.0 - Employer@12%)' : ' (0.5% of Basic, max Rs.75)';
 
-  // ✅ Bonus label shows base used
+  // ✅ Bonus label shows base used + percentage used
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
+  const bonusPercentLabel = (r.bonusPercent !== undefined && r.bonusPercent !== null) ? r.bonusPercent : 8.33;
   const bonusApplLabel    = r.bonusApplicable === 'N' ? ' (Disabled)' : '';
   const empRows = [
     ['EPF – Employer @ ' + r.pfEmployerRate + '% of PF Wages ' + pfModeBadge, r.pfEmployerRate + '%', r.epfEmployer],
     ['EDLI – Employer' + edliNote, r.pfEmployerRate === '12' ? 'N/A' : '0.5%', r.edliEmployer],
-    ['Bonus (8.33% of ' + bonusBaseLabel + ', Basic ≤ Rs.21,000)' + bonusApplLabel, '8.33%', r.bonus],
+    ['Bonus (' + bonusPercentLabel + '% of ' + bonusBaseLabel + ', Basic ≤ Rs.21,000)' + bonusApplLabel, bonusPercentLabel + '%', r.bonus],
   ];
   let empHtml = '';
   empRows.forEach(function(item) {
@@ -2196,7 +2252,7 @@ function renderBreakdown(r) {
   // ✅ Bonus display label
   const bonusDisplayLabel = r.bonusApplicable === 'N'
     ? 'Bonus: <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;">Disabled</span>'
-    : 'Bonus (8.33% of ' + bonusBaseLabel + ') <span style="font-size:9px;color:var(--accent4);font-weight:600;background:rgba(246,173,85,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">' + bonusBaseLabel.toUpperCase() + '</span>';
+    : 'Bonus (' + bonusPercentLabel + '% of ' + bonusBaseLabel + ') <span style="font-size:9px;color:var(--accent4);font-weight:600;background:rgba(246,173,85,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">' + bonusBaseLabel.toUpperCase() + '</span>';
 
   const finalItemsData = [
     { label: 'Gross Salary',                val: fmt(r.gross),             sub: 'Monthly',                        cls: '' },
@@ -2215,7 +2271,7 @@ function renderBreakdown(r) {
   val: fmt(r.gratuityComponent || 0),
   sub: gratuityApplicable === 'Y' ? '4.81% × Rs.' + Math.round(r.basic).toLocaleString('en-IN') + ' = Rs.' + (r.gratuityComponent || 0).toLocaleString('en-IN') : 'Gratuity disabled',
   cls: 'green' },
-    { label: bonusDisplayLabel,            val: r.bonus > 0 ? fmt(r.bonus) : 'Rs.0', sub: r.bonus > 0 ? '8.33% × Rs.' + Math.round(r.bonusBase === 'basic' ? r.basic : r.bonusBase === 'gross' ? r.gross : r.minWage).toLocaleString('en-IN') + ' (' + bonusBaseLabel + ')' : (r.bonusApplicable === 'N' ? 'Disabled' : 'Not eligible (Basic > Rs.21,000)'), cls: 'amber' },
+    { label: bonusDisplayLabel,            val: r.bonus > 0 ? fmt(r.bonus) : 'Rs.0', sub: r.bonus > 0 ? bonusPercentLabel + '% × Rs.' + Math.round(r.bonusBase === 'basic' ? r.basic : r.bonusBase === 'gross' ? r.gross : r.minWage).toLocaleString('en-IN') + ' (' + bonusBaseLabel + ')' : (r.bonusApplicable === 'N' ? 'Disabled' : 'Not eligible (Basic > Rs.21,000)'), cls: 'amber' },
   ];
 
   if (r.isHighGross) {
@@ -2238,6 +2294,7 @@ function setTextContent(elementId, html) { const el = document.getElementById(el
 function renderExportPreview(r) {
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
+  const bonusPercentLabel = (r.bonusPercent !== undefined && r.bonusPercent !== null) ? r.bonusPercent : 8.33;
  
   const rows = [
     ['SALARY STRUCTURE', null, false, true],
@@ -2257,7 +2314,7 @@ function renderExportPreview(r) {
     ['EMPLOYER CONTRIBUTIONS', null, false, true],
     ['EPF – Employer (' + r.pfEmployerRate + '%)', r.epfEmployer, true, false],
     ['EDLI – Employer' + (r.pfEmployerRate === '12' ? ' (N/A)' : ''), r.edliEmployer, true, false],
-    ['Bonus 8.33% of ' + bonusBaseLabel + (r.bonusApplicable === 'N' ? ' (Disabled)' : ''), r.bonus, true, false],
+    ['Bonus ' + bonusPercentLabel + '% of ' + bonusBaseLabel + (r.bonusApplicable === 'N' ? ' (Disabled)' : ''), r.bonus, true, false],
     ['ESI – Employer (3.25%)', r.esiEmployer, true, false],
     ['Initial CTC', r.initialCTC, true, false],
     ['Health Insurance (Monthly)', r.healthInsurance, false, false],
@@ -2330,7 +2387,7 @@ function switchTab(tab) {
 }
 
 function resetAll() {
-  ['empName', 'grossSalary', 'minWage', 'previousBasic', 'healthInsurance'].forEach(function(id) {
+  ['empName', 'empFatherName', 'empDesignation', 'empDepartment', 'empDOB', 'empDOJ', 'empLocation', 'grossSalary', 'minWage', 'previousBasic', 'healthInsurance'].forEach(function(id) {
     const el = document.getElementById(id);
     if (el) el.value = id === 'healthInsurance' ? '0' : '';
   });
@@ -2371,8 +2428,12 @@ function resetAll() {
   // ✅ Reset bonus
   bonusApplicable = 'Y';
   bonusBase       = 'minwage';
+  bonusPercentMode = 'default';
+  bonusCustomPercent = 8.33;
   setBonusApplicable('Y');
   setBonusBase('minwage');
+  setBonusPercentMode('default');
+  const bonusCustomInput = document.getElementById('bonusCustomPercentInput'); if (bonusCustomInput) bonusCustomInput.value = '8.33';
   updateBonusPreview();
 
 
@@ -2404,9 +2465,24 @@ function exportPDF() {
   if (!calcResult) { showToast('Please calculate first'); return; }
   const r       = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
+  const empFatherName  = (document.getElementById('empFatherName')?.value || '').trim() || 'N/A';
+  const empDesignation = (document.getElementById('empDesignation')?.value || '').trim() || 'N/A';
+  const empDepartment  = (document.getElementById('empDepartment')?.value || '').trim() || 'N/A';
+  const empDOBRaw = document.getElementById('empDOB')?.value || '';
+  const empDOJRaw = document.getElementById('empDOJ')?.value || '';
+  function fmtDate(d) {
+    if (!d) return 'N/A';
+    const dt = new Date(d + 'T00:00:00');
+    if (isNaN(dt.getTime())) return d;
+    return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  const empDOB = fmtDate(empDOBRaw);
+  const empDOJ = fmtDate(empDOJRaw);
+  const empLocation = (document.getElementById('empLocation')?.value || '').trim() || 'N/A';
   const now     = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
+  const bonusPercentLabel = (r.bonusPercent !== undefined && r.bonusPercent !== null) ? r.bonusPercent : 8.33;
  
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
@@ -2445,53 +2521,49 @@ function exportPDF() {
   }
  
   function addInfo() {
-    needPage(45);
-    // Light info box background
+    needPage(52);
     doc.setFillColor(248, 250, 255);
-    doc.setDrawColor(200, 210, 230); doc.setLineWidth(0.3);
-    const infoBoxH = 38;
-    doc.rect(M, Y - 2, CW, infoBoxH, 'FD');
- 
-    doc.setTextColor(35, 35, 35); doc.setFontSize(8);
-    const col1X = M + 3, col2X = M + CW/2 + 3;
-    const col1LabelW = 36, col2LabelW = 36;
- 
-    // 2-column info layout — 6 rows × 2 columns = 12 items, line height 6mm
-    const infoLeft = [
-      ['Employee',    empName.length > 22 ? empName.substring(0,21)+'…' : empName],
-      ['Report Date', now],
-      ['Min Wage',    fmtP(r.minWage)],
-      ['Health Ins.', fmtP(r.healthInsurance)],
-      ['Leaves/Year', String(r.leavesPerYear || 15)],
-      ['Gratuity',    gratuityApplicable === 'Y' ? 'Applicable' : 'Not Applicable'],
+    doc.setDrawColor(200, 210, 230); 
+    doc.setLineWidth(0.3);
+    const idBoxH = 52;  // ✅ Increased height to accommodate all fields
+    doc.rect(M, Y - 2, CW, idBoxH, 'FD');
+
+    doc.setTextColor(35, 35, 35); 
+    doc.setFontSize(8);
+    
+    // ✅ Single column layout for better alignment
+    const labelX = M + 5;
+    const valueX = M + 55;  // ✅ Fixed position for values
+    const labelWidth = 45;   // ✅ Width for labels
+    
+    const employeeDetails = [
+      ['Employee Name:',    empName],
+      ['Father Name:',      empFatherName],
+      ['Designation:',      empDesignation],
+      ['Department:',       empDepartment],
+      ['Date of Birth:',    empDOB],
+      ['Date of Joining:',  empDOJ],
+      ['Location/Branch:',  empLocation],
     ];
-    const infoRight = [
-      ['PF Status',   r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable'],
-      ['PF Mode',     r.pfApplicable === 'Y' ? (r.pfModeLabel || '').substring(0,28) : 'N/A'],
-      ['Employer Rate', r.pfApplicable === 'Y' ? r.pfEmployerRate + '%' : 'N/A'],
-      ['Bonus',       r.bonusApplicable === 'N' ? 'Disabled' : '8.33% of ' + bonusBaseLabel],
-      ['LWF State',   r.lwfStateName || 'Not Selected'],
-      ['PT State',    r.ptStateName  || 'Not Selected'],
-    ];
- 
-    infoLeft.forEach(function(it, i) {
-      const rowY = Y + (i * 6);
-      doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 100, 140);
-      doc.text(it[0] + ':', col1X, rowY);
-      doc.setFont('helvetica', 'normal'); doc.setTextColor(35, 35, 35);
-      doc.text(String(it[1]), col1X + col1LabelW, rowY);
+
+    employeeDetails.forEach(function(it, i) {
+      const rowY = Y + 5 + (i * 6);
+      
+      // Label (Bold, Blue)
+      doc.setFont('helvetica', 'bold'); 
+      doc.setTextColor(28, 58, 108);
+      doc.text(it[0], labelX, rowY);
+      
+      // Value (Normal, Black)
+      doc.setFont('helvetica', 'normal'); 
+      doc.setTextColor(35, 35, 35);
+      const val = String(it[1]).length > 40 ? String(it[1]).substring(0,38)+'…' : String(it[1]);
+      doc.text(val, valueX, rowY);
     });
-    infoRight.forEach(function(it, i) {
-      const rowY = Y + (i * 6);
-      doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 100, 140);
-      doc.text(it[0] + ':', col2X, rowY);
-      doc.setFont('helvetica', 'normal'); doc.setTextColor(35, 35, 35);
-      doc.text(String(it[1]), col2X + col2LabelW, rowY);
-    });
- 
-    Y += infoBoxH + 6;
-  }
- 
+
+    Y += idBoxH + 6;
+}
+
   function addTitle(txt) {
     needPage(20);
     doc.setFillColor(240, 240, 240); doc.rect(M, Y-2, CW, 8, 'F');
@@ -2502,14 +2574,11 @@ function exportPDF() {
     Y += 16;
   }
  
-  // 3-column table: Component | Monthly | Annual
   function addTable3Col(headers, rows) {
     const W1 = CW * 0.50, W2 = CW * 0.25, W3 = CW - W1 - W2, RH = 7;
-    // FIX: Only check space for header row — each data row does its own needPage check
     needPage(RH + 8);
-    doc.setFontSize(8);
+    doc.setFontSize(9);
  
-    // Header row
     doc.setFillColor(28, 58, 108); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
     doc.rect(M, Y, W1, RH, 'F'); doc.rect(M+W1, Y, W2, RH, 'F'); doc.rect(M+W1+W2, Y, W3, RH, 'F');
     doc.text(headers[0], M+3, Y+4.5);
@@ -2520,7 +2589,6 @@ function exportPDF() {
     Y += RH;
  
     doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal');
-    // Track alternating row index only for non-section-header rows
     let dataRowIndex = 0;
  
     rows.forEach(function(row, ri) {
@@ -2528,10 +2596,8 @@ function exportPDF() {
       const isHighlight     = row[4] === true;
  
       if (isSectionHeader) {
-        // Count how many rows follow until next section header (for keep-together)
         let followRows = 0;
         for (var k = ri + 1; k < rows.length && rows[k][3] !== true; k++) followRows++;
-        // Keep section header + at least 2 following rows together (avoid orphan)
         const keepTogether = Math.min(followRows, 2);
         needPage(RH * (1 + keepTogether) + 4);
  
@@ -2542,14 +2608,12 @@ function exportPDF() {
         doc.rect(M, Y, CW, RH, 'S');
         doc.setFont('helvetica', 'normal'); doc.setTextColor(35, 35, 35);
         Y += RH;
-        dataRowIndex = 0; // reset alternating for each section
+        dataRowIndex = 0;
         return;
       }
  
-      // Per-row page check
       needPage(RH + 5);
  
-      // Always draw background — ensures visibility after page break
       if (isHighlight) {
         doc.setFillColor(220, 235, 255);
       } else if (dataRowIndex % 2 === 0) {
@@ -2568,7 +2632,6 @@ function exportPDF() {
       doc.setTextColor(35, 35, 35);
       doc.text(label, M+3, Y+4.5);
  
-      // Monthly
       const monthlyVal = row[1];
       if (monthlyVal !== null && monthlyVal !== undefined && monthlyVal !== '—') {
         doc.setTextColor(isHighlight ? 28 : 35, isHighlight ? 58 : 35, isHighlight ? 108 : 35);
@@ -2578,7 +2641,6 @@ function exportPDF() {
       }
       doc.setTextColor(35,35,35);
  
-      // Annual
       const annualVal = row[2];
       if (annualVal && annualVal !== '—') {
         doc.setTextColor(0, 120, 60);
@@ -2592,18 +2654,44 @@ function exportPDF() {
       dataRowIndex++;
       Y += RH;
     });
-    // Bottom border on last row
     doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4);
     doc.rect(M, Y - RH, CW, RH, 'S');
     Y += 8;
   }
  
-  // Build all rows for the combined table
+  // ✅ Disclaimer block at end of report
+  function addDisclaimer() {
+    needPage(35);
+    doc.setFillColor(255, 250, 235);
+    doc.setDrawColor(230, 200, 140); doc.setLineWidth(0.3);
+    const lines = [
+      '1. TDS will be deducted as per the provisions of the Income Tax Act, based on the employee\'s tax regime, declarations, and applicable tax rules.',
+      '2. Variable pay, incentives, bonuses, and other performance-linked components are subject to eligibility and company policy.',
+      '3. PF exemption is subject to verification that you are previously covered under PF or Not. If found covered than the Liability of PF is on Employees end.'
+    ];
+    const wrapped = [];
+    lines.forEach(function(line) {
+      const split = doc.splitTextToSize(line, CW - 10);
+      wrapped.push(...split);
+    });
+    const boxH = 10 + (wrapped.length * 5);
+    needPage(boxH + 6);
+    doc.rect(M, Y, CW, boxH, 'FD');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(150, 100, 0);
+    doc.text('DISCLAIMER', M + 5, Y + 7);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(90, 70, 20);
+    let ly = Y + 13;
+    wrapped.forEach(function(l) {
+      doc.text(l, M + 5, ly);
+      ly += 5;
+    });
+    Y += boxH + 8;
+  }
+ 
   function na(val) { return val > 0 ? fmtP(val) : 'N/A'; }
   function naAnn(val) { return val > 0 ? fmtA(val) : '—'; }
  
   const allRows = [
-    // [label, monthly, annual, isSectionHeader, isHighlight]
     ['SALARY STRUCTURE', null, null, true, false],
     ['Basic Salary',          fmtP(r.basic),          fmtA(r.basic),          false, false],
     ['HRA (50% of Basic)',    fmtP(r.hra),            fmtA(r.hra),            false, false],
@@ -2621,7 +2709,7 @@ function exportPDF() {
     ['EMPLOYER CONTRIBUTIONS',    null, null, true, false],
     ['EPF – Employer (' + r.pfEmployerRate + '%)', r.pfApplicable === 'Y' ? fmtP(r.epfEmployer) : 'N/A', r.pfApplicable === 'Y' ? naAnn(r.epfEmployer) : '—', false, false],
     ['EDLI – Employer' + (r.pfEmployerRate === '12' ? ' (N/A)' : ''), r.edliEmployer > 0 ? fmtP(r.edliEmployer) : 'Rs.0', r.edliEmployer > 0 ? fmtA(r.edliEmployer) : '—', false, false],
-    ['Bonus 8.33% of ' + bonusBaseLabel + (r.bonusApplicable === 'N' ? ' (Disabled)' : ''), r.bonus > 0 ? fmtP(r.bonus) : (r.bonusApplicable === 'N' ? 'Disabled' : 'N/A'), r.bonus > 0 ? naAnn(r.bonus) : '—', false, false],
+    ['Bonus ' + bonusPercentLabel + '% of ' + bonusBaseLabel + (r.bonusApplicable === 'N' ? ' (Disabled)' : ''), r.bonus > 0 ? fmtP(r.bonus) : (r.bonusApplicable === 'N' ? 'Disabled' : 'N/A'), r.bonus > 0 ? naAnn(r.bonus) : '—', false, false],
     ['ESI – Employer (3.25%)',    r.esiEmployer > 0 ? fmtP(r.esiEmployer) : 'N/A', r.esiEmployer > 0 ? naAnn(r.esiEmployer) : '—', false, false],
     ['Initial CTC',               fmtP(r.initialCTC),     fmtA(r.initialCTC),     false, true],
     ['Health Insurance (Monthly)',fmtP(r.healthInsurance), '—', false, false],
@@ -2643,6 +2731,7 @@ function exportPDF() {
   addInfo();
   addTitle('COMPLETE CTC BREAKDOWN — MONTHLY & ANNUAL');
   addTable3Col(['Component', 'Monthly', 'Annual (×12)'], allRows);
+  addDisclaimer(); // ✅ Disclaimer added back
  
   const tp = doc.internal.getNumberOfPages();
   for (let p = 1; p <= tp; p++) { doc.setPage(p); addFooter(p, tp); }
@@ -2652,14 +2741,20 @@ function exportPDF() {
   showToast('PDF downloaded successfully');
 }
 
-
 function exportCSV() {
   if (!calcResult) { showToast('⚠️ Please calculate first'); return; }
   const r       = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
+  const empFatherName  = (document.getElementById('empFatherName')?.value || '').trim() || 'N/A';
+  const empDesignation = (document.getElementById('empDesignation')?.value || '').trim() || 'N/A';
+  const empDepartment  = (document.getElementById('empDepartment')?.value || '').trim() || 'N/A';
+  const empDOB = document.getElementById('empDOB')?.value || 'N/A';
+  const empDOJ = document.getElementById('empDOJ')?.value || 'N/A';
+  const empLocation = (document.getElementById('empLocation')?.value || '').trim() || 'N/A';
   const now     = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
+  const bonusPercentLabel = (r.bonusPercent !== undefined && r.bonusPercent !== null) ? r.bonusPercent : 8.33;
  
   function cell(v) { return '"' + String(v !== null && v !== undefined ? v : '').replace(/"/g, '""') + '"'; }
   function amt(n)  { return n > 0 ? Math.round(n) : 0; }
@@ -2669,11 +2764,17 @@ function exportCSV() {
   const rows = [
     ['CTC SALARY REPORT — MONTHLY & ANNUAL', '', ''],
     ['Employee Name', empName, ''],
+    ['Father Name', empFatherName, ''],
+    ['Designation', empDesignation, ''],
+    ['Department', empDepartment, ''],
+    ['Date of Birth', empDOB, ''],
+    ['Date of Joining', empDOJ, ''],
+    ['Location/Branch', empLocation, ''],
     ['Date', now, ''],
     ['PF Status', r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable', ''],
     ['PF Mode', r.pfApplicable === 'Y' ? r.pfModeLabel : 'N/A', ''],
     ['Employer PF Rate', r.pfApplicable === 'Y' ? r.pfEmployerRate + '%' : 'N/A', ''],
-    ['Bonus', r.bonusApplicable === 'N' ? 'Disabled' : 'Applicable (' + bonusBaseLabel + ')', ''],
+    ['Bonus', r.bonusApplicable === 'N' ? 'Disabled' : 'Applicable (' + bonusPercentLabel + '% of ' + bonusBaseLabel + ')', ''],
     ['Gratuity', gratuityApplicable === 'Y' ? 'Applicable (4.81% of Basic)' : 'Disabled', ''],
     ['State Minimum Wage', amt(r.minWage), ''],
     ['LWF State', r.lwfStateName || 'N/A', ''],
@@ -2695,7 +2796,7 @@ function exportCSV() {
     ['--- EMPLOYER CONTRIBUTIONS ---', '', ''],
     ['EPF – Employer (' + r.pfEmployerRate + '%)', r.pfApplicable === 'Y' ? amt(r.epfEmployer) : 'N/A', r.pfApplicable === 'Y' ? amtAnn(r.epfEmployer) : 'N/A'],
     ['EDLI – Employer', r.edliEmployer > 0 ? amt(r.edliEmployer) : 0, r.edliEmployer > 0 ? amtAnn(r.edliEmployer) : 0],
-    ['Bonus (8.33% of ' + bonusBaseLabel + ')', r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? amt(r.bonus) : 'N/A'), r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? amtAnn(r.bonus) : 'N/A')],
+    ['Bonus (' + bonusPercentLabel + '% of ' + bonusBaseLabel + ')', r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? amt(r.bonus) : 'N/A'), r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? amtAnn(r.bonus) : 'N/A')],
     ['ESI – Employer (3.25%)', r.esiEmployer > 0 ? amt(r.esiEmployer) : 0, r.esiEmployer > 0 ? amtAnn(r.esiEmployer) : 0],
     ['Initial CTC', amt(r.initialCTC), amtAnn(r.initialCTC)],
     ['Health Insurance (Monthly)', amt(r.healthInsurance), '—'],
@@ -2713,6 +2814,10 @@ function exportCSV() {
     ['--- FINAL TOTALS ---', '', ''],
     ['Final CTC', amt(r.finalCTC), amt(r.finalCTCAnnual)],
     ['Net Cash in Hand', amt(r.cashInHand), amtAnn(r.cashInHand)],
+    ['', '', ''],
+    ['--- DISCLAIMER ---', '', ''],
+    ['1. TDS will be deducted as per the provisions of the Income Tax Act, based on the employee\'s tax regime, declarations, and applicable tax rules.', '', ''],
+    ['2. Variable pay, incentives, bonuses, and other performance-linked components are subject to eligibility and company policy.', '', ''],
   ];
  
   const csv = rows.map(function(row) { return row.map(function(c) { return cell(c); }).join(','); }).join('\n');
@@ -2730,6 +2835,7 @@ function copyToClipboard() {
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
+  const bonusPercentLabel = (r.bonusPercent !== undefined && r.bonusPercent !== null) ? r.bonusPercent : 8.33;
   const allowanceLines = r.isHighGross
     ? ['Defray Expenses (10%)\t' + r.deferAllowance, 'Conveyance\t' + r.conv]
     : ['Conveyance\t' + r.conv];
@@ -2739,7 +2845,7 @@ function copyToClipboard() {
       'Gross\t' + r.gross,
       'EPF Employer (' + r.pfEmployerRate + '%)\t' + r.epfEmployer,
       'EDLI Employer\t' + r.edliEmployer,
-      'Bonus (8.33% of ' + bonusBaseLabel + ')\t' + r.bonus,
+      'Bonus (' + bonusPercentLabel + '% of ' + bonusBaseLabel + ')\t' + r.bonus,
       'ESI Employer\t' + r.esiEmployer,
       'Health Insurance (Monthly)\t' + r.healthInsurance,
       'Leave Encashment (' + r.leavesPerYear + ' leaves)\t' + r.leaveComponent,
@@ -3191,13 +3297,17 @@ function processBulkFile() {
       else                          bulkBonusBase = 'minwage';
     }
 
+    // ✅ Bonus percentage override for bulk (defaults to 8.33% if not given)
+    const bonusPercentRaw = getBulkField(row, ['Bonus Percent','Bonus %','BonusPercent','bonus_percent','Bonus Rate','Bonus Pct']);
+    const bulkBonusPercent = (!isNaN(cleanNum(bonusPercentRaw)) && cleanNum(bonusPercentRaw) >= 0) ? cleanNum(bonusPercentRaw) : 8.33;
+
     try {
       const r = computeCTC(
         gross, minWage, pf, pt, lwf,
         healthInsAmtBulk, leaveOverride,
         bulkPfBase, bulkHasVol, bulkVolPct, bulkSpecAmt, bulkEmpRate,
         bulkLeaves, previousBasic,
-        bulkBonusAppl, bulkBonusBase   // ✅ Pass bonus overrides
+        bulkBonusAppl, bulkBonusBase, bulkBonusPercent   // ✅ Pass bonus overrides incl. percent
       );
 
       const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
@@ -3226,6 +3336,7 @@ function processBulkFile() {
         bonusApplicable: bulkBonusAppl,
         bonusBase      : bulkBonusBase,
         bonusBaseLabel : bonusBaseLabelMap[bulkBonusBase] || 'Min Wage',
+        bonusPercent   : r.bonusPercent,
       });
     } catch (err) {
       bulkCalcResults.push({
@@ -3294,7 +3405,7 @@ function renderBulkResults(errors, total) {
       <th>Month</th><th>Gender</th><th>Prev Basic</th>
       <th>PF</th><th>PF Mode</th><th>PF Wages</th><th>Emp Rate</th><th>Voluntary</th>
       <th>Gross</th><th>Basic</th><th>HRA</th><th>Defray(10%)</th><th>Conveyance</th>
-      <th>EPF Employer</th><th>EDLI</th><th>Bonus Base</th><th>Bonus</th><th>ESI Employer</th>
+      <th>EPF Employer</th><th>EDLI</th><th>Bonus Base</th><th>Bonus %</th><th>Bonus</th><th>ESI Employer</th>
       <th>Health Ins.</th><th>Leave Enc.</th><th>Leaves/Yr</th>
       <th>LWF State</th><th>LWF</th><th>PT State</th><th>PT</th>
       <th>Initial CTC</th><th>Final CTC/Mo</th><th>Annual CTC</th>
@@ -3316,7 +3427,7 @@ function renderBulkResults(errors, total) {
       bodyHtml += '<tr class="error-row ' + alt + '">' +
         '<td style="color:var(--text-muted)">' + r.rowNum + '</td>' +
         '<td class="td-name">' + escapeHtml(r.name) + '</td>' +
-        '<td colspan="34" style="font-size:11px;color:var(--danger);padding:8px 12px;">' + escapeHtml(r.error) + '</td>' +
+        '<td colspan="35" style="font-size:11px;color:var(--danger);padding:8px 12px;">' + escapeHtml(r.error) + '</td>' +
         '<td class="td-err">⚠ Error</td>' +
         '</tr>';
       return;
@@ -3342,6 +3453,9 @@ function renderBulkResults(errors, total) {
     const bonusBaseCell = r.bonusApplicable === 'N'
       ? '<span style="color:var(--text-muted);font-size:10px">Disabled</span>'
       : '<span style="font-size:10px;color:var(--accent4)">' + (r.bonusBaseLabel || 'Min Wage') + '</span>';
+    const bonusPercentCell = r.bonusApplicable === 'N'
+      ? '<span style="color:var(--text-muted)">—</span>'
+      : '<span style="font-size:10px;color:var(--accent4)">' + (r.bonusPercent !== undefined ? r.bonusPercent : 8.33) + '%</span>';
     const bonusCell = r.bonusApplicable === 'N'
       ? '<span style="color:var(--text-muted)">—</span>'
       : (r.bonus > 0 ? '<span style="color:var(--accent4)">' + bulkFmt(r.bonus) + '</span>' : '<span style="color:var(--text-muted)">—</span>');
@@ -3389,6 +3503,7 @@ function renderBulkResults(errors, total) {
       '<td class="td-right">' + (r.pfApplicable === 'Y' ? bulkFmt(r.epfEmp) : '<span style="color:var(--text-muted)">N/A</span>') + '</td>' +
       '<td class="td-right">' + edliCell + '</td>' +
       '<td class="td-right">' + bonusBaseCell + '</td>' +
+      '<td class="td-right">' + bonusPercentCell + '</td>' +
       '<td class="td-right">' + bonusCell + '</td>' +
       '<td class="td-right">' + esiEmpCell + '</td>' +
       '<td class="td-right">' + hiCell + '</td>' +
@@ -3419,6 +3534,7 @@ function renderBulkResults(errors, total) {
       '<td class="td-right">' + bulkFmt(tot.epfEmp) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.edliEmployer) + '</td>' +
       '<td></td>' + // bonus base
+      '<td></td>' + // bonus %
       '<td class="td-right">' + bulkFmt(tot.bonus) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.esiEmp) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.healthInsurance) + '</td>' +
@@ -3473,7 +3589,7 @@ function bulkExportCSV() {
     'Gross Salary', 'Basic Salary', 'HRA',
     'Defray Expenses 10%', 'Conveyance',
     'EPF – Employer (Rs.)', 'EDLI – Employer (Rs.)',
-    'Bonus Applicable', 'Bonus Base', 'Bonus Amount (Rs.)',
+    'Bonus Applicable', 'Bonus Base', 'Bonus Percent (%)', 'Bonus Amount (Rs.)',
     'ESI – Employer (Rs.)',
     'Health Insurance (Rs.)', 'Leave Encashment (Rs.)', 'Leave Mode', 'Leaves Per Year',
     'LWF State', 'LWF Mode', 'LWF Amount (Rs.)',
@@ -3505,6 +3621,7 @@ function bulkExportCSV() {
       r.edliEmployer > 0 ? amt(r.edliEmployer) : 0,
       r.bonusApplicable === 'N' ? 'No' : 'Yes',
       r.bonusApplicable === 'N' ? 'N/A' : (r.bonusBaseLabel || 'Min Wage'),
+      r.bonusApplicable === 'N' ? 'N/A' : (r.bonusPercent !== undefined ? r.bonusPercent : 8.33),
       r.bonusApplicable === 'N' ? 0 : amt(r.bonus),
       r.esiEmp > 0 ? amt(r.esiEmp) : 0,
       amt(r.healthInsurance || 0),
@@ -3531,7 +3648,7 @@ function bulkExportCSV() {
     valid.reduce(function(s,r){ return s+amt(r.conv); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.epfEmp); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.edliEmployer); }, 0),
-    '', '', // bonus applicable, base
+    '', '', '', // bonus applicable, base, percent
     valid.reduce(function(s,r){ return s+amt(r.bonus); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.esiEmp); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.healthInsurance||0); }, 0),
@@ -3591,7 +3708,7 @@ function bulkExportTXT() {
     txt += tableRow('Conveyance', bulkFmt(r.conv));
     txt += SEP + '\n';
     txt += tableRow('EPF – Employer', r.pfApplicable === 'Y' ? bulkFmt(r.epfEmp) : 'N/A');
-    txt += tableRow('Bonus (' + (r.bonusBaseLabel||'Min Wage') + ')', r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? bulkFmt(r.bonus) : 'N/A'));
+    txt += tableRow('Bonus (' + (r.bonusPercent !== undefined ? r.bonusPercent : 8.33) + '% of ' + (r.bonusBaseLabel||'Min Wage') + ')', r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? bulkFmt(r.bonus) : 'N/A'));
     txt += tableRow('Initial CTC', bulkFmt(r.initialCTC));
     txt += tableRow('ESI – Employer', r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A');
     txt += tableRow('Health Insurance (Monthly)', bulkFmt(r.healthInsurance || 0));
@@ -3619,13 +3736,14 @@ function bulkExportTXT() {
 function bulkCopyClipboard() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const valid   = bulkCalcResults.filter(function(r) { return !r.error; });
-  const headers = ['#','Employee Name','Emp Code','Branch','Gross','Basic','HRA','EPF Emp','Bonus Base','Bonus','ESI Emp','Health Ins.','Leave Enc.','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Employee','ESI Employee','Cash in Hand'];
+  const headers = ['#','Employee Name','Emp Code','Branch','Gross','Basic','HRA','EPF Emp','Bonus Base','Bonus %','Bonus','ESI Emp','Health Ins.','Leave Enc.','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Employee','ESI Employee','Cash in Hand'];
   const rows    = valid.map(function(r, i) {
     return [
       i+1, r.name, r.empCode || '', r.branch || '',
       Math.round(r.gross), Math.round(r.basic), Math.round(r.hra),
       r.pfApplicable === 'Y' ? Math.round(r.epfEmp) : 'N/A',
       r.bonusApplicable === 'N' ? 'Disabled' : (r.bonusBaseLabel || 'Min Wage'),
+      r.bonusApplicable === 'N' ? 'N/A' : (r.bonusPercent !== undefined ? r.bonusPercent : 8.33),
       r.bonusApplicable === 'N' ? 0 : Math.round(r.bonus),
       r.esiEmp > 0 ? Math.round(r.esiEmp) : 0,
       Math.round(r.healthInsurance || 0),
@@ -3642,16 +3760,16 @@ function bulkCopyClipboard() {
     .catch(function() { showToast('⚠️ Copy failed'); });
 }
 
-// ✅ Updated template with Bonus columns
+// ✅ Updated template with Bonus columns (base + percent)
 function bulkDownloadTemplate() {
   const csv = [
-    'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,Bonus (Y/N),Bonus Base,PT State,LWF State,Salary Month,Gender,Health Insurance,Leave Encashment Amount,Leaves per Year',
-    'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,Y,minwage,KA,FKL,12,Male,500,,15',
-    'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,Y,basic,MH,MH,12,Male,1000,500,18',
-    'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,Y,minwage,,OTHER,12,Male,750,,15',
-    'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,N,,GJ,OTHER,6,Female,800,,20',
-    'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,Y,gross,AP,AP,12,Male,500,,15',
-    'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,Y,basic,TS,OTHER,12,Female,600,500,12',
+    'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,Bonus (Y/N),Bonus Base,Bonus Percent,PT State,LWF State,Salary Month,Gender,Health Insurance,Leave Encashment Amount,Leaves per Year',
+    'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,Y,minwage,8.33,KA,FKL,12,Male,500,,15',
+    'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,Y,basic,10,MH,MH,12,Male,1000,500,18',
+    'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,Y,minwage,8.33,,OTHER,12,Male,750,,15',
+    'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,N,,8.33,GJ,OTHER,6,Female,800,,20',
+    'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,Y,gross,8.33,AP,AP,12,Male,500,,15',
+    'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,Y,basic,20,TS,OTHER,12,Female,600,500,12',
   ].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
