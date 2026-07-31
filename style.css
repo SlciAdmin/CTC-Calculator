@@ -2577,3 +2577,92 @@ select, .pt-select, .lwf-select {
   .lwf-select::-ms-expand {
     display: none !important;
   }
+
+
+/* =========================================
+   DATE INPUT FIELDS STYLING (DOB & DOJ)
+   ========================================= */
+
+/* Base styling for date inputs */
+input[type="date"] {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: var(--text-main, #e8ecf4);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.25s ease;
+  cursor: pointer;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Hover effect */
+input[type="date"]:hover {
+  border-color: rgba(99, 179, 237, 0.35);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Focus effect (jab user click kare) */
+input[type="date"]:focus {
+  border-color: var(--accent, #63b3ed);
+  background: rgba(99, 179, 237, 0.06);
+  box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.1);
+}
+
+/* Calendar icon styling (Dark Mode) */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+  padding: 4px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  filter: invert(1);
+}
+
+/* =========================================
+   LIGHT THEME OVERRIDES
+   ========================================= */
+[data-theme="light"] input[type="date"] {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #1a1a1a;
+}
+
+[data-theme="light"] input[type="date"]:hover {
+  border-color: rgba(99, 179, 237, 0.5);
+  background: rgba(99, 179, 237, 0.04);
+}
+
+[data-theme="light"] input[type="date"]:focus {
+  border-color: var(--accent, #3182ce);
+  background: rgba(49, 130, 206, 0.06);
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+}
+
+/* Calendar icon styling (Light Mode) */
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.4);
+}
+
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  filter: invert(0.2);
+}
+
+/* =========================================
+   RESPONSIVE ADJUSTMENTS
+   ========================================= */
+@media (max-width: 768px) {
+  input[type="date"] {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
