@@ -1580,7 +1580,7 @@ function initializeCalculator() {
 function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverride,
                     pfBaseModeOverride, pfVoluntaryOverride, pfVolPctOverride,
                     pfSpecAmtOverride, pfEmpRateOverride, leavesPerYear, previousBasic,
-                    bonusApplOverride, bonusBaseOverride, bonusPercentOverride) {
+                    bonusApplOverride, bonusBaseOverride, bonusPercentOverride, exGratiaAmt) {
 
   gross   = Math.round(gross);
   minWage = Math.round(minWage);
@@ -1760,8 +1760,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     ? Math.round(basic * 0.0481)
     : 0;
 
+  // Ex-Gratia / PLI (manual entry, added to Final CTC)
+  const exGratia = Math.round(exGratiaAmt || 0);
+
   // Final CTC
-  const finalCTC = initialCTC + healthIns + lwfEmployerContrib + leaveComponent + gratuityComponent;
+  const finalCTC = initialCTC + healthIns + lwfEmployerContrib + leaveComponent + gratuityComponent + exGratia;
 
   // Cash in Hand
   const cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
@@ -1793,6 +1796,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     healthInsurance: healthIns,
     leaveComponent, leaveAuto,
     gratuityComponent,
+    exGratia,
     leavesPerYear  : effectiveLeaves,
     lwf, pt,
     finalCTC,
@@ -1816,52 +1820,52 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
 // ============================================================
 //  ✅ REVERSE CALC helpers — pass bonus overrides through
 // ============================================================
-function reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic) {
+function reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt) {
   var lo = minWage, hi = targetFinalCTC * 2, mid, result, iterations = 0;
   while (lo < hi - 1 && iterations < 100) {
     mid    = Math.round((lo + hi) / 2);
     result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
     if (result.finalCTC < targetFinalCTC) lo = mid; else hi = mid;
     iterations++;
   }
-  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
-  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
   var chosenGross = (Math.abs(rHi.finalCTC - targetFinalCTC) <= Math.abs(rLo.finalCTC - targetFinalCTC)) ? hi : lo;
   return computeCTC(chosenGross, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
 }
 
-function reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic) {
+function reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt) {
   var lo = minWage, hi = targetInitialCTC * 2, mid, result, iterations = 0;
   while (lo < hi - 1 && iterations < 100) {
     mid    = Math.round((lo + hi) / 2);
     result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
     if (result.initialCTC < targetInitialCTC) lo = mid; else hi = mid;
     iterations++;
   }
-  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
-  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
   var chosenGross = (Math.abs(rHi.initialCTC - targetInitialCTC) <= Math.abs(rLo.initialCTC - targetInitialCTC)) ? hi : lo;
   return computeCTC(chosenGross, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
 }
 
-function reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic) {
+function reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt) {
   var lo = minWage, hi = targetCash * 3, mid, result, iterations = 0;
   while (lo < hi - 1 && iterations < 100) {
     mid    = Math.round((lo + hi) / 2);
     result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
     if (result.cashInHand < targetCash) lo = mid; else hi = mid;
     iterations++;
   }
-  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
-  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
   var chosenGross = (Math.abs(rHi.cashInHand - targetCash) <= Math.abs(rLo.cashInHand - targetCash)) ? hi : lo;
   return computeCTC(chosenGross, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
 }
 
 // ============== INDIVIDUAL CALC HELPERS ==============
@@ -2061,6 +2065,7 @@ function calculate(silent) {
   const pt           = getPTValue();
   const lwf          = getLWFValue();
   const healthInsAmt = parseFloat(document.getElementById('healthInsurance')?.value) || 0;
+  const exGratiaAmt  = parseFloat(document.getElementById('exGratia')?.value) || 0;
 
   if (minWage <= 0) {
     if (!silent) showToast('⚠️ Please enter Minimum Wage');
@@ -2084,7 +2089,7 @@ function calculate(silent) {
     const targetFinalCTC = parseFloat(document.getElementById('inputFinalCTC')?.value) || 0;
     if (targetFinalCTC <= 0) { if (!silent) showToast('⚠️ Please enter Final CTC'); return; }
     if (targetFinalCTC < minWage) { if (!silent) showToast('⚠️ Final CTC cannot be less than Minimum Wage'); return; }
-    r = reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic);
+    r = reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt);
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
     if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Final CTC Rs.' + r.finalCTC.toLocaleString('en-IN'));
@@ -2093,7 +2098,7 @@ function calculate(silent) {
     const targetInitialCTC = parseFloat(document.getElementById('inputInitialCTC')?.value) || 0;
     if (targetInitialCTC <= 0) { if (!silent) showToast('⚠️ Please enter Initial CTC'); return; }
     if (targetInitialCTC < minWage) { if (!silent) showToast('⚠️ Initial CTC cannot be less than Minimum Wage'); return; }
-    r = reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic);
+    r = reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt);
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
     if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Initial CTC Rs.' + r.initialCTC.toLocaleString('en-IN'));
@@ -2102,7 +2107,7 @@ function calculate(silent) {
     const targetCash = parseFloat(document.getElementById('inputCash')?.value) || 0;
     if (targetCash <= 0) { if (!silent) showToast('⚠️ Please enter Cash in Hand'); return; }
     if (targetCash < minWage * 0.5) { if (!silent) showToast('⚠️ Cash in Hand seems too low for this Minimum Wage'); return; }
-    r = reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic);
+    r = reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt);
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
     if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Cash Rs.' + r.cashInHand.toLocaleString('en-IN'));
@@ -2119,7 +2124,8 @@ function calculate(silent) {
       return;
     }
     r = computeCTC(gross, minWage, pfApplicable, pt, lwf, healthInsAmt, leaveOverride,
-      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic);
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic,
+      undefined, undefined, undefined, exGratiaAmt);
     if (!silent) showToast('✓ CTC Calculated Successfully');
   }
   // =================== END INPUT MODE SWITCHING ===================
@@ -2272,6 +2278,7 @@ function renderBreakdown(r) {
   sub: gratuityApplicable === 'Y' ? '4.81% × Rs.' + Math.round(r.basic).toLocaleString('en-IN') + ' = Rs.' + (r.gratuityComponent || 0).toLocaleString('en-IN') : 'Gratuity disabled',
   cls: 'green' },
     { label: bonusDisplayLabel,            val: r.bonus > 0 ? fmt(r.bonus) : 'Rs.0', sub: r.bonus > 0 ? bonusPercentLabel + '% × Rs.' + Math.round(r.bonusBase === 'basic' ? r.basic : r.bonusBase === 'gross' ? r.gross : r.minWage).toLocaleString('en-IN') + ' (' + bonusBaseLabel + ')' : (r.bonusApplicable === 'N' ? 'Disabled' : 'Not eligible (Basic > Rs.21,000)'), cls: 'amber' },
+    { label: 'Ex-Gratia / PLI (Monthly)',  val: fmt(r.exGratia || 0), sub: 'Manual entry (added to Final CTC)', cls: 'purple' },
   ];
 
   if (r.isHighGross) {
@@ -2320,6 +2327,7 @@ function renderExportPreview(r) {
     ['Health Insurance (Monthly)', r.healthInsurance, false, false],
     ['Leave Encashment' + (leaveApplicable === 'N' ? ' (Disabled)' : ' (' + r.leavesPerYear + ' leaves/yr)'), r.leaveComponent, leaveApplicable !== 'N', false],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - Disabled' : ''), r.gratuityComponent || 0, gratuityApplicable === 'Y', false],
+    ['Ex-Gratia / PLI', r.exGratia || 0, true, false],
     ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf, false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
     ['EMPLOYEE DEDUCTIONS', null, false, true],
@@ -2387,9 +2395,9 @@ function switchTab(tab) {
 }
 
 function resetAll() {
-  ['empName', 'empFatherName', 'empDesignation', 'empDepartment', 'empDOB', 'empDOJ', 'empLocation', 'grossSalary', 'minWage', 'previousBasic', 'healthInsurance'].forEach(function(id) {
+  ['empName', 'empFatherName', 'empDesignation', 'empDepartment', 'empDOB', 'empDOJ', 'empLocation', 'grossSalary', 'minWage', 'previousBasic', 'healthInsurance', 'exGratia'].forEach(function(id) {
     const el = document.getElementById(id);
-    if (el) el.value = id === 'healthInsurance' ? '0' : '';
+    if (el) el.value = (id === 'healthInsurance' || id === 'exGratia') ? '0' : '';
   });
 
   const warnEl = document.getElementById('minWageWarning');
@@ -2483,7 +2491,7 @@ function exportPDF() {
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
   const bonusPercentLabel = (r.bonusPercent !== undefined && r.bonusPercent !== null) ? r.bonusPercent : 8.33;
- 
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   const PW = 210, PH = 297, M = 12, CW = PW - (M * 2), HH = 25, FH = 15;
@@ -2500,8 +2508,9 @@ function exportPDF() {
   function addMainHeader() {
     doc.setFillColor(28, 58, 108); doc.rect(0, 0, PW, HH, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
-    doc.text('CTC ANNEXURE', PW/2, 14, {align:'center'});
+    doc.text('CTC SALARY REPORT', PW/2, 14, {align:'center'});
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    doc.text('New Labour Code Compliance', PW/2, 21, {align:'center'});
   }
  
   function addMiniHeader() {
@@ -2562,7 +2571,7 @@ function exportPDF() {
 
     Y += idBoxH + 6;
 }
-
+ 
   function addTitle(txt) {
     needPage(20);
     doc.setFillColor(240, 240, 240); doc.rect(M, Y-2, CW, 8, 'F');
@@ -2573,11 +2582,14 @@ function exportPDF() {
     Y += 16;
   }
  
+  // 3-column table: Component | Monthly | Annual
   function addTable3Col(headers, rows) {
     const W1 = CW * 0.50, W2 = CW * 0.25, W3 = CW - W1 - W2, RH = 7;
+    // FIX: Only check space for header row — each data row does its own needPage check
     needPage(RH + 8);
-    doc.setFontSize(9);
+    doc.setFontSize(8);
  
+    // Header row
     doc.setFillColor(28, 58, 108); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold');
     doc.rect(M, Y, W1, RH, 'F'); doc.rect(M+W1, Y, W2, RH, 'F'); doc.rect(M+W1+W2, Y, W3, RH, 'F');
     doc.text(headers[0], M+3, Y+4.5);
@@ -2588,6 +2600,7 @@ function exportPDF() {
     Y += RH;
  
     doc.setTextColor(35, 35, 35); doc.setFont('helvetica', 'normal');
+    // Track alternating row index only for non-section-header rows
     let dataRowIndex = 0;
  
     rows.forEach(function(row, ri) {
@@ -2595,8 +2608,10 @@ function exportPDF() {
       const isHighlight     = row[4] === true;
  
       if (isSectionHeader) {
+        // Count how many rows follow until next section header (for keep-together)
         let followRows = 0;
         for (var k = ri + 1; k < rows.length && rows[k][3] !== true; k++) followRows++;
+        // Keep section header + at least 2 following rows together (avoid orphan)
         const keepTogether = Math.min(followRows, 2);
         needPage(RH * (1 + keepTogether) + 4);
  
@@ -2607,12 +2622,14 @@ function exportPDF() {
         doc.rect(M, Y, CW, RH, 'S');
         doc.setFont('helvetica', 'normal'); doc.setTextColor(35, 35, 35);
         Y += RH;
-        dataRowIndex = 0;
+        dataRowIndex = 0; // reset alternating for each section
         return;
       }
  
+      // Per-row page check
       needPage(RH + 5);
  
+      // Always draw background — ensures visibility after page break
       if (isHighlight) {
         doc.setFillColor(220, 235, 255);
       } else if (dataRowIndex % 2 === 0) {
@@ -2631,6 +2648,7 @@ function exportPDF() {
       doc.setTextColor(35, 35, 35);
       doc.text(label, M+3, Y+4.5);
  
+      // Monthly
       const monthlyVal = row[1];
       if (monthlyVal !== null && monthlyVal !== undefined && monthlyVal !== '—') {
         doc.setTextColor(isHighlight ? 28 : 35, isHighlight ? 58 : 35, isHighlight ? 108 : 35);
@@ -2640,6 +2658,7 @@ function exportPDF() {
       }
       doc.setTextColor(35,35,35);
  
+      // Annual
       const annualVal = row[2];
       if (annualVal && annualVal !== '—') {
         doc.setTextColor(0, 120, 60);
@@ -2653,21 +2672,22 @@ function exportPDF() {
       dataRowIndex++;
       Y += RH;
     });
+    // Bottom border on last row
     doc.setDrawColor(28, 58, 108); doc.setLineWidth(0.4);
     doc.rect(M, Y - RH, CW, RH, 'S');
     Y += 8;
   }
- 
+
   // ✅ Disclaimer block at end of report
   function addDisclaimer() {
-    needPage(35);
+    needPage(30);
     doc.setFillColor(255, 250, 235);
     doc.setDrawColor(230, 200, 140); doc.setLineWidth(0.3);
     const lines = [
-      '1. TDS will be deducted as per the provisions of the Income Tax Act, based on the employee\'s tax regime, declarations, and applicable tax rules.',
-      '2. Variable pay, incentives, bonuses, and other performance-linked components are subject to eligibility and company policy.',
-      '3. PF exemption is subject to verification that you are previously covered under PF or Not. If found covered than the Liability of PF is on Employees end.'
-    ];
+  '1. TDS will be deducted as per the provisions of the Income Tax Act, based on the employee\'s tax regime, declarations, and applicable tax rules.',
+  '2. Variable pay, incentives, bonuses, and other performance-linked components are subject to eligibility and company policy.',
+  '3. PF exemption is subject to verification that you are previously covered under PF or Not. If found covered than the Liability of PF is on Employees end.'
+];
     const wrapped = [];
     lines.forEach(function(line) {
       const split = doc.splitTextToSize(line, CW - 10);
@@ -2687,10 +2707,12 @@ function exportPDF() {
     Y += boxH + 8;
   }
  
+  // Build all rows for the combined table
   function na(val) { return val > 0 ? fmtP(val) : 'N/A'; }
   function naAnn(val) { return val > 0 ? fmtA(val) : '—'; }
  
   const allRows = [
+    // [label, monthly, annual, isSectionHeader, isHighlight]
     ['SALARY STRUCTURE', null, null, true, false],
     ['Basic Salary',          fmtP(r.basic),          fmtA(r.basic),          false, false],
     ['HRA (50% of Basic)',    fmtP(r.hra),            fmtA(r.hra),            false, false],
@@ -2714,6 +2736,7 @@ function exportPDF() {
     ['Health Insurance (Monthly)',fmtP(r.healthInsurance), '—', false, false],
     ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' DISABLED' : ''), r.leaveComponent > 0 ? fmtP(r.leaveComponent) : 'Rs.0', r.leaveComponent > 0 && leaveApplicable !== 'N' ? naAnn(r.leaveComponent) : '—', false, false],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' DISABLED' : ''), r.gratuityComponent > 0 ? fmtP(r.gratuityComponent) : 'Rs.0', r.gratuityComponent > 0 ? naAnn(r.gratuityComponent) : '—', false, false],
+    ['Ex-Gratia / PLI', fmtP(r.exGratia || 0), naAnn(r.exGratia || 0), false, false],
     ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf > 0 ? fmtP(r.lwf) : 'Rs.0', '—', false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs.0', '—', false, false],
     ['EMPLOYEE DEDUCTIONS',       null, null, true, false],
@@ -2730,7 +2753,7 @@ function exportPDF() {
   addInfo();
   addTitle('COMPLETE CTC BREAKDOWN — MONTHLY & ANNUAL');
   addTable3Col(['Component', 'Monthly', 'Annual (×12)'], allRows);
-  addDisclaimer(); // ✅ Disclaimer added back
+  addDisclaimer();
  
   const tp = doc.internal.getNumberOfPages();
   for (let p = 1; p <= tp; p++) { doc.setPage(p); addFooter(p, tp); }
@@ -2739,6 +2762,7 @@ function exportPDF() {
   doc.save('CTC_Report_' + safe + '_' + new Date().toISOString().slice(0,10) + '.pdf');
   showToast('PDF downloaded successfully');
 }
+
 
 function exportCSV() {
   if (!calcResult) { showToast('⚠️ Please calculate first'); return; }
@@ -2801,6 +2825,7 @@ function exportCSV() {
     ['Health Insurance (Monthly)', amt(r.healthInsurance), '—'],
     ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' - DISABLED' : ''), amt(r.leaveComponent), leaveApplicable !== 'N' ? amtAnn(r.leaveComponent) : '—'],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - DISABLED' : ''), amt(r.gratuityComponent || 0), gratuityApplicable === 'Y' ? amtAnn(r.gratuityComponent || 0) : '—'],
+    ['Ex-Gratia / PLI', amt(r.exGratia || 0), amtAnn(r.exGratia || 0)],
     ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf > 0 ? amt(r.lwf) : 0, '—'],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? amt(r.ptDeduction) : 0, '—'],
     ['', '', ''],
@@ -3300,13 +3325,17 @@ function processBulkFile() {
     const bonusPercentRaw = getBulkField(row, ['Bonus Percent','Bonus %','BonusPercent','bonus_percent','Bonus Rate','Bonus Pct']);
     const bulkBonusPercent = (!isNaN(cleanNum(bonusPercentRaw)) && cleanNum(bonusPercentRaw) >= 0) ? cleanNum(bonusPercentRaw) : 8.33;
 
+    // ✅ Ex-Gratia / PLI override for bulk (defaults to 0 if not given)
+    const exGratiaRaw = getBulkField(row, ['Ex-Gratia', 'PLI', 'ExGratia', 'Ex Gratia', 'ex_gratia']);
+    const exGratiaAmt = (!isNaN(cleanNum(exGratiaRaw)) && cleanNum(exGratiaRaw) >= 0) ? cleanNum(exGratiaRaw) : 0;
+
     try {
       const r = computeCTC(
         gross, minWage, pf, pt, lwf,
         healthInsAmtBulk, leaveOverride,
         bulkPfBase, bulkHasVol, bulkVolPct, bulkSpecAmt, bulkEmpRate,
         bulkLeaves, previousBasic,
-        bulkBonusAppl, bulkBonusBase, bulkBonusPercent   // ✅ Pass bonus overrides incl. percent
+        bulkBonusAppl, bulkBonusBase, bulkBonusPercent, exGratiaAmt   // ✅ Pass bonus overrides incl. percent + Ex-Gratia
       );
 
       const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
@@ -3336,6 +3365,7 @@ function processBulkFile() {
         bonusBase      : bulkBonusBase,
         bonusBaseLabel : bonusBaseLabelMap[bulkBonusBase] || 'Min Wage',
         bonusPercent   : r.bonusPercent,
+        exGratia       : r.exGratia,
       });
     } catch (err) {
       bulkCalcResults.push({
@@ -3593,6 +3623,7 @@ function bulkExportCSV() {
     'Health Insurance (Rs.)', 'Leave Encashment (Rs.)', 'Leave Mode', 'Leaves Per Year',
     'LWF State', 'LWF Mode', 'LWF Amount (Rs.)',
     'PT State', 'PT Mode', 'Professional Tax (Rs.)',
+    'Ex-Gratia / PLI (Rs.)',
     'Initial CTC (Monthly)', 'Final CTC (Monthly)', 'Final CTC (Annual)',
     'EPF – Employee (Rs.)', 'ESI – Employee (Rs.)', 'Net Cash in Hand (Rs.)',
     'Status'
@@ -3630,6 +3661,7 @@ function bulkExportCSV() {
       r.lwf > 0 ? amt(r.lwf) : 0,
       r.ptStateName || 'N/A', r.ptMode === 'auto' ? 'Auto (State-wise)' : 'Manual',
       r.pt > 0 ? amt(r.pt) : 0,
+      amt(r.exGratia || 0),
       amt(r.initialCTC), amt(r.finalCTC), amt(r.finalAnnual),
       r.pfApplicable === 'Y' ? amt(r.epfEe) : 'N/A',
       r.esiEe > 0 ? amt(r.esiEe) : 0,
@@ -3654,6 +3686,7 @@ function bulkExportCSV() {
     valid.reduce(function(s,r){ return s+amt(r.leaveUsed); }, 0), '', '',
     '', '', valid.reduce(function(s,r){ return s+amt(r.lwf); }, 0),
     '', '', valid.reduce(function(s,r){ return s+amt(r.pt); }, 0),
+    valid.reduce(function(s,r){ return s+amt(r.exGratia||0); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.initialCTC); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.finalCTC); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.finalAnnual); }, 0),
@@ -3762,13 +3795,13 @@ function bulkCopyClipboard() {
 // ✅ Updated template with Bonus columns (base + percent)
 function bulkDownloadTemplate() {
   const csv = [
-    'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,Bonus (Y/N),Bonus Base,Bonus Percent,PT State,LWF State,Salary Month,Gender,Health Insurance,Leave Encashment Amount,Leaves per Year',
-    'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,Y,minwage,8.33,KA,FKL,12,Male,500,,15',
-    'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,Y,basic,10,MH,MH,12,Male,1000,500,18',
-    'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,Y,minwage,8.33,,OTHER,12,Male,750,,15',
-    'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,N,,8.33,GJ,OTHER,6,Female,800,,20',
-    'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,Y,gross,8.33,AP,AP,12,Male,500,,15',
-    'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,Y,basic,20,TS,OTHER,12,Female,600,500,12',
+    'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,Bonus (Y/N),Bonus Base,Bonus Percent,PT State,LWF State,Salary Month,Gender,Health Insurance,Leave Encashment Amount,Leaves per Year,Ex-Gratia',
+    'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,Y,minwage,8.33,KA,FKL,12,Male,500,,15,0',
+    'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,Y,basic,10,MH,MH,12,Male,1000,500,18,1000',
+    'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,Y,minwage,8.33,,OTHER,12,Male,750,,15,0',
+    'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,N,,8.33,GJ,OTHER,6,Female,800,,20,500',
+    'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,Y,gross,8.33,AP,AP,12,Male,500,,15,0',
+    'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,Y,basic,20,TS,OTHER,12,Female,600,500,12,750',
   ].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
