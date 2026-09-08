@@ -579,8 +579,7 @@ function updateBonusPreview(basic, minWage, gross) {
   if (basic === undefined) {
     const grossVal   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
     const minWageVal = parseFloat(document.getElementById('minWage')?.value) || 0;
-    const basicPct   = pfApplicable === 'Y' ? 0.55 : 0.53;
-    const basicFromGross = Math.round(grossVal * basicPct);
+    const basicFromGross = Math.round(grossVal * 0.50);
     basic   = Math.min(Math.max(basicFromGross, minWageVal), grossVal);
     minWage = minWageVal;
     gross   = grossVal;
@@ -649,8 +648,7 @@ function setPFApplicable(val) {
 
   const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
-  const basicPct = val === 'Y' ? 0.55 : 0.53;
-  const basicFromGross = Math.round(gross * basicPct);
+  const basicFromGross = Math.round(gross * 0.50);
   const basic = Math.min(Math.max(basicFromGross, minWage), gross);
   const isPFMandatory = basic <= 15000;
 
@@ -670,7 +668,7 @@ function setPFApplicable(val) {
   if (pfModeSection) pfModeSection.style.display = pfApplicable === 'Y' ? 'block' : 'none';
 
   if (pfApplicable === 'N') {
-    if (hint) hint.textContent = '53% of Gross or Min Wage (whichever is higher) -> Basic. No PF deducted.';
+    if (hint) hint.textContent = '50% of Gross or Min Wage (whichever is higher) -> Basic. No PF deducted.';
     pfBaseMode     = 'standard';
     pfAddVoluntary = false;
     pfEmployerRate = '12.5';
@@ -684,8 +682,7 @@ function setPFApplicable(val) {
 function setPF(val) {
   const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
-  const basicPct = val === 'Y' ? 0.55 : 0.53;
-  const basicFromGross = Math.round(gross * basicPct);
+  const basicFromGross = Math.round(gross * 0.50);
   const basic = Math.min(Math.max(basicFromGross, minWage), gross);
 
   if (val === 'N' && basic <= 15000) {
@@ -743,7 +740,7 @@ function updatePFHint() {
   const gross   = parseFloat(document.getElementById('grossSalary')?.value) || 0;
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
 
-  // Basic ab 50% of InitialCTC se aata hai — estimate for hint only
+  // Basic = 50% of Gross Salary
   const basicEstimate = Math.max(Math.round(gross * 0.50), minWage);
   const basic = Math.min(basicEstimate, gross);
   const isPFMandatory = basic <= 15000;
@@ -751,7 +748,7 @@ function updatePFHint() {
   const mandatoryBadge = isPFMandatory ? ' 🔒 MANDATORY' : '';
 
   if (pfApplicable === 'N') {
-    hint.textContent = '50% of Initial CTC → Basic (min: MinWage). No PF deducted.' + mandatoryBadge;
+    hint.textContent = '50% of Gross → Basic (min: MinWage). No PF deducted.' + mandatoryBadge;
     return;
   }
 
@@ -764,13 +761,13 @@ function updatePFHint() {
 
   switch (pfBaseMode) {
     case 'standard':
-      hint.textContent = '50% of Initial CTC → Basic (min: MinWage). PF Wages = min(Basic, Rs.15,000). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
+      hint.textContent = '50% of Gross → Basic (min: MinWage). PF Wages = min(Basic, Rs.15,000). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
       break;
     case 'full_basic':
-      hint.textContent = '50% of Initial CTC → Basic (min: MinWage). PF Wages = Full Basic. Employee: 12% + Vol% of Basic. ' + empRateText + '.' + addText + mandatoryBadge;
+      hint.textContent = '50% of Gross → Basic (min: MinWage). PF Wages = Full Basic. Employee: 12% + Vol% of Basic. ' + empRateText + '.' + addText + mandatoryBadge;
       break;
     case 'specific_amt':
-      hint.textContent = '50% of Initial CTC → Basic (min: MinWage). PF Wages = Rs.' + sAmt.toLocaleString('en-IN') + ' (fixed). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
+      hint.textContent = '50% of Gross → Basic (min: MinWage). PF Wages = Rs.' + sAmt.toLocaleString('en-IN') + ' (fixed). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
       break;
   }
 }
@@ -1606,67 +1603,18 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     : (typeof getBonusPercent === 'function' ? getBonusPercent() : 8.33);
 
   // ============================================================
-  // ITERATIVE SOLVE: Basic = 50% of InitialCTC
-  // InitialCTC = Gross + EPF_Emp + EDLI + Bonus + ESI_Emp
-  // ESI_Emp depends on Basic, EPF depends on Basic, Bonus depends on Basic
-  // So we iterate until Basic converges
+  // Basic = 50% of Gross Salary (direct — no iteration needed,
+  // since Basic no longer depends on Initial CTC)
   // ============================================================
 
-  let basic = minWage; // starting estimate
+  let basic = Math.round(gross * 0.50);
 
-  for (let iter = 0; iter < 30; iter++) {
-
-    // PF mandatory check
-    let pfCurrent = pf;
-    if (basic <= 15000 && pfCurrent !== 'Y') pfCurrent = 'Y';
-
-    // PF Wages
-    let pfWages = 0;
-    if (pfCurrent === 'Y') {
-      switch (resolvedBase) {
-        case 'standard':     pfWages = Math.min(basic, 15000); break;
-        case 'full_basic':   pfWages = basic; break;
-        case 'specific_amt': pfWages = Math.max(0, resolvedSpecAmt); break;
-        default:             pfWages = Math.min(basic, 15000);
-      }
-    }
-
-    // EPF Employer
-    let epfEmployer = 0;
-    if (pfCurrent === 'Y') {
-      epfEmployer = Math.round(pfWages * parseFloat(resolvedEmpRate) / 100);
-    }
-
-    // EDLI
-    const edliEmployer = (pfCurrent === 'Y' && resolvedEmpRate === '12') ? 0
-      : (pfCurrent === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0);
-
-    // Bonus
-    const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride, resolvedBonusPercent);
-
-    // ESI Employer (3.25% of Basic if Basic <= 21000)
-    const esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
-
-    // Initial CTC = Gross + EPF Emp + EDLI + Bonus + ESI Emp
-    const initialCTC = gross + epfEmployer + edliEmployer + bonus + esiEmployer;
-
-    // New Basic = 50% of Initial CTC
-    let newBasic = Math.round(initialCTC * 0.50);
-
-    // Apply constraints: MAX(newBasic, minWage, previousBasic) but MIN(gross)
-    if (previousBasic !== null && previousBasic > 0) {
-      newBasic = Math.max(newBasic, previousBasic);
-    }
-    newBasic = Math.max(newBasic, minWage);
-    newBasic = Math.min(newBasic, gross);
-
-    // Convergence check
-    if (Math.abs(newBasic - basic) <= 1) {
-      basic = newBasic;
-      break;
-    }
-    basic = newBasic;
+  // Apply constraints: MAX(basic, minWage, previousBasic) but MIN(gross)
+  if (previousBasic !== null && previousBasic > 0) {
+    basic = Math.max(basic, previousBasic);
   }
+  basic = Math.max(basic, minWage);
+  basic = Math.min(basic, gross);
 
   // ============================================================
   // FINAL CALCULATION with converged basic
@@ -1988,8 +1936,7 @@ function updateLeaveCalc() {
   leaveCountManual = leaves;
   leaveInput.value = leaves;
 
-  const basicPct       = pfApplicable === 'Y' ? 0.55 : 0.53;
-  const basicFromGross = Math.round(gross * basicPct);
+  const basicFromGross = Math.round(gross * 0.50);
   const basic          = Math.min(Math.max(basicFromGross, minWage), gross);
   const leaveAmount    = basic > 0 ? Math.round((basic / 26) * (leaves / 12)) : 0;
 
@@ -2005,8 +1952,7 @@ function updateLeavePlaceholder() {
   const minWage = parseFloat(document.getElementById('minWage')?.value) || 0;
   const leaveCountInput = document.getElementById('leaveCountInput');
   if (gross > 0 && minWage > 0) {
-    const basicPct = pfApplicable === 'Y' ? 0.55 : 0.53;
-    const basic    = Math.min(Math.max(Math.round(gross * basicPct), minWage), gross);
+    const basic    = Math.min(Math.max(Math.round(gross * 0.50), minWage), gross);
     const leaves   = (leaveMode === 'manual' && leaveCountInput) ? (parseInt(leaveCountInput.value) || 15) : 15;
     Math.round((basic / 26) * (leaves / 12)); // autoVal available if needed
   }
