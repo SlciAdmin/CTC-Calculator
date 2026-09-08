@@ -1606,7 +1606,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     : (typeof getBonusPercent === 'function' ? getBonusPercent() : 8.33);
 
   // ============================================================
-  // ITERATIVE SOLVE: Basic = 50% of InitialCTC
+  // ITERATIVE SOLVE: Basic = MAX(50% of InitialCTC, Min Wage, Previous Basic)
   // InitialCTC = Gross + EPF_Emp + EDLI + Bonus + ESI_Emp
   // ESI_Emp depends on Basic, EPF depends on Basic, Bonus depends on Basic
   // So we iterate until Basic converges
@@ -1650,15 +1650,13 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     // Initial CTC = Gross + EPF Emp + EDLI + Bonus + ESI Emp
     const initialCTC = gross + epfEmployer + edliEmployer + bonus + esiEmployer;
 
-    // New Basic = 50% of Initial CTC
-    let newBasic = Math.round(initialCTC * 0.50);
-
-    // Apply constraints: MAX(newBasic, minWage, previousBasic) but MIN(gross)
-    if (previousBasic !== null && previousBasic > 0) {
-      newBasic = Math.max(newBasic, previousBasic);
-    }
-    newBasic = Math.max(newBasic, minWage);
-    newBasic = Math.min(newBasic, gross);
+    // New Basic = MAX(50% of Initial CTC, Minimum Wage, Previous Basic)
+    // (no Gross cap — Basic is purely the highest of these three)
+    let newBasic = Math.round(Math.max(
+      initialCTC * 0.50,
+      minWage,
+      previousBasic || 0
+    ));
 
     // Convergence check
     if (Math.abs(newBasic - basic) <= 1) {
