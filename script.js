@@ -57,39 +57,48 @@ let bonusCustomPercent = 8.33;
 let inputMode = 'gross'; // 'gross' | 'finalCTC' | 'initialCTC' | 'cash'
 
 // ============== LWF STATE-WISE CONFIG ==============
+// months: 'all' = Monthly | 'jun-dec' = Half Yearly (June & December) | 'dec' = Yearly (December)
+// amount = Employee contribution | employerAmount = Employer contribution
 const LWF_STATES = {
-  PB: { name: 'Punjab', months: 'all', amount: 5, employerAmount: 20, formula: null },
-  TN:    { name: 'Tamil Nadu',       months: 'dec',     amount: 20,   formula: null },
-  AP:    { name: 'Andhra Pradesh',   months: 'dec',     amount: 30,   formula: null },
-  SKL:   { name: 'Kerala',           months: 'all',     amount: 20,   formula: null },
-  FKL:   { name: 'Karnataka',        months: 'jun-dec', amount: 20,   formula: null },
-  MH:    { name: 'Maharashtra',      months: 'jun-dec', amount: 25,   formula: null },
-  Goa:   { name: 'Goa',              months: 'jun-dec', amount: 60,   formula: null },
-  DL:    { name: 'Delhi',            months: 'jun-dec', amount: 0.75, formula: null },
-  CH:    { name: 'Chandigarh',       months: 'all',     amount: 5,    formula: null },
-  MP:    { name: 'Madhya Pradesh',   months: 'jun-dec', amount: 10,   formula: null },
-  CG:    { name: 'Chhattisgarh',     months: 'jun-dec', amount: 15,   formula: null },
-  WB:    { name: 'West Bengal',      months: 'jun-dec', amount: 3,    formula: null },
-  OD:    { name: 'Odisha',           months: 'jun-dec', amount: 10,   formula: null },
-  HR:    { name: 'Haryana',          months: 'all',     amount: null, formula: 'hr' },
-  OTHER: { name: 'Other',            months: 'none',    amount: 0,    formula: null },
+  AP:    { name: 'Andhra Pradesh',   frequency: 'Yearly',      months: 'dec',     amount: 30,   employerAmount: 70,   formula: null },
+  CH:    { name: 'Chandigarh',       frequency: 'Monthly',     months: 'all',     amount: 5,    employerAmount: 20,   formula: null },
+  CG:    { name: 'Chhattisgarh',     frequency: 'Half Yearly', months: 'jun-dec', amount: 15,   employerAmount: 45,   formula: null },
+  DL:    { name: 'Delhi',            frequency: 'Half Yearly', months: 'jun-dec', amount: 0.75, employerAmount: 2.25, formula: null },
+  Goa:   { name: 'Goa',              frequency: 'Half Yearly', months: 'jun-dec', amount: 60,   employerAmount: 180,  formula: null },
+  GJ:    { name: 'Gujarat',          frequency: 'Half Yearly', months: 'jun-dec', amount: 6,    employerAmount: 12,   formula: null },
+  HR:    { name: 'Haryana',          frequency: 'Monthly',     months: 'all',     amount: null, employerAmount: null, formula: 'hr' },
+  FKL:   { name: 'Karnataka',        frequency: 'Yearly',      months: 'dec',     amount: 50,   employerAmount: 100,  formula: null },
+  SKL:   { name: 'Kerala',           frequency: 'Monthly',     months: 'all',     amount: 50,   employerAmount: 50,   formula: null },
+  MP:    { name: 'Madhya Pradesh',   frequency: 'Half Yearly', months: 'jun-dec', amount: 10,   employerAmount: 50,   formula: null },
+  MH:    { name: 'Maharashtra',      frequency: 'Half Yearly', months: 'jun-dec', amount: 25,   employerAmount: 75,   formula: null },
+  OD:    { name: 'Odisha',           frequency: 'Half Yearly', months: 'jun-dec', amount: 10,   employerAmount: 20,   formula: null },
+  PB:    { name: 'Punjab',           frequency: 'Monthly',     months: 'all',     amount: 5,    employerAmount: 20,   formula: null },
+  TN:    { name: 'Tamil Nadu',       frequency: 'Yearly',      months: 'dec',     amount: 20,   employerAmount: 40,   formula: null },
+  TS:    { name: 'Telangana',        frequency: 'Yearly',      months: 'dec',     amount: 2,    employerAmount: 5,    formula: null },
+  WB:    { name: 'West Bengal',      frequency: 'Half Yearly', months: 'jun-dec', amount: 3,    employerAmount: 30,   formula: null },
+  OTHER: { name: 'Other',            frequency: '-',           months: 'none',    amount: 0,    employerAmount: 0,    formula: null },
 };
 
+// Haryana: Employee = 0.2% of Gross capped at Rs.35 | Employer = 2x Employee (capped at Rs.70)
+const LWF_HR_EMPLOYEE_CAP = 35;
+
 const LWF_STATE_ALIASES = {
-  'PB': ['PB', 'PUNJAB'],
-  'TN':  ['TN','TAMIL NADU','TAMILNADU'],
   'AP':  ['AP','ANDHRA PRADESH','ANDHRAPRADESH'],
-  'SKL': ['SKL','KL','KERALA'],
-  'FKL': ['FKL','KA','KARNATAKA'],
-  'MH':  ['MH','MAHARASHTRA'],
-  'Goa': ['GOA','GA'],
-  'DL':  ['DL','DELHI'],
   'CH':  ['CH','CHANDIGARH'],
-  'MP':  ['MP','MADHYA PRADESH','MADHYAPRADESH'],
   'CG':  ['CG','CHHATTISGARH','CHATTISGARH'],
-  'WB':  ['WB','WEST BENGAL','WESTBENGAL'],
-  'OD':  ['OD','ODISHA','ORISSA'],
+  'DL':  ['DL','DELHI'],
+  'Goa': ['GOA','GA'],
+  'GJ':  ['GJ','GUJARAT'],
   'HR':  ['HR','HARYANA'],
+  'FKL': ['FKL','KA','KARNATAKA'],
+  'SKL': ['SKL','KL','KERALA'],
+  'MP':  ['MP','MADHYA PRADESH','MADHYAPRADESH'],
+  'MH':  ['MH','MAHARASHTRA'],
+  'OD':  ['OD','ODISHA','ORISSA'],
+  'PB':  ['PB','PUNJAB'],
+  'TN':  ['TN','TAMIL NADU','TAMILNADU'],
+  'TS':  ['TS','TG','TELANGANA'],
+  'WB':  ['WB','WEST BENGAL','WESTBENGAL'],
   'OTHER': ['OTHER','NONE','NA','NIL',''],
 };
 
@@ -107,8 +116,8 @@ function computeLWFAuto(stateCode, month, gross, hasLeaves) {
   if (!stateCode || !LWF_STATES[stateCode]) return 0;
   const state = LWF_STATES[stateCode];
   if (state.formula === 'hr') {
-    const hrVal = gross * 0.002;
-    return hrVal <= 34 ? Math.round(hrVal * 100) / 100 : 34;
+    const hrVal = Math.min(gross * 0.002, LWF_HR_EMPLOYEE_CAP);
+    return Math.round(hrVal * 100) / 100;
   }
   const isDecember  = month === 12;
   const isJuneOrDec = month === 6 || month === 12;
@@ -124,10 +133,10 @@ function computeLWFAuto(stateCode, month, gross, hasLeaves) {
 function computeLWFEmployerAuto(stateCode, month, gross) {
   if (!stateCode || !LWF_STATES[stateCode]) return 0;
   const state = LWF_STATES[stateCode];
-  const employerAmt = state.employerAmount !== undefined ? state.employerAmount : state.amount;
+  const employerAmt = state.employerAmount !== undefined && state.employerAmount !== null ? state.employerAmount : state.amount;
   if (state.formula === 'hr') {
-    const hrVal = gross * 0.002;
-    return hrVal <= 34 ? Math.round(hrVal * 100) / 100 : 34;
+    const hrEmp = Math.min(gross * 0.002, LWF_HR_EMPLOYEE_CAP) * 2;
+    return Math.round(hrEmp * 100) / 100;
   }
   const isDecember  = month === 12;
   const isJuneOrDec = month === 6 || month === 12;
@@ -162,10 +171,10 @@ function getLWFHint(stateCode, month, gross) {
   if (stateCode === 'OTHER') return 'No LWF applicable for selected state';
   if (state.formula === 'hr') {
     const hrVal = gross * 0.002;
-    const cap   = hrVal <= 34 ? hrVal : 34;
-    return 'HR Formula: Gross x 0.2% = Rs.' + hrVal.toFixed(2) + ' -> Capped at Rs.34 -> Result: Rs.' + cap.toFixed(2);
+    const emp   = Math.min(hrVal, LWF_HR_EMPLOYEE_CAP);
+    return 'Haryana (Monthly): Employee = Gross x 0.2% = Rs.' + hrVal.toFixed(2) + ' -> capped at Rs.' + LWF_HR_EMPLOYEE_CAP + ' -> Rs.' + emp.toFixed(2) + ' | Employer = 2x = Rs.' + (emp * 2).toFixed(2);
   }
-  if (state.employerAmount !== undefined && state.employerAmount !== state.amount) {
+  if (state.employerAmount !== undefined && state.employerAmount !== null && state.employerAmount !== state.amount) {
     const appMonths = { 'all': 'every month', 'dec': 'December only', 'jun-dec': 'June & December only', 'none': 'never' };
     const rule = appMonths[state.months] || '';
     const isApplicable = computeLWFAuto(stateCode, month, gross, true) > 0;
@@ -210,7 +219,7 @@ function updateLWFAuto() {
   const lwfEmpVal  = computeLWFEmployerAuto(stateCode, month, gross);
   const hint       = getLWFHint(stateCode, month, gross);
   const state      = LWF_STATES[stateCode];
-  const hasSplit   = state && state.employerAmount !== undefined && state.employerAmount !== state.amount;
+  const hasSplit   = state && (state.formula === 'hr' || (state.employerAmount !== undefined && state.employerAmount !== null && state.employerAmount !== state.amount));
   if (resultEl) {
     if (lwfVal > 0) {
       resultEl.textContent = hasSplit
@@ -1580,7 +1589,8 @@ function initializeCalculator() {
 function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverride,
                     pfBaseModeOverride, pfVoluntaryOverride, pfVolPctOverride,
                     pfSpecAmtOverride, pfEmpRateOverride, leavesPerYear, previousBasic,
-                    bonusApplOverride, bonusBaseOverride, bonusPercentOverride, exGratiaAmt) {
+                    bonusApplOverride, bonusBaseOverride, bonusPercentOverride, exGratiaAmt,
+                    lwfEmployerOverride) {
 
   gross   = Math.round(gross);
   minWage = Math.round(minWage);
@@ -1757,6 +1767,10 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
 
   // LWF Employer
   const lwfEmployerContrib = (function() {
+    // Explicit override (bulk processing passes the state-wise employer amount here)
+    if (lwfEmployerOverride !== undefined && lwfEmployerOverride !== null && !isNaN(lwfEmployerOverride) && lwfEmployerOverride >= 0) {
+      return lwfEmployerOverride;
+    }
     if (lwfMode === 'auto') {
       const stateEl = document.getElementById('lwfState');
       if (stateEl && stateEl.value) {
@@ -1815,6 +1829,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     finalCTCAnnual : finalCTC * 12,
     epfEmployee,
     lwfEmployee    : lwf,
+    lwfEmployer    : lwfEmployerContrib,
     ptDeduction    : pt,
     cashInHand,
     pfModeLabel,
@@ -2257,8 +2272,8 @@ function renderBreakdown(r) {
         : 'Leave Component <span style="font-size:9px;color:var(--text-muted);font-weight:600;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;">' + userLeavesDisplay + ' LEAVES (Auto)</span>');
 
   const lwfLabel = r.lwfMode === 'manual'
-    ? 'LWF – Employee <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>'
-    : 'LWF – ' + (r.lwfStateName||'N/A') + ' <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>';
+    ? 'LWF – Employer <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>'
+    : 'LWF – Employer (' + (r.lwfStateName||'N/A') + ') <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>';
   const ptLabel = r.ptMode === 'manual'
     ? 'PT – Employee <span style="font-size:9px;color:var(--accent2);font-weight:600;background:rgba(159,122,234,0.15);padding:2px 6px;border-radius:4px;margin-left:4px;">MANUAL</span>'
     : 'PT – ' + (r.ptStateName||'N/A') + ' <span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">AUTO</span>';
@@ -2278,7 +2293,7 @@ function renderBreakdown(r) {
     { label: 'ESI – Employer',              val: r.esiEmployer > 0 ? fmt(r.esiEmployer) : 'N/A', sub: '3.25% of Gross (if ≤ Rs.21k)', cls: '' },
     { label: 'Health Insurance (Monthly)',  val: fmt(r.healthInsurance),   sub: 'Employer contribution (manual)', cls: 'purple' },
     { label: leaveLabel,                    val: fmt(r.leaveComponent),    sub: r.leaveMode === 'manual' ? 'Manual (Auto: ' + fmt(r.leaveAuto) + ')' : 'Basic/26 x ' + userLeavesDisplay + 'Lvs / 12', cls: '' },
-    { label: lwfLabel,                      val: r.lwf > 0 ? fmt(r.lwf) : 'Rs.0 (N/A)', sub: r.lwfMode === 'auto' ? (r.lwfStateName||'N/A') + ' – State-wise auto' : 'Manual override', cls: '' },
+    { label: lwfLabel,                      val: r.lwfEmployer > 0 ? fmt(r.lwfEmployer) : 'Rs.0 (N/A)', sub: r.lwfMode === 'auto' ? (r.lwfStateName||'N/A') + ' – State-wise auto (Employee: ' + (r.lwf > 0 ? fmt(r.lwf) : 'Rs.0') + ')' : 'Manual override', cls: '' },
     { label: ptLabel,                       val: r.ptDeduction > 0 ? fmt(r.ptDeduction) : 'Rs.0 (N/A)', sub: r.ptMode === 'auto' ? (r.ptStateName||'N/A') + ' – State-wise auto' : 'Manual override', cls: '' },
     { label: 'Final CTC (Monthly)',         val: fmt(r.finalCTC),          sub: empName, cls: 'highlight' },
     { label: 'Final CTC (Annual)',          val: fmt(r.finalCTCAnnual),    sub: empName, cls: 'highlight' },
@@ -2340,13 +2355,13 @@ function renderExportPreview(r) {
     ['Leave Encashment' + (leaveApplicable === 'N' ? ' (Disabled)' : ' (' + r.leavesPerYear + ' leaves/yr)'), r.leaveComponent, leaveApplicable !== 'N', false],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - Disabled' : ''), r.gratuityComponent || 0, gratuityApplicable === 'Y', false],
     ['Ex-Gratia / PLI', r.exGratia || 0, true, false],
-    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf, false, false],
+    ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer, false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
     ['EMPLOYEE DEDUCTIONS', null, false, true],
     ['EPF – Employee', r.epfEmployee, true, false],
     ['ESI – Employee (0.75%)', r.esiEmployee, true, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
-    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf, false, false],
+    ['LWF – Employee (' + (r.lwfStateName || 'N/A') + ')', r.lwf, false, false],
     ['FINAL TOTALS', null, false, true],
     // FIX: Single row for Final CTC with Annual shown in Annual column
     ['Final CTC ', r.finalCTC, true, false],
@@ -2726,7 +2741,7 @@ function exportPDF() {
     // [label, monthly, annual, isSectionHeader, isHighlight]
     ['SALARY STRUCTURE', null, null, true, false],
     ['Basic Salary',          fmtP(r.basic),          fmtA(r.basic),          false, false],
-    ['HRA (50% of Basic)',    fmtP(r.hra),            fmtA(r.hra),            false, false],
+    ['HRA ',    fmtP(r.hra),            fmtA(r.hra),            false, false],
   ];
  
   if (r.isHighGross) {
@@ -2748,13 +2763,13 @@ function exportPDF() {
     ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' DISABLED' : ''), r.leaveComponent > 0 ? fmtP(r.leaveComponent) : 'Rs.0', r.leaveComponent > 0 && leaveApplicable !== 'N' ? naAnn(r.leaveComponent) : '—', false, false],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' DISABLED' : ''), r.gratuityComponent > 0 ? fmtP(r.gratuityComponent) : 'Rs.0', r.gratuityComponent > 0 ? naAnn(r.gratuityComponent) : '—', false, false],
     ['Ex-Gratia / PLI', fmtP(r.exGratia || 0), naAnn(r.exGratia || 0), false, false],
-    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf > 0 ? fmtP(r.lwf) : 'Rs.0', '—', false, false],
+    ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer > 0 ? fmtP(r.lwfEmployer) : 'Rs.0', '—', false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs.0', '—', false, false],
     ['EMPLOYEE DEDUCTIONS',       null, null, true, false],
     ['EPF – Employee (12%)',       r.pfApplicable === 'Y' ? fmtP(r.epfEmployee) : 'N/A', r.pfApplicable === 'Y' ? naAnn(r.epfEmployee) : '—', false, false],
     ['ESI – Employee (0.75%)',     r.esiEmployee > 0 ? fmtP(r.esiEmployee) : 'N/A', r.esiEmployee > 0 ? naAnn(r.esiEmployee) : '—', false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs.0', '—', false, false],
-    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf > 0 ? fmtP(r.lwf) : 'Rs.0', '—', false, false],
+    ['LWF – Employee (' + (r.lwfStateName || 'N/A') + ')', r.lwf > 0 ? fmtP(r.lwf) : 'Rs.0', '—', false, false],
     ['FINAL SUMMARY',             null, null, true, false],
     ['Final CTC',                 fmtP(r.finalCTC),       fmtP(r.finalCTCAnnual), false, true],
     ['Net Cash in Hand',          fmtP(r.cashInHand),     fmtA(r.cashInHand),     false, true],
@@ -2837,14 +2852,14 @@ function exportCSV() {
     ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' - DISABLED' : ''), amt(r.leaveComponent), leaveApplicable !== 'N' ? amtAnn(r.leaveComponent) : '—'],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - DISABLED' : ''), amt(r.gratuityComponent || 0), gratuityApplicable === 'Y' ? amtAnn(r.gratuityComponent || 0) : '—'],
     ['Ex-Gratia / PLI', amt(r.exGratia || 0), amtAnn(r.exGratia || 0)],
-    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf > 0 ? amt(r.lwf) : 0, '—'],
+    ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer > 0 ? amt(r.lwfEmployer) : 0, '—'],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? amt(r.ptDeduction) : 0, '—'],
     ['', '', ''],
     ['--- EMPLOYEE DEDUCTIONS ---', '', ''],
     ['EPF – Employee (12%)', r.pfApplicable === 'Y' ? amt(r.epfEmployee) : 'N/A', r.pfApplicable === 'Y' ? amtAnn(r.epfEmployee) : 'N/A'],
     ['ESI – Employee (0.75%)', r.esiEmployee > 0 ? amt(r.esiEmployee) : 0, r.esiEmployee > 0 ? amtAnn(r.esiEmployee) : 0],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? amt(r.ptDeduction) : 0, '—'],
-    ['LWF – ' + (r.lwfStateName || 'N/A'), r.lwf > 0 ? amt(r.lwf) : 0, '—'],
+    ['LWF – Employee (' + (r.lwfStateName || 'N/A') + ')', r.lwf > 0 ? amt(r.lwf) : 0, '—'],
     ['', '', ''],
     ['--- FINAL TOTALS ---', '', ''],
     ['Final CTC', amt(r.finalCTC), amt(r.finalCTCAnnual)],
@@ -2884,8 +2899,9 @@ function copyToClipboard() {
       'ESI Employer\t' + r.esiEmployer,
       'Health Insurance (Monthly)\t' + r.healthInsurance,
       'Leave Encashment (' + r.leavesPerYear + ' leaves)\t' + r.leaveComponent,
-      'LWF – ' + (r.lwfStateName||'N/A') + '\t' + r.lwf,
+      'LWF Employer – ' + (r.lwfStateName||'N/A') + '\t' + r.lwfEmployer,
       'PT – ' + (r.ptStateName||'N/A') + '\t' + r.ptDeduction,
+      'LWF Employee – ' + (r.lwfStateName||'N/A') + '\t' + r.lwf,
       'EPF Employee\t' + r.epfEmployee,
       'ESI Employee\t' + r.esiEmployee,
       'Final CTC (Monthly)\t' + r.finalCTC,
@@ -3292,16 +3308,18 @@ function processBulkFile() {
     const lwfAmtRaw    = getBulkField(row, ['LWF Amount','Labour Welfare Fund','LWF (Monthly)','lwf','LWF_Amount','lwf_amt','LWF Manual']);
     const lwfAmtManual = cleanNum(lwfAmtRaw);
 
-    let lwf = 0, lwfStateName = 'N/A', lwfMode_row = 'manual';
+    let lwf = 0, lwfEmployer = 0, lwfStateName = 'N/A', lwfMode_row = 'manual';
     if (lwfStateRaw) {
       const resolvedLWFCode = resolveLWFStateCode(lwfStateRaw);
       if (resolvedLWFCode && LWF_STATES[resolvedLWFCode]) {
         lwf = computeLWFAuto(resolvedLWFCode, bulkMonth, gross, true);
+        lwfEmployer = computeLWFEmployerAuto(resolvedLWFCode, bulkMonth, gross);
         lwfStateName = LWF_STATES[resolvedLWFCode].name;
         lwfMode_row  = 'auto';
       }
     } else if (!isNaN(lwfAmtManual) && lwfAmtManual >= 0) {
       lwf = Math.max(0, lwfAmtManual);
+      lwfEmployer = lwf;
       lwfStateName = 'Manual';
       lwfMode_row  = 'manual';
     }
@@ -3346,7 +3364,8 @@ function processBulkFile() {
         healthInsAmtBulk, leaveOverride,
         bulkPfBase, bulkHasVol, bulkVolPct, bulkSpecAmt, bulkEmpRate,
         bulkLeaves, previousBasic,
-        bulkBonusAppl, bulkBonusBase, bulkBonusPercent, exGratiaAmt   // ✅ Pass bonus overrides incl. percent + Ex-Gratia
+        bulkBonusAppl, bulkBonusBase, bulkBonusPercent, exGratiaAmt,  // ✅ Pass bonus overrides incl. percent + Ex-Gratia
+        lwfEmployer   // ✅ State-wise LWF employer contribution
       );
 
       const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
@@ -3366,7 +3385,7 @@ function processBulkFile() {
         esiEmp: r.esiEmployer,
         healthInsurance: r.healthInsurance,
         leaveUsed: r.leaveComponent, leaveAuto: r.leaveAuto, leaveMode: r.leaveMode,
-        lwf: r.lwf, lwfStateName, lwfMode: lwfMode_row,
+        lwf: r.lwf, lwfEmployer: r.lwfEmployer, lwfStateName, lwfMode: lwfMode_row,
         pt: r.ptDeduction, ptStateName, ptMode: ptMode_row,
         finalCTC: r.finalCTC, finalAnnual: r.finalCTCAnnual,
         epfEe: r.epfEmployee, esiEe: r.esiEmployee, lwfEmployee: r.lwfEmployee,
@@ -3632,7 +3651,7 @@ function bulkExportCSV() {
     'Bonus Applicable', 'Bonus Base', 'Bonus Percent (%)', 'Bonus Amount (Rs.)',
     'ESI – Employer (Rs.)',
     'Health Insurance (Rs.)', 'Leave Encashment (Rs.)', 'Leave Mode', 'Leaves Per Year',
-    'LWF State', 'LWF Mode', 'LWF Amount (Rs.)',
+    'LWF State', 'LWF Mode', 'LWF – Employee (Rs.)', 'LWF – Employer (Rs.)',
     'PT State', 'PT Mode', 'Professional Tax (Rs.)',
     'Ex-Gratia / PLI (Rs.)',
     'Initial CTC (Monthly)', 'Final CTC (Monthly)', 'Final CTC (Annual)',
@@ -3670,6 +3689,7 @@ function bulkExportCSV() {
       r.leavesPerYear || 15,
       r.lwfStateName || 'N/A', r.lwfMode === 'auto' ? 'Auto (State-wise)' : 'Manual',
       r.lwf > 0 ? amt(r.lwf) : 0,
+      r.lwfEmployer > 0 ? amt(r.lwfEmployer) : 0,
       r.ptStateName || 'N/A', r.ptMode === 'auto' ? 'Auto (State-wise)' : 'Manual',
       r.pt > 0 ? amt(r.pt) : 0,
       amt(r.exGratia || 0),
@@ -3696,6 +3716,7 @@ function bulkExportCSV() {
     valid.reduce(function(s,r){ return s+amt(r.healthInsurance||0); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.leaveUsed); }, 0), '', '',
     '', '', valid.reduce(function(s,r){ return s+amt(r.lwf); }, 0),
+    valid.reduce(function(s,r){ return s+amt(r.lwfEmployer||0); }, 0),
     '', '', valid.reduce(function(s,r){ return s+amt(r.pt); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.exGratia||0); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.initialCTC); }, 0),
@@ -3756,11 +3777,12 @@ function bulkExportTXT() {
     txt += tableRow('ESI – Employer', r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A');
     txt += tableRow('Health Insurance (Monthly)', bulkFmt(r.healthInsurance || 0));
     txt += tableRow('Leave Encashment (' + (r.leavesPerYear||15) + ' leaves)', bulkFmt(r.leaveUsed));
-    txt += tableRow('LWF – ' + (r.lwfStateName||'N/A'), r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A');
+    txt += tableRow('LWF – Employer (' + (r.lwfStateName||'N/A') + ')', r.lwfEmployer > 0 ? bulkFmt(r.lwfEmployer) : 'N/A');
     txt += SEP + '\n';
     txt += tableRow('EPF – Employee', r.pfApplicable === 'Y' ? bulkFmt(r.epfEe) : 'N/A');
     txt += tableRow('ESI – Employee', r.esiEe > 0 ? bulkFmt(r.esiEe) : 'N/A');
     txt += tableRow('Professional Tax – ' + (r.ptStateName||'N/A'), r.pt > 0 ? bulkFmt(r.pt) : 'N/A');
+    txt += tableRow('LWF – Employee (' + (r.lwfStateName||'N/A') + ')', r.lwf > 0 ? bulkFmt(r.lwf) : 'N/A');
     txt += SEP + '\n';
     txt += tableRow('Final CTC (Monthly)', bulkFmt(r.finalCTC));
     txt += tableRow('Final CTC (Annual)', bulkFmt(r.finalAnnual));
