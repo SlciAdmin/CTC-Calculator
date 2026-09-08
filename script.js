@@ -1613,8 +1613,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
   // ============================================================
 
   let basic = minWage; // starting estimate
-  let prevBasicIter = null;      // basic from 1 iteration ago
-  let prevPrevBasicIter = null;  // basic from 2 iterations ago
+  let basicOneIterAgo = null;  // basic value from the previous iteration
 
   for (let iter = 0; iter < 30; iter++) {
 
@@ -1668,15 +1667,16 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
 
     // Oscillation guard: near the Rs.21,000 ESI / bonus-eligibility threshold
     // Bonus + ESI Employer switch on/off, so Initial CTC (and Basic) can bounce
-    // between two values forever. If we detect that 2-cycle, settle on the lower
-    // value — it stays consistent with Bonus + ESI Employer being included.
-    if (prevPrevBasicIter !== null && Math.abs(newBasic - prevPrevBasicIter) <= 1) {
-      basic = Math.min(newBasic, basic);
+    // between two values forever. If newBasic matches the value from two steps
+    // back, we are in that 2-cycle — settle on the higher value so Basic stays
+    // at 50% of the Initial CTC that still counts Bonus + ESI. (Once Basic clears
+    // Rs.21,000 the final calc drops Bonus + ESI Employer to 0.)
+    if (basicOneIterAgo !== null && Math.abs(newBasic - basicOneIterAgo) <= 1) {
+      basic = Math.max(newBasic, basic);
       break;
     }
 
-    prevPrevBasicIter = prevBasicIter;
-    prevBasicIter     = basic;
+    basicOneIterAgo = basic;
     basic = newBasic;
   }
 
