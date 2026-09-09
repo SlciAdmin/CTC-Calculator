@@ -2009,9 +2009,10 @@ function updateLeaveCalc() {
 
   if (!leaveInput) return;
 
-  let leaves = parseInt(leaveInput.value) || 15;
+  let leaves = parseInt(leaveInput.value);
+  if (isNaN(leaves)) leaves = 15;
   if (leaves < 0) leaves = 0;
-  if (leaves > 30) leaves = 30;
+  // No upper limit on custom number of leaves per year
   leaveCountManual = leaves;
   leaveInput.value = leaves;
 
