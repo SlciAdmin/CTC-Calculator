@@ -56,7 +56,6 @@ const PF_CONFIG = Object.freeze({
   EPFO_EFFECTIVE_DATE: '2026-09-17',
   EMPLOYEE_RATE: 0.12,
   EDLI_RATE: 0.005,
-  EDLI_CAP: 75,
 });
 
 function roundCurrency(value) {
@@ -77,7 +76,7 @@ function calculatePFContributions(pfWages, employerRate, basic) {
   const employerPF = Math.round(pfWages * parseFloat(employerRate) / 100);
   const edli = employerRate === '12'
     ? 0
-    : Math.min(Math.round(basic * PF_CONFIG.EDLI_RATE), PF_CONFIG.EDLI_CAP);
+    : Math.round(pfWages * PF_CONFIG.EDLI_RATE);
   return { employeePF, employerPF, edli };
 }
 
@@ -806,7 +805,7 @@ function _syncPFUI() {
     empRateBtn.classList.toggle('active', pfEmployerRate === '12');
     empRateBtn.querySelector('.pfm-sub').textContent = pfEmployerRate === '12'
       ? 'Employer: 12% | EDLI: Rs.0'
-      : 'Employer: 12.5% | EDLI: 0.5% (max Rs.75)';
+      : 'Employer: 12.5% | EDLI: 0.5% of applicable PF wages';
   }
   const voluntaryWrapper = document.getElementById('pfVoluntaryWrapper');
   const specificWrapper  = document.getElementById('pfSpecificWrapper');
@@ -838,7 +837,7 @@ function updatePFHint() {
   const addText = pfAddVoluntary ? ' + Voluntary ' + vpct + '% (Employee Only)' : '';
   const empRateText = pfEmployerRate === '12'
     ? 'Employer: 12% of PF Wages | EDLI: Rs.0'
-    : 'Employer: 12.5% of PF Wages | EDLI: 0.5% of Basic (max Rs.75)';
+    : 'Employer: 12.5% of PF Wages | EDLI: 0.5% of applicable PF wages';
 
   switch (pfBaseMode) {
     case 'standard':
@@ -1159,7 +1158,7 @@ function _insertPFModeAfter(pfField) {
       <button class="pf-addon-btn" id="pfEmployerRateToggle" onclick="togglePFEmployerRate()" type="button">
         <span class="pfm-icon">⚙️</span>
         <span class="pfm-title">Employer PF Rate</span>
-        <span class="pfm-sub">Employer: 12.5% | EDLI: 0.5% (max Rs.75)</span>
+        <span class="pfm-sub">Employer: 12.5% | EDLI: 0.5% of applicable PF wages</span>
       </button>
     </div>
     <div id="pfSpecificWrapper" class="hidden pf-extra-input" style="margin-top:10px;">
@@ -2317,7 +2316,7 @@ function renderBreakdown(r) {
   const pfModeBadge = r.pfApplicable === 'Y'
     ? '<span style="font-size:9px;color:var(--accent3);font-weight:600;background:rgba(104,211,145,0.1);padding:2px 6px;border-radius:4px;margin-left:4px;">' + r.pfModeLabel + '</span>'
     : '';
-  const edliNote = r.pfEmployerRate === '12' ? ' (Rs.0 - Employer@12%)' : ' (0.5% of Basic, max Rs.75)';
+  const edliNote = r.pfEmployerRate === '12' ? ' (Rs.0 - Employer@12%)' : ' (0.5% of applicable PF wages)';
 
   // ✅ Bonus label shows base used + percentage used
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };

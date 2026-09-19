@@ -29,10 +29,15 @@ assert.strictEqual(nikhil.basic, 16953);
 assert.strictEqual(nikhil.pfWages, 16953);
 assert.strictEqual(nikhil.epfEmployee, 2034.36);
 assert.strictEqual(nikhil.epfEmployer, 2119);
-assert.strictEqual(nikhil.edliEmployer, 75);
+assert.strictEqual(nikhil.edliEmployer, 85);
 assert.strictEqual(nikhil.finalCTCAnnual, nikhil.finalCTC * 12);
 assert.strictEqual(nikhil.pfComparison.oldEmployeePF, 1800);
 assert.strictEqual(nikhil.pfComparison.oldEmployerPF, 1875);
+assert.strictEqual(nikhil.pfComparison.oldEdli, 75);
+assert.strictEqual(nikhil.pfComparison.newEdli, 85);
+
+const edliExample = context.testPF(22411, '12.5', 22411);
+assert.strictEqual(edliExample.edli, 112);
 assert.ok(source.includes('function exportPDF()'));
 assert.ok(source.includes('fmtPF(r.epfEmployee)'));
 
