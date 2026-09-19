@@ -348,6 +348,15 @@
               <div class="field-hint" id="pfHint">55% of Gross or Min Wage (whichever is higher) → Basic</div>
             </div>
 
+            <div class="field-group special-field">
+              <label>CTC Treatment</label>
+              <div class="toggle-group" role="radiogroup" aria-label="CTC Treatment">
+                <button class="toggle-btn active" id="ctcTreatmentAdditional" onclick="setCTCTreatment('additional')" type="button" role="radio" aria-checked="true">Additional Employer Cost</button>
+                <button class="toggle-btn" id="ctcTreatmentRestructure" onclick="setCTCTreatment('restructure')" type="button" role="radio" aria-checked="false">Maintain Same CTC</button>
+              </div>
+              <div class="field-hint">CTC impact depends on selected CTC treatment.</div>
+            </div>
+
             <!-- PROFESSIONAL TAX -->
             <div class="field-group special-field pt-field">
               <label>
@@ -627,6 +636,22 @@
                   <span class="mini-label">Bonus</span>
                   <span class="mini-val" id="r_bonus">—</span>
                 </div>
+              </div>
+              <div class="pf-summary" id="pfSummary">
+                <div class="pf-summary-title">EPFO PF CEILING</div>
+                <div class="pf-summary-row"><span>Old Ceiling</span><strong id="pfSummaryOldCeiling">₹15,000/month</strong></div>
+                <div class="pf-summary-row"><span>Revised Ceiling</span><strong id="pfSummaryNewCeiling">₹25,000/month</strong></div>
+                <div class="pf-summary-row"><span>Effective Date</span><strong>17 September 2026</strong></div>
+                <div class="pf-summary-row"><span>Applicable PF Wage</span><strong id="pfSummaryWage">—</strong></div>
+                <div class="pf-summary-row"><span>Employee PF</span><strong id="pfSummaryEmployee">—</strong></div>
+                <div class="pf-summary-row"><span>Employer Contribution</span><strong id="pfSummaryEmployer">—</strong></div>
+                <div class="pf-summary-row"><span>Employee PF Increase</span><strong id="pfSummaryEmployeeIncrease">—</strong></div>
+                <div class="pf-summary-row"><span>Employer Contribution Increase</span><strong id="pfSummaryEmployerIncrease">—</strong></div>
+                <div class="pf-summary-row"><span>Combined Employee + Employer PF Movement</span><strong id="pfSummaryCombined">—</strong></div>
+                <div class="pf-summary-row"><span>CTC Impact</span><strong id="pfSummaryCTCImpact">—</strong></div>
+                <div class="pf-summary-row"><span>Take-Home Impact</span><strong id="pfSummaryTakeHome">—</strong></div>
+                <div class="field-hint" id="pfTransitionNote">September 2026 is a transition month. Final contribution treatment should follow applicable EPFO implementation instructions.</div>
+                <div class="field-hint" id="pfRestructureAmount"></div>
               </div>
             </div>
           </section>

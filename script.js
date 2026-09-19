@@ -3,7 +3,7 @@
    New Labour Code | Cross-Device Login System
    LWF + PT: State-wise Auto Calculation
    Health Insurance: Manual Entry (Employer Contribution)
-   ✅ PF Mandatory if Basic ≤ ₹15,000 (EPF Act)
+  ✅ PF Mandatory threshold preserved at ₹15,000 (EPF Act)
    ✅ BULK UPLOAD — FULL INDIVIDUAL-LEVEL PARITY
    ✅ computeCTC accepts leavesPerYear param
    ✅ BULK SEARCH — Search by Name/Code/Branch/Any Field
@@ -46,6 +46,60 @@ let pfAddVoluntary = false;
 let pfVoluntaryPct = 0;
 let pfSpecificAmt  = 0;
 let pfEmployerRate = '12.5';
+let ctcTreatment = 'additional';
+
+// PF policy values are kept in one place so the calculator, preview, bulk flow,
+// and exports all use the same ceiling and contribution rules.
+const PF_CONFIG = Object.freeze({
+  EPFO_OLD_CEILING: 15000,
+  EPFO_NEW_CEILING: 25000,
+  EPFO_EFFECTIVE_DATE: '2026-09-17',
+  EMPLOYEE_RATE: 0.12,
+  EDLI_RATE: 0.005,
+  EDLI_CAP: 75,
+});
+
+function roundCurrency(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function getPFWages(basic, mode, specificAmount, ceiling) {
+  switch (mode) {
+    case 'full_basic':   return Math.max(0, basic);
+    case 'specific_amt': return Math.max(0, specificAmount || 0);
+    case 'standard':
+    default:             return Math.min(Math.max(0, basic), ceiling);
+  }
+}
+
+function calculatePFContributions(pfWages, employerRate, basic) {
+  const employeePF = roundCurrency(pfWages * PF_CONFIG.EMPLOYEE_RATE);
+  const employerPF = Math.round(pfWages * parseFloat(employerRate) / 100);
+  const edli = employerRate === '12'
+    ? 0
+    : Math.min(Math.round(basic * PF_CONFIG.EDLI_RATE), PF_CONFIG.EDLI_CAP);
+  return { employeePF, employerPF, edli };
+}
+
+function getPFComparison(basic, mode, specificAmount, employerRate, pfEnabled) {
+  if (!pfEnabled) {
+    return { oldWages: 0, newWages: 0, oldEmployeePF: 0, newEmployeePF: 0, oldEmployerPF: 0, newEmployerPF: 0 };
+  }
+  const oldWages = getPFWages(basic, mode, specificAmount, PF_CONFIG.EPFO_OLD_CEILING);
+  const newWages = getPFWages(basic, mode, specificAmount, PF_CONFIG.EPFO_NEW_CEILING);
+  const oldPF = calculatePFContributions(oldWages, employerRate, basic);
+  const newPF = calculatePFContributions(newWages, employerRate, basic);
+  return {
+    oldWages,
+    newWages,
+    oldEmployeePF: oldPF.employeePF,
+    newEmployeePF: newPF.employeePF,
+    oldEmployerPF: oldPF.employerPF,
+    newEmployerPF: newPF.employerPF,
+    oldEdli: oldPF.edli,
+    newEdli: newPF.edli,
+  };
+}
 
 // ============== BONUS STATE ==============
 let bonusApplicable = 'Y';
@@ -661,17 +715,17 @@ function setPFApplicable(val) {
   const basicPct = val === 'Y' ? 0.55 : 0.53;
   const basicFromGross = Math.round(gross * basicPct);
   const basic = Math.min(Math.max(basicFromGross, minWage), gross);
-  const isPFMandatory = basic <= 15000;
+  const isPFMandatory = basic <= PF_CONFIG.EPFO_OLD_CEILING;
 
   if (pfNo) {
     if (isPFMandatory && val === 'N') {
       pfApplicable = 'Y';
       if (pfYes) pfYes.classList.add('active');
       if (pfNo) pfNo.classList.remove('active');
-      showToast('⚠️ PF Mandatory: Basic Salary (₹' + Math.round(basic).toLocaleString('en-IN') + ') is ≤ ₹15,000. As per EPF Act, PF cannot be disabled.');
+      showToast('⚠️ PF Mandatory: Basic Salary (₹' + Math.round(basic).toLocaleString('en-IN') + ') is ≤ ₹' + PF_CONFIG.EPFO_OLD_CEILING.toLocaleString('en-IN') + '. As per EPF Act, PF cannot be disabled.');
     }
     pfNo.disabled = isPFMandatory;
-    pfNo.title = isPFMandatory ? 'PF mandatory for Basic ≤ ₹15,000 as per EPF Act' : '';
+    pfNo.title = isPFMandatory ? 'PF mandatory threshold preserved at Rs.' + PF_CONFIG.EPFO_OLD_CEILING.toLocaleString('en-IN') + ' as per EPF Act' : '';
     pfNo.style.cursor = isPFMandatory ? 'not-allowed' : 'pointer';
     pfNo.style.opacity = isPFMandatory ? '0.5' : '1';
   }
@@ -697,8 +751,8 @@ function setPF(val) {
   const basicFromGross = Math.round(gross * basicPct);
   const basic = Math.min(Math.max(basicFromGross, minWage), gross);
 
-  if (val === 'N' && basic <= 15000) {
-    showToast('⚠️ PF Cannot Be Disabled: When Basic Salary (₹' + Math.round(basic).toLocaleString('en-IN') + ') is ₹15,000 or less, PF is MANDATORY as per EPF Act 1952.');
+  if (val === 'N' && basic <= PF_CONFIG.EPFO_OLD_CEILING) {
+    showToast('⚠️ PF Cannot Be Disabled: When Basic Salary (₹' + Math.round(basic).toLocaleString('en-IN') + ') is ₹' + PF_CONFIG.EPFO_OLD_CEILING.toLocaleString('en-IN') + ' or less, PF is MANDATORY as per EPF Act 1952.');
     return;
   }
   setPFApplicable(val);
@@ -722,6 +776,21 @@ function togglePFEmployerRate() {
   pfEmployerRate = pfEmployerRate === '12.5' ? '12' : '12.5';
   _syncPFUI();
   updatePFHint();
+  liveCalc();
+}
+
+function setCTCTreatment(value) {
+  ctcTreatment = value === 'restructure' ? 'restructure' : 'additional';
+  const additional = document.getElementById('ctcTreatmentAdditional');
+  const restructure = document.getElementById('ctcTreatmentRestructure');
+  if (additional) {
+    additional.classList.toggle('active', ctcTreatment === 'additional');
+    additional.setAttribute('aria-checked', ctcTreatment === 'additional' ? 'true' : 'false');
+  }
+  if (restructure) {
+    restructure.classList.toggle('active', ctcTreatment === 'restructure');
+    restructure.setAttribute('aria-checked', ctcTreatment === 'restructure' ? 'true' : 'false');
+  }
   liveCalc();
 }
 
@@ -755,7 +824,7 @@ function updatePFHint() {
   // Basic ab 50% of InitialCTC se aata hai — estimate for hint only
   const basicEstimate = Math.max(Math.round(gross * 0.50), minWage);
   const basic = Math.min(basicEstimate, gross);
-  const isPFMandatory = basic <= 15000;
+  const isPFMandatory = basic <= PF_CONFIG.EPFO_OLD_CEILING;
 
   const mandatoryBadge = isPFMandatory ? ' 🔒 MANDATORY' : '';
 
@@ -773,7 +842,7 @@ function updatePFHint() {
 
   switch (pfBaseMode) {
     case 'standard':
-      hint.textContent = '50% of Initial CTC → Basic (min: MinWage). PF Wages = min(Basic, Rs.15,000). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
+      hint.textContent = '50% of Initial CTC → Basic (min: MinWage). PF Wages = min(Basic, Rs.' + PF_CONFIG.EPFO_NEW_CEILING.toLocaleString('en-IN') + '). Employee: 12% + Vol% of PF Wages. ' + empRateText + '.' + addText + mandatoryBadge;
       break;
     case 'full_basic':
       hint.textContent = '50% of Initial CTC → Basic (min: MinWage). PF Wages = Full Basic. Employee: 12% + Vol% of Basic. ' + empRateText + '.' + addText + mandatoryBadge;
@@ -1064,12 +1133,12 @@ function _insertPFModeAfter(pfField) {
       <button class="pf-mode-btn active" id="pfBase_standard" onclick="setPFBaseMode('standard')" type="button">
         <span class="pfm-icon">🏛️</span>
         <span class="pfm-title">Standard</span>
-        <span class="pfm-sub">PF Wages = min(Basic, Rs.15,000)</span>
+        <span class="pfm-sub">PF Wages = min(Basic, Rs.25,000)</span>
       </button>
       <button class="pf-mode-btn" id="pfBase_full_basic" onclick="setPFBaseMode('full_basic')" type="button">
         <span class="pfm-icon">💯</span>
         <span class="pfm-title">Full Basic</span>
-        <span class="pfm-sub">PF Wages = Full Basic<br>(No Rs.15k Cap)</span>
+        <span class="pfm-sub">PF Wages = Full Basic<br>(No statutory cap)</span>
       </button>
       <button class="pf-mode-btn" id="pfBase_specific_amt" onclick="setPFBaseMode('specific_amt')" type="button">
         <span class="pfm-icon">₹</span>
@@ -1198,7 +1267,7 @@ function updatePFPreview(basic) {
   const empPF   = computeEmployeePFFromGlobals(basic);
   const emrPF   = computeEmployerPFFromGlobals(basic);
   const edli    = computeEDLIFromGlobals(basic);
-  if (empValEl)  empValEl.textContent  = 'Rs.' + Math.round(empPF).toLocaleString('en-IN');
+  if (empValEl)  empValEl.textContent  = 'Rs.' + empPF.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (emrValEl)  emrValEl.textContent  = 'Rs.' + Math.round(emrPF).toLocaleString('en-IN');
   if (emrRateEl) emrRateEl.textContent = pfEmployerRate;
   if (edliValEl) edliValEl.textContent = edli > 0 ? 'Rs.' + edli : 'Rs.0 (N/A)';
@@ -1208,27 +1277,24 @@ function updatePFPreview(basic) {
 
 function getPFBaseWagesFromGlobals(basic) {
   if (pfApplicable !== 'Y') return 0;
-  switch (pfBaseMode) {
-    case 'standard':     return Math.min(basic, 15000);
-    case 'full_basic':   return basic;
-    case 'specific_amt': return Math.max(0, parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0);
-    default: return Math.min(basic, 15000);
-  }
+  return getPFWages(basic, pfBaseMode,
+    parseFloat(document.getElementById('pfSpecificAmtVal')?.value) || 0,
+    PF_CONFIG.EPFO_NEW_CEILING);
 }
 function computeEmployeePFFromGlobals(basic) {
   if (pfApplicable !== 'Y') return 0;
   const pfWages = getPFBaseWagesFromGlobals(basic);
   const vpct = pfAddVoluntary ? (parseFloat(document.getElementById('pfVoluntaryPct')?.value) || 0) : 0;
-  return Math.round(pfWages * 0.12) + (pfAddVoluntary ? Math.round(pfWages * vpct / 100) : 0);
+  const basePF = calculatePFContributions(pfWages, pfEmployerRate, basic).employeePF;
+  return basePF + (pfAddVoluntary ? roundCurrency(pfWages * vpct / 100) : 0);
 }
 function computeEmployerPFFromGlobals(basic) {
   if (pfApplicable !== 'Y') return 0;
-  return Math.round(getPFBaseWagesFromGlobals(basic) * parseFloat(pfEmployerRate) / 100);
+  return calculatePFContributions(getPFBaseWagesFromGlobals(basic), pfEmployerRate, basic).employerPF;
 }
 function computeEDLIFromGlobals(basic) {
   if (pfApplicable !== 'Y') return 0;
-  if (pfEmployerRate === '12') return 0;
-  return Math.min(Math.round(basic * 0.005), 75);
+  return calculatePFContributions(getPFBaseWagesFromGlobals(basic), pfEmployerRate, basic).edli;
 }
 
 function getPFModeLabel() {
@@ -1238,7 +1304,7 @@ function getPFModeLabel() {
   const volSuffix  = pfAddVoluntary ? ' + Voluntary ' + vpct + '% (Emp Only)' : '';
   const rateSuffix = pfEmployerRate === '12' ? ' | Empl@12% | EDLI=0' : '';
   switch (pfBaseMode) {
-    case 'standard':     return 'Standard (PF Wages=min(Basic,Rs.15k))' + volSuffix + rateSuffix;
+    case 'standard':     return 'Standard (PF Wages=min(Basic,Rs.' + PF_CONFIG.EPFO_NEW_CEILING.toLocaleString('en-IN') + '))' + volSuffix + rateSuffix;
     case 'full_basic':   return 'Full Basic (PF Wages=Basic)' + volSuffix + rateSuffix;
     case 'specific_amt': return 'Specific PF Wages Rs.' + Math.round(sAmt).toLocaleString('en-IN') + volSuffix + rateSuffix;
     default:             return 'Standard';
@@ -1629,17 +1695,17 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
 
     // PF mandatory check
     let pfCurrent = pf;
-    if (basic <= 15000 && pfCurrent !== 'Y') pfCurrent = 'Y';
+    if (basic <= PF_CONFIG.EPFO_OLD_CEILING && pfCurrent !== 'Y') pfCurrent = 'Y';
 
     // PF Wages
     let pfWages = 0;
     if (pfCurrent === 'Y') {
-      switch (resolvedBase) {
-        case 'standard':     pfWages = Math.min(basic, 15000); break;
-        case 'full_basic':   pfWages = basic; break;
-        case 'specific_amt': pfWages = Math.max(0, resolvedSpecAmt); break;
-        default:             pfWages = Math.min(basic, 15000);
-      }
+      // Keep the pre-change salary structure stable; the revised ceiling is
+      // applied to the final contribution after Basic has converged.
+      const ceilingForBasicSolve = resolvedBase === 'standard'
+        ? PF_CONFIG.EPFO_OLD_CEILING
+        : PF_CONFIG.EPFO_NEW_CEILING;
+      pfWages = getPFWages(basic, resolvedBase, resolvedSpecAmt, ceilingForBasicSolve);
     }
 
     // EPF Employer
@@ -1649,8 +1715,9 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     }
 
     // EDLI
-    const edliEmployer = (pfCurrent === 'Y' && resolvedEmpRate === '12') ? 0
-      : (pfCurrent === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0);
+    const edliEmployer = pfCurrent === 'Y'
+      ? calculatePFContributions(pfWages, resolvedEmpRate, basic).edli
+      : 0;
 
     // Bonus
     const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride, resolvedBonusPercent);
@@ -1695,24 +1762,19 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
   // ============================================================
 
   let pfFinal = pf;
-  if (basic <= 15000 && pfFinal !== 'Y') pfFinal = 'Y';
+  if (basic <= PF_CONFIG.EPFO_OLD_CEILING && pfFinal !== 'Y') pfFinal = 'Y';
 
   // PF Wages final
   let pfWages = 0;
   if (pfFinal === 'Y') {
-    switch (resolvedBase) {
-      case 'standard':     pfWages = Math.min(basic, 15000); break;
-      case 'full_basic':   pfWages = basic; break;
-      case 'specific_amt': pfWages = Math.max(0, resolvedSpecAmt); break;
-      default:             pfWages = Math.min(basic, 15000);
-    }
+    pfWages = getPFWages(basic, resolvedBase, resolvedSpecAmt, PF_CONFIG.EPFO_NEW_CEILING);
   }
 
   // EPF Employee
   let epfEmployee = 0;
   if (pfFinal === 'Y') {
-    const basePF         = Math.round(pfWages * 0.12);
-    const voluntaryExtra = resolvedHasVol ? Math.round(pfWages * resolvedVolPct / 100) : 0;
+    const basePF         = calculatePFContributions(pfWages, resolvedEmpRate, basic).employeePF;
+    const voluntaryExtra = resolvedHasVol ? roundCurrency(pfWages * resolvedVolPct / 100) : 0;
     epfEmployee          = basePF + voluntaryExtra;
   }
 
@@ -1723,8 +1785,9 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
   }
 
   // EDLI
-  const edliEmployer = (pfFinal === 'Y' && resolvedEmpRate === '12') ? 0
-    : (pfFinal === 'Y' ? Math.min(Math.round(basic * 0.005), 75) : 0);
+  const edliEmployer = pfFinal === 'Y'
+    ? calculatePFContributions(pfWages, resolvedEmpRate, basic).edli
+    : 0;
 
   // Bonus
   const bonus = computeBonusAmount(basic, minWage, gross, bonusApplOverride, bonusBaseOverride, resolvedBonusPercent);
@@ -1800,7 +1863,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     const volSuffix  = resolvedHasVol ? ' + Voluntary ' + resolvedVolPct + '% (Emp Only)' : '';
     const rateSuffix = resolvedEmpRate === '12' ? ' | Empl@12% | EDLI=0' : '';
     switch (resolvedBase) {
-      case 'standard':     return 'Standard (PF Wages=min(Basic,Rs.15k))' + volSuffix + rateSuffix;
+      case 'standard':     return 'Standard (PF Wages=min(Basic,Rs.' + PF_CONFIG.EPFO_NEW_CEILING.toLocaleString('en-IN') + '))' + volSuffix + rateSuffix;
       case 'full_basic':   return 'Full Basic (PF Wages=Basic)' + volSuffix + rateSuffix;
       case 'specific_amt': return 'Specific PF Wages Rs.' + Math.round(resolvedSpecAmt).toLocaleString('en-IN') + volSuffix + rateSuffix;
       default:             return 'Standard';
@@ -1841,6 +1904,8 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     bonusApplicable: bonusApplOverride !== undefined ? bonusApplOverride : bonusApplicable,
     bonusBase      : bonusBaseOverride  !== undefined ? bonusBaseOverride  : bonusBase,
     bonusPercent   : resolvedBonusPercent,
+    pfComparison   : getPFComparison(basic, resolvedBase, resolvedSpecAmt, resolvedEmpRate, pfFinal === 'Y'),
+    ctcTreatment,
   };
 }
 
@@ -2193,6 +2258,30 @@ function calculate(silent) {
 
 function fmt(n) { return 'Rs.' + Math.round(n).toLocaleString('en-IN'); }
 function pct(part, total) { if (!total) return '0%'; return (part / total * 100).toFixed(1) + '%'; }
+function fmtPF(n) { return 'Rs.' + roundCurrency(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtSignedPF(n) { return (n >= 0 ? '+' : '') + fmtPF(n); }
+
+function renderPFSummary(r) {
+  const comparison = r.pfComparison || {};
+  const employeeIncrease = roundCurrency((comparison.newEmployeePF || 0) - (comparison.oldEmployeePF || 0));
+  const employerIncrease = roundCurrency((comparison.newEmployerPF || 0) - (comparison.oldEmployerPF || 0));
+  const combinedMovement = roundCurrency(employeeIncrease + employerIncrease);
+  const ctcImpact = ctcTreatment === 'additional' ? employerIncrease : 0;
+  setText('pfSummaryWage', r.pfApplicable === 'Y' ? fmtPF(comparison.newWages || r.pfWages) : 'N/A');
+  setText('pfSummaryEmployee', r.pfApplicable === 'Y' ? fmtPF(r.epfEmployee) : 'N/A');
+  setText('pfSummaryEmployer', r.pfApplicable === 'Y' ? fmt(r.epfEmployer) : 'N/A');
+  setText('pfSummaryEmployeeIncrease', fmtSignedPF(employeeIncrease) + '/month');
+  setText('pfSummaryEmployerIncrease', fmtSignedPF(employerIncrease) + '/month');
+  setText('pfSummaryCombined', fmtSignedPF(combinedMovement) + '/month');
+  setText('pfSummaryCTCImpact', ctcTreatment === 'additional' ? fmtSignedPF(ctcImpact) + '/month' : 'Rs.0.00/month');
+  setText('pfSummaryTakeHome', fmtSignedPF(-employeeIncrease) + '/month');
+  const restructureEl = document.getElementById('pfRestructureAmount');
+  if (restructureEl) {
+    restructureEl.textContent = ctcTreatment === 'restructure'
+      ? 'Amount requiring salary restructuring within existing CTC: ' + fmtPF(employerIncrease) + '/month'
+      : '';
+  }
+}
 
 function renderSummary(r) {
   safeToggle('summaryEmpty', true);
@@ -2206,6 +2295,7 @@ function renderSummary(r) {
   setText('r_gross',      fmt(r.gross));
   setText('r_cash',       fmt(r.cashInHand));
   setText('r_bonus',      r.bonus > 0 ? fmt(r.bonus) : 'N/A');
+  renderPFSummary(r);
 }
 function setText(elementId, text) { const el = document.getElementById(elementId); if (el) el.textContent = text; }
 
@@ -2257,7 +2347,11 @@ function renderBreakdown(r) {
     const dispVal = item[3] && item[2] > 0
       ? '<span style="color:var(--danger)">' + fmt(item[2]) + '</span>'
       : '<span style="color:var(--text-muted)">—</span>';
-    dedHtml += '<tr><td>' + item[0] + '</td><td style="color:var(--text-dim);font-size:11px">' + item[1] + '</td><td>' + dispVal + '</td></tr>';
+    const displayAmount = item[0].indexOf('EPF – Employee') >= 0 && item[3] ? fmtPF(item[2]) : fmt(item[2]);
+    const preciseDispVal = item[3] && item[2] > 0
+      ? '<span style="color:var(--danger)">' + displayAmount + '</span>'
+      : '<span style="color:var(--text-muted)">—</span>';
+    dedHtml += '<tr><td>' + item[0] + '</td><td style="color:var(--text-dim);font-size:11px">' + item[1] + '</td><td>' + preciseDispVal + '</td></tr>';
   });
   setTextContent('deductionTable', dedHtml);
   setText('tfoot_cash', fmt(r.cashInHand));
@@ -2388,11 +2482,12 @@ function renderExportPreview(r) {
       return;
     }
  
-    let monthlyCell = (monthly !== null && monthly !== undefined) ? fmt(monthly) : '—';
+    const isEmployeePF = label.indexOf('EPF – Employee') >= 0;
+    let monthlyCell = (monthly !== null && monthly !== undefined) ? (isEmployeePF ? fmtPF(monthly) : fmt(monthly)) : '—';
  
     let annualCell = '';
     if (showAnnual && monthly !== null && monthly !== undefined && monthly > 0) {
-      annualCell = '<span style="color:var(--accent3);">' + fmt(monthly * 12) + '</span>';
+      annualCell = '<span style="color:var(--accent3);">' + (isEmployeePF ? fmtPF(monthly * 12) : fmt(monthly * 12)) + '</span>';
     } else if (!showAnnual && monthly !== null && monthly !== undefined && monthly > 0) {
       annualCell = '<span style="color:var(--text-muted);font-size:11px;">state-based</span>';
     } else {
@@ -2455,7 +2550,9 @@ function resetAll() {
   pfBaseMode     = 'standard';
   pfAddVoluntary = false;
   pfEmployerRate = '12.5';
+  ctcTreatment   = 'additional';
   setPFApplicable('Y');
+  setCTCTreatment('additional');
   _syncPFUI();
   const pfVolEl  = document.getElementById('pfVoluntaryPct');   if (pfVolEl)  pfVolEl.value  = '';
   const pfSpecEl = document.getElementById('pfSpecificAmtVal'); if (pfSpecEl) pfSpecEl.value = '';
@@ -2767,7 +2864,7 @@ function exportPDF() {
     ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer > 0 ? fmtP(r.lwfEmployer) : 'Rs.0', '—', false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs.0', '—', false, false],
     ['EMPLOYEE DEDUCTIONS',       null, null, true, false],
-    ['EPF – Employee (12%)',       r.pfApplicable === 'Y' ? fmtP(r.epfEmployee) : 'N/A', r.pfApplicable === 'Y' ? naAnn(r.epfEmployee) : '—', false, false],
+    ['EPF – Employee (12%)',       r.pfApplicable === 'Y' ? fmtPF(r.epfEmployee) : 'N/A', r.pfApplicable === 'Y' ? fmtPF(r.epfEmployee * 12) : '—', false, false],
     ['ESI – Employee (0.75%)',     r.esiEmployee > 0 ? fmtP(r.esiEmployee) : 'N/A', r.esiEmployee > 0 ? naAnn(r.esiEmployee) : '—', false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs.0', '—', false, false],
     ['LWF – Employee (' + (r.lwfStateName || 'N/A') + ')', r.lwf > 0 ? fmtP(r.lwf) : 'Rs.0', '—', false, false],
