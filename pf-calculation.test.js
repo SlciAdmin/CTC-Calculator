@@ -5,7 +5,7 @@ const vm = require('vm');
 const source = fs.readFileSync('script.js', 'utf8');
 const end = source.indexOf('function reverseCalcFromFinalCTC');
 const calculationSource = source.slice(0, end) +
-  '\nthis.testPF = calculatePFContributions; this.testWages = getPFWages; this.testCTC = computeCTC;';
+  '\nthis.testPF = calculatePFContributions; this.testWages = getPFWages; this.testCTC = computeCTC; this.testNormalize = normalizeCalculationResult;';
 const context = {
   console,
   document: { readyState: 'loading', addEventListener() {}, getElementById() { return null; } },
@@ -41,9 +41,38 @@ assert.strictEqual(edliExample.edli, 112);
 
 const incentives = context.testCTC(30000, 16868, 'Y', 0, 0, 0, null,
   'standard', false, 0, 0, '12.5', 15, null, 'Y', 'minwage', 8.33, 100, 0, 200);
-assert.strictEqual(incentives.exGratia, 100);
-assert.strictEqual(incentives.pli, 200);
+assert.strictEqual(incentives.exGratiaMonthly, 100);
+assert.strictEqual(incentives.exGratiaAnnual, 1200);
+assert.strictEqual(incentives.pliMonthly, 200);
+assert.strictEqual(incentives.pliAnnual, 2400);
 assert.strictEqual(incentives.finalCTC, nikhil.finalCTC + 300);
+
+const baseArgs = [30000, 16868, 'Y', 0, 0, 0, null, 'standard', false, 0, 0, '12.5', 15, null, 'Y', 'minwage', 8.33];
+const exOnly = context.testCTC(...baseArgs, 300, 0, 0);
+const pliOnly = context.testCTC(...baseArgs, 0, 0, 300);
+const split = context.testCTC(...baseArgs, 200, 0, 100);
+const larger = context.testCTC(...baseArgs, 300, 0, 500);
+for (const result of [exOnly, pliOnly, split, larger]) {
+  assert.strictEqual(result.finalCTC, nikhil.finalCTC + result.totalExGratiaPLI);
+  assert.strictEqual(result.totalExGratiaPLIAnnual, result.totalExGratiaPLI * 12);
+}
+assert.strictEqual(exOnly.exGratiaAnnual, 3600);
+assert.strictEqual(exOnly.pliAnnual, 0);
+assert.strictEqual(pliOnly.exGratiaAnnual, 0);
+assert.strictEqual(pliOnly.pliAnnual, 3600);
+assert.strictEqual(split.exGratiaAnnual, 2400);
+assert.strictEqual(split.pliAnnual, 1200);
+assert.strictEqual(split.totalExGratiaPLI, 300);
+assert.strictEqual(split.finalCTC, exOnly.finalCTC);
+assert.strictEqual(larger.exGratiaAnnual, 3600);
+assert.strictEqual(larger.pliAnnual, 6000);
+assert.strictEqual(larger.totalExGratiaPLI, 800);
+assert.strictEqual(larger.totalExGratiaPLIAnnual, 9600);
+assert.strictEqual(context.testCTC(...baseArgs, -100, 0, 0).exGratiaMonthly, 0);
+const migrated = context.testNormalize({ exGratiaPli: 300 });
+assert.strictEqual(migrated.exGratiaMonthly, 300);
+assert.strictEqual(migrated.pliMonthly, 0);
+assert.strictEqual(migrated.exGratiaAnnual, 3600);
 assert.ok(source.includes('function exportPDF()'));
 assert.ok(source.includes('fmtPF(r.epfEmployee)'));
 

@@ -47,6 +47,8 @@ let pfVoluntaryPct = 0;
 let pfSpecificAmt  = 0;
 let pfEmployerRate = '12.5';
 let ctcTreatment = 'additional';
+let exGratiaMonthly = 0;
+let pliMonthly = 0;
 
 // PF policy values are kept in one place so the calculator, preview, bulk flow,
 // and exports all use the same ceiling and contribution rules.
@@ -60,6 +62,31 @@ const PF_CONFIG = Object.freeze({
 
 function roundCurrency(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function normalizeOptionalAmount(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return 0;
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? roundCurrency(amount) : null;
+}
+
+function normalizeCalculationResult(result) {
+  const normalized = Object.assign({}, result || {});
+  const legacyExGratia = normalized.exGratiaMonthly ?? normalized.exGratia ?? normalized.exGratiaPli ?? 0;
+  const legacyPLI = normalized.pliMonthly ?? normalized.pli ?? 0;
+  normalized.exGratiaMonthly = normalizeOptionalAmount(legacyExGratia) || 0;
+  normalized.pliMonthly = normalizeOptionalAmount(legacyPLI) || 0;
+  const storedExGratiaAnnual = normalizeOptionalAmount(normalized.exGratiaAnnual);
+  const storedPLIAnnual = normalizeOptionalAmount(normalized.pliAnnual);
+  normalized.exGratiaAnnual = storedExGratiaAnnual === null || storedExGratiaAnnual === 0
+    ? roundCurrency(normalized.exGratiaMonthly * 12)
+    : storedExGratiaAnnual;
+  normalized.pliAnnual = storedPLIAnnual === null || storedPLIAnnual === 0
+    ? roundCurrency(normalized.pliMonthly * 12)
+    : storedPLIAnnual;
+  normalized.totalExGratiaPLI = roundCurrency(normalized.exGratiaMonthly + normalized.pliMonthly);
+  normalized.totalExGratiaPLIAnnual = roundCurrency(normalized.exGratiaAnnual + normalized.pliAnnual);
+  return normalized;
 }
 
 function getPFWages(basic, mode, specificAmount, ceiling) {
@@ -1849,8 +1876,12 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     : 0;
 
   // Ex-Gratia and PLI remain separate employer-cost components.
-  const exGratia = Math.round(exGratiaAmt || 0);
-  const pli = Math.round(pliAmt || 0);
+  const resolvedExGratia = normalizeOptionalAmount(exGratiaAmt);
+  const resolvedPLI = normalizeOptionalAmount(pliAmt);
+  const exGratia = resolvedExGratia === null ? 0 : resolvedExGratia;
+  const pli = resolvedPLI === null ? 0 : resolvedPLI;
+  const exGratiaAnnual = roundCurrency(exGratia * 12);
+  const pliAnnual = roundCurrency(pli * 12);
 
   // Final CTC
   const finalCTC = initialCTC + healthIns + lwfEmployerContrib + leaveComponent + gratuityComponent + exGratia + pli;
@@ -1870,7 +1901,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     }
   })();
 
-  return {
+  return normalizeCalculationResult({
     gross, basic, hra, conv,
     convLabel      : 'Conveyance',
     deferAllowance,
@@ -1887,6 +1918,12 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     gratuityComponent,
     exGratia,
     pli,
+    exGratiaMonthly: exGratia,
+    exGratiaAnnual,
+    pliMonthly: pli,
+    pliAnnual,
+    totalExGratiaPLI: roundCurrency(exGratia + pli),
+    totalExGratiaPLIAnnual: roundCurrency(exGratiaAnnual + pliAnnual),
     leavesPerYear  : effectiveLeaves,
     lwf, pt,
     finalCTC,
@@ -1907,7 +1944,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     bonusPercent   : resolvedBonusPercent,
     pfComparison   : getPFComparison(basic, resolvedBase, resolvedSpecAmt, resolvedEmpRate, pfFinal === 'Y'),
     ctcTreatment,
-  };
+  });
 }
 
 // ============================================================
@@ -2159,8 +2196,17 @@ function calculate(silent) {
   const pt           = getPTValue();
   const lwf          = getLWFValue();
   const healthInsAmt = parseFloat(document.getElementById('healthInsurance')?.value) || 0;
-  const exGratiaAmt  = parseFloat(document.getElementById('exGratia')?.value) || 0;
-  const pliAmt       = parseFloat(document.getElementById('pli')?.value) || 0;
+  const exGratiaInput = document.getElementById('exGratia')?.value;
+  const pliInput       = document.getElementById('pli')?.value;
+  const exGratiaAmt  = normalizeOptionalAmount(exGratiaInput);
+  const pliAmt       = normalizeOptionalAmount(pliInput);
+
+  if (exGratiaAmt === null || pliAmt === null) {
+    if (!silent) showToast('⚠️ Ex-Gratia and PLI must be valid non-negative amounts');
+    return;
+  }
+  exGratiaMonthly = exGratiaAmt;
+  pliMonthly = pliAmt;
 
   if (minWage <= 0) {
     if (!silent) showToast('⚠️ Please enter Minimum Wage');
@@ -2252,7 +2298,8 @@ function calculate(silent) {
     return PT_STATES[stateEl.value]?.name || stateEl.value;
   })();
 
-  calcResult = r;
+  calcResult = normalizeCalculationResult(r);
+  r = calcResult;
   renderSummary(r);
   renderBreakdown(r);
   renderExportPreview(r);
@@ -2402,8 +2449,8 @@ function renderBreakdown(r) {
   sub: gratuityApplicable === 'Y' ? '4.81% × Rs.' + Math.round(r.basic).toLocaleString('en-IN') + ' = Rs.' + (r.gratuityComponent || 0).toLocaleString('en-IN') : 'Gratuity disabled',
   cls: 'green' },
     { label: bonusDisplayLabel,            val: r.bonus > 0 ? fmt(r.bonus) : 'Rs.0', sub: r.bonus > 0 ? bonusPercentLabel + '% × Rs.' + Math.round(r.bonusBase === 'basic' ? r.basic : r.bonusBase === 'gross' ? r.gross : r.minWage).toLocaleString('en-IN') + ' (' + bonusBaseLabel + ')' : (r.bonusApplicable === 'N' ? 'Disabled' : 'Not eligible (Basic > Rs.21,000)'), cls: 'amber' },
-    { label: 'Ex-Gratia (Monthly)',        val: fmt(r.exGratia || 0), sub: 'Manual entry (added to Final CTC)', cls: 'purple' },
-    { label: 'PLI (Monthly)',              val: fmt(r.pli || 0),      sub: 'Manual entry (added to Final CTC)', cls: 'amber' },
+    { label: 'Ex-Gratia (Monthly)',        val: fmt(r.exGratiaMonthly), sub: 'Annual: ' + fmt(r.exGratiaAnnual), cls: 'purple' },
+    { label: 'PLI (Monthly)',              val: fmt(r.pliMonthly),      sub: 'Annual: ' + fmt(r.pliAnnual), cls: 'amber' },
   ];
 
   if (r.isHighGross) {
@@ -2452,8 +2499,8 @@ function renderExportPreview(r) {
     ['Health Insurance (Monthly)', r.healthInsurance, false, false],
     ['Leave Encashment' + (leaveApplicable === 'N' ? ' (Disabled)' : ' (' + r.leavesPerYear + ' leaves/yr)'), r.leaveComponent, leaveApplicable !== 'N', false],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - Disabled' : ''), r.gratuityComponent || 0, gratuityApplicable === 'Y', false],
-    ['Ex-Gratia', r.exGratia || 0, true, false],
-    ['PLI', r.pli || 0, true, false],
+    ['Ex-Gratia', r.exGratiaMonthly, true, false],
+    ['PLI', r.pliMonthly, true, false],
     ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer, false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
     ['EMPLOYEE DEDUCTIONS', null, false, true],
@@ -2864,8 +2911,8 @@ function exportPDF() {
     ['Health Insurance (Monthly)',fmtP(r.healthInsurance), '—', false, false],
     ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' DISABLED' : ''), r.leaveComponent > 0 ? fmtP(r.leaveComponent) : 'Rs.0', r.leaveComponent > 0 && leaveApplicable !== 'N' ? naAnn(r.leaveComponent) : '—', false, false],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' DISABLED' : ''), r.gratuityComponent > 0 ? fmtP(r.gratuityComponent) : 'Rs.0', r.gratuityComponent > 0 ? naAnn(r.gratuityComponent) : '—', false, false],
-    ['Ex-Gratia', fmtP(r.exGratia || 0), naAnn(r.exGratia || 0), false, false],
-    ['PLI', fmtP(r.pli || 0), naAnn(r.pli || 0), false, false],
+    ['Ex-Gratia', fmtP(r.exGratiaMonthly), fmtP(r.exGratiaAnnual), false, false],
+    ['PLI', fmtP(r.pliMonthly), fmtP(r.pliAnnual), false, false],
     ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer > 0 ? fmtP(r.lwfEmployer) : 'Rs.0', '—', false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs.0', '—', false, false],
     ['EMPLOYEE DEDUCTIONS',       null, null, true, false],
@@ -2954,8 +3001,8 @@ function exportCSV() {
     ['Health Insurance (Monthly)', amt(r.healthInsurance), '—'],
     ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' - DISABLED' : ''), amt(r.leaveComponent), leaveApplicable !== 'N' ? amtAnn(r.leaveComponent) : '—'],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - DISABLED' : ''), amt(r.gratuityComponent || 0), gratuityApplicable === 'Y' ? amtAnn(r.gratuityComponent || 0) : '—'],
-    ['Ex-Gratia', amt(r.exGratia || 0), amtAnn(r.exGratia || 0)],
-    ['PLI', amt(r.pli || 0), amtAnn(r.pli || 0)],
+    ['Ex-Gratia', amt(r.exGratiaMonthly), amt(r.exGratiaAnnual)],
+    ['PLI', amt(r.pliMonthly), amt(r.pliAnnual)],
     ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer > 0 ? amt(r.lwfEmployer) : 0, '—'],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? amt(r.ptDeduction) : 0, '—'],
     ['', '', ''],
@@ -3003,8 +3050,8 @@ function copyToClipboard() {
       'ESI Employer\t' + r.esiEmployer,
       'Health Insurance (Monthly)\t' + r.healthInsurance,
       'Leave Encashment (' + r.leavesPerYear + ' leaves)\t' + r.leaveComponent,
-      'Ex-Gratia\t' + r.exGratia,
-      'PLI\t' + r.pli,
+      'Ex-Gratia\t' + r.exGratiaMonthly + '\tAnnual\t' + r.exGratiaAnnual,
+      'PLI\t' + r.pliMonthly + '\tAnnual\t' + r.pliAnnual,
       'LWF Employer – ' + (r.lwfStateName||'N/A') + '\t' + r.lwfEmployer,
       'PT – ' + (r.ptStateName||'N/A') + '\t' + r.ptDeduction,
       'LWF Employee – ' + (r.lwfStateName||'N/A') + '\t' + r.lwf,
@@ -3503,8 +3550,12 @@ function processBulkFile() {
         bonusBase      : bulkBonusBase,
         bonusBaseLabel : bonusBaseLabelMap[bulkBonusBase] || 'Min Wage',
         bonusPercent   : r.bonusPercent,
-        exGratia       : r.exGratia,
-        pli            : r.pli,
+        exGratia       : r.exGratiaMonthly,
+        pli            : r.pliMonthly,
+        exGratiaMonthly: r.exGratiaMonthly,
+        exGratiaAnnual : r.exGratiaAnnual,
+        pliMonthly     : r.pliMonthly,
+        pliAnnual      : r.pliAnnual,
       });
     } catch (err) {
       bulkCalcResults.push({
@@ -3627,8 +3678,8 @@ function renderBulkResults(errors, total) {
     const bonusCell = r.bonusApplicable === 'N'
       ? '<span style="color:var(--text-muted)">—</span>'
       : (r.bonus > 0 ? '<span style="color:var(--accent4)">' + bulkFmt(r.bonus) + '</span>' : '<span style="color:var(--text-muted)">—</span>');
-    const exGratiaCell = r.exGratia > 0 ? '<span style="color:var(--accent2)">' + bulkFmt(r.exGratia) + '</span>' : '<span style="color:var(--text-muted)">Rs.0</span>';
-    const pliCell = r.pli > 0 ? '<span style="color:var(--accent4)">' + bulkFmt(r.pli) + '</span>' : '<span style="color:var(--text-muted)">Rs.0</span>';
+    const exGratiaCell = r.exGratiaMonthly > 0 ? '<span style="color:var(--accent2)">' + bulkFmt(r.exGratiaMonthly) + '</span>' : '<span style="color:var(--text-muted)">Rs.0</span>';
+    const pliCell = r.pliMonthly > 0 ? '<span style="color:var(--accent4)">' + bulkFmt(r.pliMonthly) + '</span>' : '<span style="color:var(--text-muted)">Rs.0</span>';
 
     const lwfStateCell = r.lwfStateName !== 'N/A'
       ? '<span style="font-size:10px;color:' + (r.lwfMode === 'auto' ? 'var(--accent3)' : 'var(--accent2)') + '">' + r.lwfStateName + (r.lwfMode === 'auto' ? ' ●' : ' ○') + '</span>'
@@ -3768,7 +3819,7 @@ function bulkExportCSV() {
     'Health Insurance (Rs.)', 'Leave Encashment (Rs.)', 'Leave Mode', 'Leaves Per Year',
     'LWF State', 'LWF Mode', 'LWF – Employee (Rs.)', 'LWF – Employer (Rs.)',
     'PT State', 'PT Mode', 'Professional Tax (Rs.)',
-    'Ex-Gratia (Rs.)', 'PLI (Rs.)',
+    'Ex-Gratia Monthly (Rs.)', 'Ex-Gratia Annual (Rs.)', 'PLI Monthly (Rs.)', 'PLI Annual (Rs.)',
     'Initial CTC (Monthly)', 'Final CTC (Monthly)', 'Final CTC (Annual)',
     'EPF – Employee (Rs.)', 'ESI – Employee (Rs.)', 'Net Cash in Hand (Rs.)',
     'Status'
@@ -3799,8 +3850,8 @@ function bulkExportCSV() {
       r.bonusApplicable === 'N' ? 'N/A' : (r.bonusPercent !== undefined ? r.bonusPercent : 8.33),
       r.bonusApplicable === 'N' ? 0 : amt(r.bonus),
       r.esiEmp > 0 ? amt(r.esiEmp) : 0,
-      amt(r.exGratia || 0),
-      amt(r.pli || 0),
+      amt(r.exGratiaMonthly), amt(r.exGratiaAnnual),
+      amt(r.pliMonthly), amt(r.pliAnnual),
       amt(r.healthInsurance || 0),
       amt(r.leaveUsed), r.leaveMode === 'manual' ? 'Manual' : 'Auto (Formula)',
       r.leavesPerYear || 15,
@@ -3829,13 +3880,15 @@ function bulkExportCSV() {
     '', '', '', // bonus applicable, base, percent
     valid.reduce(function(s,r){ return s+amt(r.bonus); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.esiEmp); }, 0),
+    valid.reduce(function(s,r){ return s+amt(r.exGratiaMonthly); }, 0),
+    valid.reduce(function(s,r){ return s+amt(r.exGratiaAnnual); }, 0),
+    valid.reduce(function(s,r){ return s+amt(r.pliMonthly); }, 0),
+    valid.reduce(function(s,r){ return s+amt(r.pliAnnual); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.healthInsurance||0); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.leaveUsed); }, 0), '', '',
     '', '', valid.reduce(function(s,r){ return s+amt(r.lwf); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.lwfEmployer||0); }, 0),
     '', '', valid.reduce(function(s,r){ return s+amt(r.pt); }, 0),
-    valid.reduce(function(s,r){ return s+amt(r.exGratia||0); }, 0),
-    valid.reduce(function(s,r){ return s+amt(r.pli||0); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.initialCTC); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.finalCTC); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.finalAnnual); }, 0),
@@ -3894,8 +3947,10 @@ function bulkExportTXT() {
     txt += tableRow('ESI – Employer', r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A');
     txt += tableRow('Health Insurance (Monthly)', bulkFmt(r.healthInsurance || 0));
     txt += tableRow('Leave Encashment (' + (r.leavesPerYear||15) + ' leaves)', bulkFmt(r.leaveUsed));
-    txt += tableRow('Ex-Gratia', bulkFmt(r.exGratia || 0));
-    txt += tableRow('PLI', bulkFmt(r.pli || 0));
+    txt += tableRow('Ex-Gratia Monthly', bulkFmt(r.exGratiaMonthly));
+    txt += tableRow('Ex-Gratia Annual', bulkFmt(r.exGratiaAnnual));
+    txt += tableRow('PLI Monthly', bulkFmt(r.pliMonthly));
+    txt += tableRow('PLI Annual', bulkFmt(r.pliAnnual));
     txt += tableRow('LWF – Employer (' + (r.lwfStateName||'N/A') + ')', r.lwfEmployer > 0 ? bulkFmt(r.lwfEmployer) : 'N/A');
     txt += SEP + '\n';
     txt += tableRow('EPF – Employee', r.pfApplicable === 'Y' ? bulkFmt(r.epfEe) : 'N/A');
@@ -3930,7 +3985,8 @@ function bulkCopyClipboard() {
       r.bonusApplicable === 'N' ? 'N/A' : (r.bonusPercent !== undefined ? r.bonusPercent : 8.33),
       r.bonusApplicable === 'N' ? 0 : Math.round(r.bonus),
       r.esiEmp > 0 ? Math.round(r.esiEmp) : 0,
-      Math.round(r.exGratia || 0), Math.round(r.pli || 0),
+      Math.round(r.exGratiaMonthly), Math.round(r.exGratiaAnnual),
+      Math.round(r.pliMonthly), Math.round(r.pliAnnual),
       Math.round(r.healthInsurance || 0),
       Math.round(r.leaveUsed), r.lwf > 0 ? Math.round(r.lwf) : 0,
       r.pt > 0 ? Math.round(r.pt) : 0,
