@@ -1655,7 +1655,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
                     pfBaseModeOverride, pfVoluntaryOverride, pfVolPctOverride,
                     pfSpecAmtOverride, pfEmpRateOverride, leavesPerYear, previousBasic,
                     bonusApplOverride, bonusBaseOverride, bonusPercentOverride, exGratiaAmt,
-                    lwfEmployerOverride) {
+                    lwfEmployerOverride, pliAmt) {
 
   gross   = Math.round(gross);
   minWage = Math.round(minWage);
@@ -1848,11 +1848,12 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     ? Math.round(basic * 0.0481)
     : 0;
 
-  // Ex-Gratia / PLI (manual entry, added to Final CTC)
+  // Ex-Gratia and PLI remain separate employer-cost components.
   const exGratia = Math.round(exGratiaAmt || 0);
+  const pli = Math.round(pliAmt || 0);
 
   // Final CTC
-  const finalCTC = initialCTC + healthIns + lwfEmployerContrib + leaveComponent + gratuityComponent + exGratia;
+  const finalCTC = initialCTC + healthIns + lwfEmployerContrib + leaveComponent + gratuityComponent + exGratia + pli;
 
   // Cash in Hand
   const cashInHand = gross - epfEmployee - esiEmployee - lwf - pt;
@@ -1885,6 +1886,7 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     leaveComponent, leaveAuto,
     gratuityComponent,
     exGratia,
+    pli,
     leavesPerYear  : effectiveLeaves,
     lwf, pt,
     finalCTC,
@@ -1911,52 +1913,52 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
 // ============================================================
 //  ✅ REVERSE CALC helpers — pass bonus overrides through
 // ============================================================
-function reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt) {
+function reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt) {
   var lo = minWage, hi = targetFinalCTC * 2, mid, result, iterations = 0;
   while (lo < hi - 1 && iterations < 100) {
     mid    = Math.round((lo + hi) / 2);
     result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
     if (result.finalCTC < targetFinalCTC) lo = mid; else hi = mid;
     iterations++;
   }
-  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
-  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
+  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
   var chosenGross = (Math.abs(rHi.finalCTC - targetFinalCTC) <= Math.abs(rLo.finalCTC - targetFinalCTC)) ? hi : lo;
   return computeCTC(chosenGross, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
 }
 
-function reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt) {
+  function reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt) {
   var lo = minWage, hi = targetInitialCTC * 2, mid, result, iterations = 0;
   while (lo < hi - 1 && iterations < 100) {
     mid    = Math.round((lo + hi) / 2);
     result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
     if (result.initialCTC < targetInitialCTC) lo = mid; else hi = mid;
     iterations++;
   }
-  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
-  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
+  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
   var chosenGross = (Math.abs(rHi.initialCTC - targetInitialCTC) <= Math.abs(rLo.initialCTC - targetInitialCTC)) ? hi : lo;
   return computeCTC(chosenGross, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
 }
 
-function reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt) {
+  function reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt) {
   var lo = minWage, hi = targetCash * 3, mid, result, iterations = 0;
   while (lo < hi - 1 && iterations < 100) {
     mid    = Math.round((lo + hi) / 2);
     result = computeCTC(mid, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+      undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
     if (result.cashInHand < targetCash) lo = mid; else hi = mid;
     iterations++;
   }
-  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
-  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+  var rLo = computeCTC(lo, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
+  var rHi = computeCTC(hi, minWage, pfApplicable, pt, lwf, healthInsAmt, null, undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
   var chosenGross = (Math.abs(rHi.cashInHand - targetCash) <= Math.abs(rLo.cashInHand - targetCash)) ? hi : lo;
   return computeCTC(chosenGross, minWage, pfApplicable, pt, lwf, healthInsAmt, null,
-    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt);
+    undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic, undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
 }
 
 // ============== INDIVIDUAL CALC HELPERS ==============
@@ -2158,6 +2160,7 @@ function calculate(silent) {
   const lwf          = getLWFValue();
   const healthInsAmt = parseFloat(document.getElementById('healthInsurance')?.value) || 0;
   const exGratiaAmt  = parseFloat(document.getElementById('exGratia')?.value) || 0;
+  const pliAmt       = parseFloat(document.getElementById('pli')?.value) || 0;
 
   if (minWage <= 0) {
     if (!silent) showToast('⚠️ Please enter Minimum Wage');
@@ -2181,7 +2184,7 @@ function calculate(silent) {
     const targetFinalCTC = parseFloat(document.getElementById('inputFinalCTC')?.value) || 0;
     if (targetFinalCTC <= 0) { if (!silent) showToast('⚠️ Please enter Final CTC'); return; }
     if (targetFinalCTC < minWage) { if (!silent) showToast('⚠️ Final CTC cannot be less than Minimum Wage'); return; }
-    r = reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt);
+    r = reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt);
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
     if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Final CTC Rs.' + r.finalCTC.toLocaleString('en-IN'));
@@ -2190,7 +2193,7 @@ function calculate(silent) {
     const targetInitialCTC = parseFloat(document.getElementById('inputInitialCTC')?.value) || 0;
     if (targetInitialCTC <= 0) { if (!silent) showToast('⚠️ Please enter Initial CTC'); return; }
     if (targetInitialCTC < minWage) { if (!silent) showToast('⚠️ Initial CTC cannot be less than Minimum Wage'); return; }
-    r = reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt);
+    r = reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt);
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
     if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Initial CTC Rs.' + r.initialCTC.toLocaleString('en-IN'));
@@ -2199,7 +2202,7 @@ function calculate(silent) {
     const targetCash = parseFloat(document.getElementById('inputCash')?.value) || 0;
     if (targetCash <= 0) { if (!silent) showToast('⚠️ Please enter Cash in Hand'); return; }
     if (targetCash < minWage * 0.5) { if (!silent) showToast('⚠️ Cash in Hand seems too low for this Minimum Wage'); return; }
-    r = reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt);
+    r = reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt);
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
     if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Cash Rs.' + r.cashInHand.toLocaleString('en-IN'));
@@ -2217,7 +2220,7 @@ function calculate(silent) {
     }
     r = computeCTC(gross, minWage, pfApplicable, pt, lwf, healthInsAmt, leaveOverride,
       undefined, undefined, undefined, undefined, undefined, leavesPerYear, prevBasic,
-      undefined, undefined, undefined, exGratiaAmt);
+      undefined, undefined, undefined, exGratiaAmt, undefined, pliAmt);
     if (!silent) showToast('✓ CTC Calculated Successfully');
   }
   // =================== END INPUT MODE SWITCHING ===================
@@ -2399,7 +2402,8 @@ function renderBreakdown(r) {
   sub: gratuityApplicable === 'Y' ? '4.81% × Rs.' + Math.round(r.basic).toLocaleString('en-IN') + ' = Rs.' + (r.gratuityComponent || 0).toLocaleString('en-IN') : 'Gratuity disabled',
   cls: 'green' },
     { label: bonusDisplayLabel,            val: r.bonus > 0 ? fmt(r.bonus) : 'Rs.0', sub: r.bonus > 0 ? bonusPercentLabel + '% × Rs.' + Math.round(r.bonusBase === 'basic' ? r.basic : r.bonusBase === 'gross' ? r.gross : r.minWage).toLocaleString('en-IN') + ' (' + bonusBaseLabel + ')' : (r.bonusApplicable === 'N' ? 'Disabled' : 'Not eligible (Basic > Rs.21,000)'), cls: 'amber' },
-    { label: 'Ex-Gratia / PLI (Monthly)',  val: fmt(r.exGratia || 0), sub: 'Manual entry (added to Final CTC)', cls: 'purple' },
+    { label: 'Ex-Gratia (Monthly)',        val: fmt(r.exGratia || 0), sub: 'Manual entry (added to Final CTC)', cls: 'purple' },
+    { label: 'PLI (Monthly)',              val: fmt(r.pli || 0),      sub: 'Manual entry (added to Final CTC)', cls: 'amber' },
   ];
 
   if (r.isHighGross) {
@@ -2448,7 +2452,8 @@ function renderExportPreview(r) {
     ['Health Insurance (Monthly)', r.healthInsurance, false, false],
     ['Leave Encashment' + (leaveApplicable === 'N' ? ' (Disabled)' : ' (' + r.leavesPerYear + ' leaves/yr)'), r.leaveComponent, leaveApplicable !== 'N', false],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - Disabled' : ''), r.gratuityComponent || 0, gratuityApplicable === 'Y', false],
-    ['Ex-Gratia / PLI', r.exGratia || 0, true, false],
+    ['Ex-Gratia', r.exGratia || 0, true, false],
+    ['PLI', r.pli || 0, true, false],
     ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer, false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
     ['EMPLOYEE DEDUCTIONS', null, false, true],
@@ -2517,9 +2522,9 @@ function switchTab(tab) {
 }
 
 function resetAll() {
-  ['empName', 'empFatherName', 'empDesignation', 'empDepartment', 'empDOB', 'empDOJ', 'empLocation', 'grossSalary', 'minWage', 'previousBasic', 'healthInsurance', 'exGratia'].forEach(function(id) {
+  ['empName', 'empFatherName', 'empDesignation', 'empDepartment', 'empDOB', 'empDOJ', 'empLocation', 'grossSalary', 'minWage', 'previousBasic', 'healthInsurance', 'exGratia', 'pli'].forEach(function(id) {
     const el = document.getElementById(id);
-    if (el) el.value = (id === 'healthInsurance' || id === 'exGratia') ? '0' : '';
+    if (el) el.value = (id === 'healthInsurance' || id === 'exGratia' || id === 'pli') ? '0' : '';
   });
 
   const warnEl = document.getElementById('minWageWarning');
@@ -2859,7 +2864,8 @@ function exportPDF() {
     ['Health Insurance (Monthly)',fmtP(r.healthInsurance), '—', false, false],
     ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' DISABLED' : ''), r.leaveComponent > 0 ? fmtP(r.leaveComponent) : 'Rs.0', r.leaveComponent > 0 && leaveApplicable !== 'N' ? naAnn(r.leaveComponent) : '—', false, false],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' DISABLED' : ''), r.gratuityComponent > 0 ? fmtP(r.gratuityComponent) : 'Rs.0', r.gratuityComponent > 0 ? naAnn(r.gratuityComponent) : '—', false, false],
-    ['Ex-Gratia / PLI', fmtP(r.exGratia || 0), naAnn(r.exGratia || 0), false, false],
+    ['Ex-Gratia', fmtP(r.exGratia || 0), naAnn(r.exGratia || 0), false, false],
+    ['PLI', fmtP(r.pli || 0), naAnn(r.pli || 0), false, false],
     ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer > 0 ? fmtP(r.lwfEmployer) : 'Rs.0', '—', false, false],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? fmtP(r.ptDeduction) : 'Rs.0', '—', false, false],
     ['EMPLOYEE DEDUCTIONS',       null, null, true, false],
@@ -2948,7 +2954,8 @@ function exportCSV() {
     ['Health Insurance (Monthly)', amt(r.healthInsurance), '—'],
     ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' - DISABLED' : ''), amt(r.leaveComponent), leaveApplicable !== 'N' ? amtAnn(r.leaveComponent) : '—'],
     ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - DISABLED' : ''), amt(r.gratuityComponent || 0), gratuityApplicable === 'Y' ? amtAnn(r.gratuityComponent || 0) : '—'],
-    ['Ex-Gratia / PLI', amt(r.exGratia || 0), amtAnn(r.exGratia || 0)],
+    ['Ex-Gratia', amt(r.exGratia || 0), amtAnn(r.exGratia || 0)],
+    ['PLI', amt(r.pli || 0), amtAnn(r.pli || 0)],
     ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer > 0 ? amt(r.lwfEmployer) : 0, '—'],
     ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? amt(r.ptDeduction) : 0, '—'],
     ['', '', ''],
@@ -2996,6 +3003,8 @@ function copyToClipboard() {
       'ESI Employer\t' + r.esiEmployer,
       'Health Insurance (Monthly)\t' + r.healthInsurance,
       'Leave Encashment (' + r.leavesPerYear + ' leaves)\t' + r.leaveComponent,
+      'Ex-Gratia\t' + r.exGratia,
+      'PLI\t' + r.pli,
       'LWF Employer – ' + (r.lwfStateName||'N/A') + '\t' + r.lwfEmployer,
       'PT – ' + (r.ptStateName||'N/A') + '\t' + r.ptDeduction,
       'LWF Employee – ' + (r.lwfStateName||'N/A') + '\t' + r.lwf,
@@ -3451,9 +3460,11 @@ function processBulkFile() {
     const bonusPercentRaw = getBulkField(row, ['Bonus Percent','Bonus %','BonusPercent','bonus_percent','Bonus Rate','Bonus Pct']);
     const bulkBonusPercent = (!isNaN(cleanNum(bonusPercentRaw)) && cleanNum(bonusPercentRaw) >= 0) ? cleanNum(bonusPercentRaw) : 8.33;
 
-    // ✅ Ex-Gratia / PLI override for bulk (defaults to 0 if not given)
-    const exGratiaRaw = getBulkField(row, ['Ex-Gratia', 'PLI', 'ExGratia', 'Ex Gratia', 'ex_gratia']);
+    // ✅ Ex-Gratia and PLI are separate bulk inputs.
+    const exGratiaRaw = getBulkField(row, ['Ex-Gratia', 'ExGratia', 'Ex Gratia', 'ex_gratia']);
     const exGratiaAmt = (!isNaN(cleanNum(exGratiaRaw)) && cleanNum(exGratiaRaw) >= 0) ? cleanNum(exGratiaRaw) : 0;
+    const pliRaw = getBulkField(row, ['PLI', 'Performance Linked Incentive', 'PerformanceLinkedIncentive', 'PLI Amount', 'pli_amt']);
+    const pliAmt = (!isNaN(cleanNum(pliRaw)) && cleanNum(pliRaw) >= 0) ? cleanNum(pliRaw) : 0;
 
     try {
       const r = computeCTC(
@@ -3461,8 +3472,8 @@ function processBulkFile() {
         healthInsAmtBulk, leaveOverride,
         bulkPfBase, bulkHasVol, bulkVolPct, bulkSpecAmt, bulkEmpRate,
         bulkLeaves, previousBasic,
-        bulkBonusAppl, bulkBonusBase, bulkBonusPercent, exGratiaAmt,  // ✅ Pass bonus overrides incl. percent + Ex-Gratia
-        lwfEmployer   // ✅ State-wise LWF employer contribution
+        bulkBonusAppl, bulkBonusBase, bulkBonusPercent, exGratiaAmt,
+        lwfEmployer, pliAmt
       );
 
       const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
@@ -3493,6 +3504,7 @@ function processBulkFile() {
         bonusBaseLabel : bonusBaseLabelMap[bulkBonusBase] || 'Min Wage',
         bonusPercent   : r.bonusPercent,
         exGratia       : r.exGratia,
+        pli            : r.pli,
       });
     } catch (err) {
       bulkCalcResults.push({
@@ -3561,7 +3573,7 @@ function renderBulkResults(errors, total) {
       <th>Month</th><th>Gender</th><th>Prev Basic</th>
       <th>PF</th><th>PF Mode</th><th>PF Wages</th><th>Emp Rate</th><th>Voluntary</th>
       <th>Gross</th><th>Basic</th><th>HRA</th><th>Defray(10%)</th><th>Conveyance</th>
-      <th>EPF Employer</th><th>EDLI</th><th>Bonus Base</th><th>Bonus %</th><th>Bonus</th><th>ESI Employer</th>
+      <th>EPF Employer</th><th>EDLI</th><th>Bonus Base</th><th>Bonus %</th><th>Bonus</th><th>ESI Employer</th><th>Ex-Gratia</th><th>PLI</th>
       <th>Health Ins.</th><th>Leave Enc.</th><th>Leaves/Yr</th>
       <th>LWF State</th><th>LWF</th><th>PT State</th><th>PT</th>
       <th>Initial CTC</th><th>Final CTC/Mo</th><th>Annual CTC</th>
@@ -3572,7 +3584,7 @@ function renderBulkResults(errors, total) {
   const monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   const tot = {};
-  const totFields = ['gross','basic','hra','deferAllowance','conv','epfEmp','edliEmployer','bonus','esiEmp','healthInsurance','leaveUsed','lwf','pt','initialCTC','finalCTC','finalAnnual','epfEe','esiEe','cash','pfWages'];
+  const totFields = ['gross','basic','hra','deferAllowance','conv','epfEmp','edliEmployer','bonus','esiEmp','exGratia','pli','healthInsurance','leaveUsed','lwf','pt','initialCTC','finalCTC','finalAnnual','epfEe','esiEe','cash','pfWages'];
   totFields.forEach(function(k) { tot[k] = 0; });
 
   let bodyHtml = '';
@@ -3615,6 +3627,8 @@ function renderBulkResults(errors, total) {
     const bonusCell = r.bonusApplicable === 'N'
       ? '<span style="color:var(--text-muted)">—</span>'
       : (r.bonus > 0 ? '<span style="color:var(--accent4)">' + bulkFmt(r.bonus) + '</span>' : '<span style="color:var(--text-muted)">—</span>');
+    const exGratiaCell = r.exGratia > 0 ? '<span style="color:var(--accent2)">' + bulkFmt(r.exGratia) + '</span>' : '<span style="color:var(--text-muted)">Rs.0</span>';
+    const pliCell = r.pli > 0 ? '<span style="color:var(--accent4)">' + bulkFmt(r.pli) + '</span>' : '<span style="color:var(--text-muted)">Rs.0</span>';
 
     const lwfStateCell = r.lwfStateName !== 'N/A'
       ? '<span style="font-size:10px;color:' + (r.lwfMode === 'auto' ? 'var(--accent3)' : 'var(--accent2)') + '">' + r.lwfStateName + (r.lwfMode === 'auto' ? ' ●' : ' ○') + '</span>'
@@ -3662,6 +3676,8 @@ function renderBulkResults(errors, total) {
       '<td class="td-right">' + bonusPercentCell + '</td>' +
       '<td class="td-right">' + bonusCell + '</td>' +
       '<td class="td-right">' + esiEmpCell + '</td>' +
+      '<td class="td-right">' + exGratiaCell + '</td>' +
+      '<td class="td-right">' + pliCell + '</td>' +
       '<td class="td-right">' + hiCell + '</td>' +
       '<td class="td-right">' + leaveCell + '</td>' +
       '<td class="td-right" style="font-size:10px;color:var(--text-dim)">' + (r.leavesPerYear || 15) + '</td>' +
@@ -3693,6 +3709,8 @@ function renderBulkResults(errors, total) {
       '<td></td>' + // bonus %
       '<td class="td-right">' + bulkFmt(tot.bonus) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.esiEmp) + '</td>' +
+      '<td class="td-right">' + bulkFmt(tot.exGratia) + '</td>' +
+      '<td class="td-right">' + bulkFmt(tot.pli) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.healthInsurance) + '</td>' +
       '<td class="td-right">' + bulkFmt(tot.leaveUsed) + '</td>' +
       '<td></td>' +
@@ -3750,7 +3768,7 @@ function bulkExportCSV() {
     'Health Insurance (Rs.)', 'Leave Encashment (Rs.)', 'Leave Mode', 'Leaves Per Year',
     'LWF State', 'LWF Mode', 'LWF – Employee (Rs.)', 'LWF – Employer (Rs.)',
     'PT State', 'PT Mode', 'Professional Tax (Rs.)',
-    'Ex-Gratia / PLI (Rs.)',
+    'Ex-Gratia (Rs.)', 'PLI (Rs.)',
     'Initial CTC (Monthly)', 'Final CTC (Monthly)', 'Final CTC (Annual)',
     'EPF – Employee (Rs.)', 'ESI – Employee (Rs.)', 'Net Cash in Hand (Rs.)',
     'Status'
@@ -3781,6 +3799,8 @@ function bulkExportCSV() {
       r.bonusApplicable === 'N' ? 'N/A' : (r.bonusPercent !== undefined ? r.bonusPercent : 8.33),
       r.bonusApplicable === 'N' ? 0 : amt(r.bonus),
       r.esiEmp > 0 ? amt(r.esiEmp) : 0,
+      amt(r.exGratia || 0),
+      amt(r.pli || 0),
       amt(r.healthInsurance || 0),
       amt(r.leaveUsed), r.leaveMode === 'manual' ? 'Manual' : 'Auto (Formula)',
       r.leavesPerYear || 15,
@@ -3789,7 +3809,6 @@ function bulkExportCSV() {
       r.lwfEmployer > 0 ? amt(r.lwfEmployer) : 0,
       r.ptStateName || 'N/A', r.ptMode === 'auto' ? 'Auto (State-wise)' : 'Manual',
       r.pt > 0 ? amt(r.pt) : 0,
-      amt(r.exGratia || 0),
       amt(r.initialCTC), amt(r.finalCTC), amt(r.finalAnnual),
       r.pfApplicable === 'Y' ? amt(r.epfEe) : 'N/A',
       r.esiEe > 0 ? amt(r.esiEe) : 0,
@@ -3816,6 +3835,7 @@ function bulkExportCSV() {
     valid.reduce(function(s,r){ return s+amt(r.lwfEmployer||0); }, 0),
     '', '', valid.reduce(function(s,r){ return s+amt(r.pt); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.exGratia||0); }, 0),
+    valid.reduce(function(s,r){ return s+amt(r.pli||0); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.initialCTC); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.finalCTC); }, 0),
     valid.reduce(function(s,r){ return s+amt(r.finalAnnual); }, 0),
@@ -3874,6 +3894,8 @@ function bulkExportTXT() {
     txt += tableRow('ESI – Employer', r.esiEmp > 0 ? bulkFmt(r.esiEmp) : 'N/A');
     txt += tableRow('Health Insurance (Monthly)', bulkFmt(r.healthInsurance || 0));
     txt += tableRow('Leave Encashment (' + (r.leavesPerYear||15) + ' leaves)', bulkFmt(r.leaveUsed));
+    txt += tableRow('Ex-Gratia', bulkFmt(r.exGratia || 0));
+    txt += tableRow('PLI', bulkFmt(r.pli || 0));
     txt += tableRow('LWF – Employer (' + (r.lwfStateName||'N/A') + ')', r.lwfEmployer > 0 ? bulkFmt(r.lwfEmployer) : 'N/A');
     txt += SEP + '\n';
     txt += tableRow('EPF – Employee', r.pfApplicable === 'Y' ? bulkFmt(r.epfEe) : 'N/A');
@@ -3898,7 +3920,7 @@ function bulkExportTXT() {
 function bulkCopyClipboard() {
   if (!bulkCalcResults.length) { showToast('⚠️ Calculate first'); return; }
   const valid   = bulkCalcResults.filter(function(r) { return !r.error; });
-  const headers = ['#','Employee Name','Emp Code','Branch','Gross','Basic','HRA','EPF Emp','Bonus Base','Bonus %','Bonus','ESI Emp','Health Ins.','Leave Enc.','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Employee','ESI Employee','Cash in Hand'];
+  const headers = ['#','Employee Name','Emp Code','Branch','Gross','Basic','HRA','EPF Emp','Bonus Base','Bonus %','Bonus','ESI Emp','Ex-Gratia','PLI','Health Ins.','Leave Enc.','LWF','PT','Initial CTC','Final CTC/Mo','Annual CTC','EPF Employee','ESI Employee','Cash in Hand'];
   const rows    = valid.map(function(r, i) {
     return [
       i+1, r.name, r.empCode || '', r.branch || '',
@@ -3908,6 +3930,7 @@ function bulkCopyClipboard() {
       r.bonusApplicable === 'N' ? 'N/A' : (r.bonusPercent !== undefined ? r.bonusPercent : 8.33),
       r.bonusApplicable === 'N' ? 0 : Math.round(r.bonus),
       r.esiEmp > 0 ? Math.round(r.esiEmp) : 0,
+      Math.round(r.exGratia || 0), Math.round(r.pli || 0),
       Math.round(r.healthInsurance || 0),
       Math.round(r.leaveUsed), r.lwf > 0 ? Math.round(r.lwf) : 0,
       r.pt > 0 ? Math.round(r.pt) : 0,
@@ -3925,13 +3948,13 @@ function bulkCopyClipboard() {
 // ✅ Updated template with Bonus columns (base + percent)
 function bulkDownloadTemplate() {
   const csv = [
-    'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,Bonus (Y/N),Bonus Base,Bonus Percent,PT State,LWF State,Salary Month,Gender,Health Insurance,Leave Encashment Amount,Leaves per Year,Ex-Gratia',
-    'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,Y,minwage,8.33,KA,FKL,12,Male,500,,15,0',
-    'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,Y,basic,10,MH,MH,12,Male,1000,500,18,1000',
-    'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,Y,minwage,8.33,,OTHER,12,Male,750,,15,0',
-    'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,N,,8.33,GJ,OTHER,6,Female,800,,20,500',
-    'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,Y,gross,8.33,AP,AP,12,Male,500,,15,0',
-    'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,Y,basic,20,TS,OTHER,12,Female,600,500,12,750',
+    'Employee Name,Employee Code,Branch,Gross Salary,Min Wage,Previous Basic,PF (Y/N),PF Mode,Voluntary PF,Voluntary PF %,Specific PF Amount,Employer PF Rate,Bonus (Y/N),Bonus Base,Bonus Percent,PT State,LWF State,Salary Month,Gender,Health Insurance,Leave Encashment Amount,Leaves per Year,Ex-Gratia,PLI',
+    'Rahul Sharma,EMP001,Mumbai-HO,30000,16868,14000,Y,standard,N,,0,12.5,Y,minwage,8.33,KA,FKL,12,Male,500,,15,0,0',
+    'Priya Verma,EMP002,Delhi-Branch,45000,16868,20000,Y,full_basic,N,,0,12,Y,basic,10,MH,MH,12,Male,1000,500,18,1000,1500',
+    'Amit Patel,EMP003,Bangalore-Site,55000,16868,,N,standard,N,,0,12.5,Y,minwage,8.33,,OTHER,12,Male,750,,15,0,0',
+    'Neha Singh,EMP004,Chennai-Branch,60000,16868,30000,Y,standard,Y,5,0,12.5,N,,8.33,GJ,OTHER,6,Female,800,,20,500,0',
+    'Vikram Gupta,EMP005,Hyderabad-Unit,25000,16868,12000,Y,specific_amt,N,,15000,12,Y,gross,8.33,AP,AP,12,Male,500,,15,0,0',
+    'Sunita Kumar,EMP006,Pune-Branch,50000,14000,22000,Y,full_basic,Y,3,0,12.5,Y,basic,20,TS,OTHER,12,Female,600,500,12,750,1000',
   ].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');

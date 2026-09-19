@@ -38,6 +38,12 @@ assert.strictEqual(nikhil.pfComparison.newEdli, 85);
 
 const edliExample = context.testPF(22411, '12.5', 22411);
 assert.strictEqual(edliExample.edli, 112);
+
+const incentives = context.testCTC(30000, 16868, 'Y', 0, 0, 0, null,
+  'standard', false, 0, 0, '12.5', 15, null, 'Y', 'minwage', 8.33, 100, 0, 200);
+assert.strictEqual(incentives.exGratia, 100);
+assert.strictEqual(incentives.pli, 200);
+assert.strictEqual(incentives.finalCTC, nikhil.finalCTC + 300);
 assert.ok(source.includes('function exportPDF()'));
 assert.ok(source.includes('fmtPF(r.epfEmployee)'));
 

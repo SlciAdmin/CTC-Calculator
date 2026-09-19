@@ -517,17 +517,30 @@
               <div class="field-hint">Enter monthly health insurance premium (employer contribution added to CTC)</div>
             </div>
 
-            <!-- EX-GRATIA / PLI -->
+            <!-- EX-GRATIA -->
             <div class="field-group special-field hi-field">
               <label>
-                Ex-Gratia / PLI (Monthly)
+                Ex-Gratia (Monthly)
                 <span class="formula-badge">Manual Entry</span>
               </label>
               <div class="input-prefix" style="margin-top: 8px;">
                 <span>₹</span>
                 <input type="number" id="exGratia" placeholder="e.g. 1000" min="0" value="0" oninput="liveCalc()" />
               </div>
-              <div class="field-hint">Enter monthly Ex-Gratia / Performance Linked Incentive (added to Final CTC)</div>
+              <div class="field-hint">Enter monthly Ex-Gratia separately. It is added to Final CTC.</div>
+            </div>
+
+            <!-- PLI -->
+            <div class="field-group special-field hi-field">
+              <label>
+                Performance Linked Incentive (PLI) (Monthly)
+                <span class="formula-badge">Manual Entry</span>
+              </label>
+              <div class="input-prefix" style="margin-top: 8px;">
+                <span>₹</span>
+                <input type="number" id="pli" placeholder="e.g. 1500" min="0" value="0" oninput="liveCalc()" />
+              </div>
+              <div class="field-hint">Enter monthly PLI separately. It is added to Final CTC.</div>
             </div>
 
             <!-- GRATUITY -->
@@ -800,6 +813,8 @@
                 <span class="col-tag optional">LWF Amount</span>
                 <span class="col-tag optional">Health Insurance</span>
                 <span class="col-tag optional">Leave Encashment</span>
+                <span class="col-tag optional">Ex-Gratia</span>
+                <span class="col-tag optional">PLI</span>
               </div>
               <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
                 Optional fields pe default auto-calculation hogi &nbsp;•&nbsp;
