@@ -63,7 +63,11 @@
               <input type="checkbox" id="rememberMe">
               <span>Remember me</span>
             </label>
-            <a href="#" id="showAdminRegister" class="auth-link">Admin Register</a>
+            <span>
+              <a href="#" id="showForgotPassword" class="auth-link">Change password</a>
+              <span class="auth-separator"> · </span>
+              <a href="#" id="showAdminRegister" class="auth-link">Admin Register</a>
+            </span>
           </div>
 
           <button type="submit" class="btn-auth-primary">
@@ -73,8 +77,82 @@
           <div id="loginError" class="auth-error hidden" role="alert"></div>
         </form>
 
+        <div class="auth-footer auth-create-footer">
+          <p>Need an account? <a href="#" id="showCreateAccount" class="auth-link">Create account</a></p>
+        </div>
+
         <div class="auth-footer">
           <p>Protected by SLCI Security • <span id="appVersion">v2.1</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== CREATE ACCOUNT PAGE =================== -->
+  <div id="createAccountPage" class="auth-page hidden">
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="auth-header">
+          <div class="brand-icon auth-logo">✦</div>
+          <h1>Create Account</h1>
+          <p class="auth-subtitle">Get secure access to the CTC Calculator</p>
+        </div>
+
+        <form id="createAccountForm" class="auth-form">
+          <div class="field-group">
+            <label for="createUsername">Username <span class="req">*</span></label>
+            <input type="text" id="createUsername" placeholder="e.g. Rahul Sharma" required autocomplete="name">
+          </div>
+          <div class="field-group">
+            <label for="createCompanyName">Company Name <span class="req">*</span></label>
+            <input type="text" id="createCompanyName" placeholder="e.g. SLCI Solutions" required autocomplete="organization">
+          </div>
+          <div class="field-group">
+            <label for="createEmail">Email <span class="req">*</span></label>
+            <input type="email" id="createEmail" placeholder="you@company.com" required autocomplete="email">
+          </div>
+          <div class="field-group">
+            <label for="createContactNumber">Contact Number <span class="req">*</span></label>
+            <input type="tel" id="createContactNumber" placeholder="e.g. 9876543210" required autocomplete="tel">
+          </div>
+          <button type="submit" class="btn-auth-primary">Create Account</button>
+          <div id="createAccountError" class="auth-error hidden" role="alert"></div>
+          <div id="createAccountSuccess" class="auth-success hidden" role="status"></div>
+        </form>
+
+        <div class="auth-footer">
+          <p>Already have an account? <a href="#" id="createAccountBackToLogin" class="auth-link">Sign In</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== CHANGE PASSWORD PAGE =================== -->
+  <div id="forgotPasswordPage" class="auth-page hidden">
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="auth-header">
+          <div class="brand-icon auth-logo">🔑</div>
+          <h1>Change Password</h1>
+          <p class="auth-subtitle">Verify your email with a one-time password</p>
+        </div>
+
+        <form id="forgotPasswordForm" class="auth-form">
+          <div class="field-group">
+            <label for="forgotEmail">Email Address <span class="req">*</span></label>
+            <input type="email" id="forgotEmail" placeholder="your@email.com" required autocomplete="email">
+          </div>
+          <div class="field-group hidden" id="otpFieldGroup">
+            <label for="forgotOtp">One-Time Password <span class="req">*</span></label>
+            <input type="text" id="forgotOtp" placeholder="Enter 6-digit OTP" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+          </div>
+          <button type="submit" class="btn-auth-primary" id="forgotPasswordSubmit">Send OTP</button>
+          <div id="forgotPasswordError" class="auth-error hidden" role="alert"></div>
+          <div id="forgotPasswordSuccess" class="auth-success hidden" role="status"></div>
+        </form>
+
+        <div class="auth-footer">
+          <p><a href="#" id="forgotPasswordBackToLogin" class="auth-link">Back to Sign In</a></p>
         </div>
       </div>
     </div>

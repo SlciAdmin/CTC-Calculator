@@ -26,6 +26,10 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db   = firebase.firestore();
+const ACCOUNT_MAIL_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwzxkpwGBOZ_5kTz3QrS7l2ckck7JTE_2NEbl23wUe_OP9QpEk2lMDj6i4F0s7WO2J0kg/exec';
+let pendingPasswordOtp = null;
+let pendingPasswordEmail = null;
+let isCreatingAccount = false;
 
 // ============== GLOBAL STATE ==============
 let currentUser   = null;
@@ -1340,6 +1344,7 @@ function getPFModeLabel() {
 // ============== AUTH LISTENER ==============
 function setupAuthListener() {
   auth.onAuthStateChanged(async function(user) {
+    if (isCreatingAccount) return;
     if (user) {
       try {
         const userDoc = await db.collection('users').doc(user.uid).get();
@@ -1379,12 +1384,24 @@ function setupAuthListener() {
 function setupEventListeners() {
   const loginForm = document.getElementById('loginForm');
   if (loginForm) loginForm.addEventListener('submit', handleLogin);
+  const createAccountForm = document.getElementById('createAccountForm');
+  if (createAccountForm) createAccountForm.addEventListener('submit', handleCreateAccount);
+  const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+  if (forgotPasswordForm) forgotPasswordForm.addEventListener('submit', handleForgotPassword);
   const adminRegisterForm = document.getElementById('adminRegisterForm');
   if (adminRegisterForm) adminRegisterForm.addEventListener('submit', handleAdminRegister);
   const createUserForm = document.getElementById('createUserForm');
   if (createUserForm) createUserForm.addEventListener('submit', handleCreateUser);
   const showAdminRegisterLink = document.getElementById('showAdminRegister');
   if (showAdminRegisterLink) showAdminRegisterLink.addEventListener('click', function(e) { e.preventDefault(); showAdminRegister(); });
+  const showCreateAccountLink = document.getElementById('showCreateAccount');
+  if (showCreateAccountLink) showCreateAccountLink.addEventListener('click', function(e) { e.preventDefault(); showCreateAccount(); });
+  const showForgotPasswordLink = document.getElementById('showForgotPassword');
+  if (showForgotPasswordLink) showForgotPasswordLink.addEventListener('click', function(e) { e.preventDefault(); showForgotPassword(); });
+  const createAccountBackToLogin = document.getElementById('createAccountBackToLogin');
+  if (createAccountBackToLogin) createAccountBackToLogin.addEventListener('click', function(e) { e.preventDefault(); showLoginPage(); });
+  const forgotPasswordBackToLogin = document.getElementById('forgotPasswordBackToLogin');
+  if (forgotPasswordBackToLogin) forgotPasswordBackToLogin.addEventListener('click', function(e) { e.preventDefault(); showLoginPage(); });
   const backToLoginLink = document.getElementById('backToLogin');
   if (backToLoginLink) backToLoginLink.addEventListener('click', function(e) { e.preventDefault(); showLoginPage(); });
   const adminPanelBtn = document.getElementById('adminPanelBtn');
@@ -1415,14 +1432,43 @@ function setupEventListeners() {
 function showLoginPage() {
   safeToggle('loginPage', false);
   safeToggle('adminRegisterPage', true);
+  safeToggle('createAccountPage', true);
+  safeToggle('forgotPasswordPage', true);
   safeToggle('mainApp', true);
   safeToggle('loginError', true);
   const form = document.getElementById('loginForm');
   if (form) form.reset();
 }
+function showCreateAccount() {
+  safeToggle('loginPage', true);
+  safeToggle('adminRegisterPage', true);
+  safeToggle('createAccountPage', false);
+  safeToggle('forgotPasswordPage', true);
+  safeToggle('mainApp', true);
+  document.getElementById('createAccountForm')?.reset();
+  safeToggle('createAccountError', true);
+  safeToggle('createAccountSuccess', true);
+}
+function showForgotPassword() {
+  safeToggle('loginPage', true);
+  safeToggle('adminRegisterPage', true);
+  safeToggle('createAccountPage', true);
+  safeToggle('forgotPasswordPage', false);
+  safeToggle('mainApp', true);
+  document.getElementById('forgotPasswordForm')?.reset();
+  document.getElementById('otpFieldGroup')?.classList.add('hidden');
+  const submit = document.getElementById('forgotPasswordSubmit');
+  if (submit) { submit.textContent = 'Send OTP'; submit.disabled = false; }
+  pendingPasswordOtp = null;
+  pendingPasswordEmail = null;
+  safeToggle('forgotPasswordError', true);
+  safeToggle('forgotPasswordSuccess', true);
+}
 function showAdminRegister() {
   safeToggle('loginPage', true);
   safeToggle('adminRegisterPage', false);
+  safeToggle('createAccountPage', true);
+  safeToggle('forgotPasswordPage', true);
   safeToggle('mainApp', true);
   safeToggle('adminError', true);
   safeToggle('adminSuccess', true);
@@ -1432,6 +1478,8 @@ function showAdminRegister() {
 function showMainApp() {
   safeToggle('loginPage', true);
   safeToggle('adminRegisterPage', true);
+  safeToggle('createAccountPage', true);
+  safeToggle('forgotPasswordPage', true);
   safeToggle('mainApp', false);
   if (typeof liveCalc === 'function') liveCalc();
 }
@@ -1444,6 +1492,138 @@ function safeToggle(elementId, hide) {
 function togglePassword(inputId) {
   const input = document.getElementById(inputId);
   if (input) input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function createInitialPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  const values = new Uint32Array(12);
+  crypto.getRandomValues(values);
+  return Array.from(values, value => alphabet[value % alphabet.length]).join('');
+}
+
+async function notifyAccountEmail(params) {
+  const callbackName = 'ctcMailCallback_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+  const query = new URLSearchParams(Object.assign({}, params, { callback: callbackName })).toString();
+  return new Promise(function(resolve, reject) {
+    const script = document.createElement('script');
+    const cleanup = function() {
+      delete window[callbackName];
+      script.remove();
+    };
+    const timer = setTimeout(function() {
+      cleanup();
+      reject(new Error('Mail service timed out'));
+    }, 15000);
+    window[callbackName] = function(data) {
+      clearTimeout(timer);
+      cleanup();
+      if (!data || !data.success) reject(new Error(data?.message || 'Mail service rejected the request'));
+      else resolve(data);
+    };
+    script.onerror = function() {
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error('Could not connect to mail service'));
+    };
+    script.src = ACCOUNT_MAIL_ENDPOINT + '?' + query;
+    document.head.appendChild(script);
+  });
+}
+
+async function handleCreateAccount(e) {
+  e.preventDefault();
+  const name = (document.getElementById('createUsername')?.value || '').trim();
+  const companyName = (document.getElementById('createCompanyName')?.value || '').trim();
+  const email = (document.getElementById('createEmail')?.value || '').trim().toLowerCase();
+  const contactNumber = (document.getElementById('createContactNumber')?.value || '').trim();
+  const errorEl = document.getElementById('createAccountError');
+  const successEl = document.getElementById('createAccountSuccess');
+  if (errorEl) errorEl.classList.add('hidden');
+  if (successEl) successEl.classList.add('hidden');
+  if (!name || !companyName || !email || !contactNumber) { showError(errorEl, 'All fields are required'); return; }
+
+  const password = createInitialPassword();
+  let createdCredential = null;
+  isCreatingAccount = true;
+  try {
+    createdCredential = await auth.createUserWithEmailAndPassword(email, password);
+    await db.collection('users').doc(createdCredential.user.uid).set({
+      uid: createdCredential.user.uid, name, username: name, companyName, email, contactNumber,
+      role: 'user', createdAt: firebase.firestore.FieldValue.serverTimestamp(), lastLogin: null
+    });
+    const mailResult = await notifyAccountEmail({ action: 'createAccount', email, companyName, password, contactNumber, userName: name });
+    await auth.signOut();
+    if (successEl) {
+      successEl.textContent = mailResult.mailSent === false
+        ? 'Account created and saved. Email could not be sent; ask the administrator to authorize Gmail.'
+        : 'Account created. Your login password has been sent to your email.';
+      successEl.classList.remove('hidden');
+    }
+    document.getElementById('createAccountForm')?.reset();
+    setTimeout(showLoginPage, 1000);
+  } catch (error) {
+    if (createdCredential) {
+      try {
+        await db.collection('users').doc(createdCredential.user.uid).delete();
+        await createdCredential.user.delete();
+      } catch (cleanupError) {
+        console.warn('Could not clean up incomplete account:', cleanupError);
+      }
+    }
+    let message = 'Account creation failed';
+    if (error.code === 'auth/email-already-in-use') message = 'Email already registered';
+    else if (error.code === 'auth/invalid-email') message = 'Invalid email format';
+    else if (error.code === 'auth/weak-password') message = 'Generated password was rejected. Please try again.';
+    else if (error.code === 'auth/operation-not-allowed') message = 'Email/Password sign-up is disabled in Firebase. Enable it in Firebase Console > Authentication > Sign-in method.';
+    else if (error.code === 'auth/invalid-api-key') message = 'Firebase API key is invalid or restricted.';
+    else if (error.code === 'auth/project-not-found') message = 'Firebase project was not found. Check the Firebase configuration.';
+    else if (error.code === 'auth/unauthorized-domain') message = 'This website domain is not authorized in Firebase Authentication settings.';
+    else if (error.code === 'auth/network-request-failed') message = 'Network request failed. Check your internet connection and reload the page.';
+    else if (error.message) message += ': ' + error.message;
+    console.error('Create account failed:', error.code || error.message, error);
+    showError(errorEl, message);
+  } finally {
+    isCreatingAccount = false;
+    if (auth.currentUser) await auth.signOut();
+  }
+}
+
+async function handleForgotPassword(e) {
+  e.preventDefault();
+  const email = (document.getElementById('forgotEmail')?.value || '').trim().toLowerCase();
+  const otp = (document.getElementById('forgotOtp')?.value || '').trim();
+  const otpGroup = document.getElementById('otpFieldGroup');
+  const submit = document.getElementById('forgotPasswordSubmit');
+  const errorEl = document.getElementById('forgotPasswordError');
+  const successEl = document.getElementById('forgotPasswordSuccess');
+  if (errorEl) errorEl.classList.add('hidden');
+  if (successEl) successEl.classList.add('hidden');
+  if (!email) { showError(errorEl, 'Please enter your email address'); return; }
+  if (!pendingPasswordOtp) {
+    pendingPasswordOtp = 'sent';
+    pendingPasswordEmail = email;
+    try {
+      await notifyAccountEmail({ action: 'sendOtp', email });
+      otpGroup?.classList.remove('hidden');
+      if (submit) submit.textContent = 'Verify OTP';
+      if (successEl) { successEl.textContent = 'OTP sent. Check your email.'; successEl.classList.remove('hidden'); }
+    } catch (error) {
+      pendingPasswordOtp = null;
+      showError(errorEl, 'Could not send OTP. Please try again.');
+    }
+    return;
+  }
+  if (email !== pendingPasswordEmail) { showError(errorEl, 'Please use the same email address that requested the OTP'); return; }
+  try {
+    await notifyAccountEmail({ action: 'verifyOtp', email, otp });
+    await auth.sendPasswordResetEmail(email);
+    pendingPasswordOtp = null;
+    pendingPasswordEmail = null;
+    if (successEl) { successEl.textContent = 'Email verified. Firebase sent a secure link to create your new password.'; successEl.classList.remove('hidden'); }
+    if (submit) submit.disabled = true;
+  } catch (error) {
+    showError(errorEl, error.code === 'auth/user-not-found' ? 'No account with this email' : 'Could not start password reset');
+  }
 }
 
 async function handleLogin(e) {
