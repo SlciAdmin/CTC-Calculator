@@ -2731,3 +2731,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   .auth-logo { display: none; }
   .auth-header { margin-bottom: 12px; padding-bottom: 10px; }
 }
+.auth-step-links { display: flex; justify-content: space-between; margin-top: 6px; }
+.auth-step-links .auth-link { font-size: 12px; }
+.auth-form input[readonly] { opacity: 0.65; cursor: default; }

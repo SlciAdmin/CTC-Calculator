@@ -27,7 +27,7 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db   = firebase.firestore();
 const ACCOUNT_MAIL_ENDPOINT = 'https://script.google.com/macros/s/AKfycbx3IAhdSpSFxaUdX0O9clTb86ic_H2Z0tBFTi17fkckf4ZccGee6fVhJt0j6VwAL0bY8g/exec';
-let pendingPasswordOtp = null;
+let passwordResetStep = 'email';
 let pendingPasswordEmail = null;
 let isCreatingAccount = false;
 
@@ -1394,6 +1394,13 @@ function setupEventListeners() {
   if (showCreateAccountLink) showCreateAccountLink.addEventListener('click', function(e) { e.preventDefault(); showCreateAccount(); });
   const showForgotPasswordLink = document.getElementById('showForgotPassword');
   if (showForgotPasswordLink) showForgotPasswordLink.addEventListener('click', function(e) { e.preventDefault(); showForgotPassword(); });
+  const resendOtpLink = document.getElementById('resendOtpLink');
+  if (resendOtpLink) resendOtpLink.addEventListener('click', function(e) {
+    e.preventDefault();
+    if (pendingPasswordEmail) sendPasswordOtp(pendingPasswordEmail);
+  });
+  const changeEmailLink = document.getElementById('changeEmailLink');
+  if (changeEmailLink) changeEmailLink.addEventListener('click', function(e) { e.preventDefault(); showForgotPassword(); });
   const createAccountBackToLogin = document.getElementById('createAccountBackToLogin');
   if (createAccountBackToLogin) createAccountBackToLogin.addEventListener('click', function(e) { e.preventDefault(); showLoginPage(); });
   const forgotPasswordBackToLogin = document.getElementById('forgotPasswordBackToLogin');
@@ -1447,13 +1454,9 @@ function showForgotPassword() {
   safeToggle('forgotPasswordPage', false);
   safeToggle('mainApp', true);
   document.getElementById('forgotPasswordForm')?.reset();
-  document.getElementById('otpFieldGroup')?.classList.add('hidden');
-  const submit = document.getElementById('forgotPasswordSubmit');
-  if (submit) { submit.textContent = 'Send OTP'; submit.disabled = false; }
-  pendingPasswordOtp = null;
   pendingPasswordEmail = null;
-  safeToggle('forgotPasswordError', true);
-  safeToggle('forgotPasswordSuccess', true);
+  setPasswordResetStep('email');
+  showPasswordResetMessage();
 }
 function showMainApp() {
   safeToggle('loginPage', true);
@@ -1492,7 +1495,7 @@ async function notifyAccountEmail(params) {
     const timer = setTimeout(function() {
       cleanup();
       reject(new Error('Mail service timed out'));
-    }, 15000);
+    }, 90000);
     window[callbackName] = function(data) {
       clearTimeout(timer);
       cleanup();
@@ -1567,54 +1570,106 @@ async function handleCreateAccount(e) {
   }
 }
 
-async function handleForgotPassword(e) {
-  e.preventDefault();
-  const email = (document.getElementById('forgotEmail')?.value || '').trim().toLowerCase();
-  const otp = (document.getElementById('forgotOtp')?.value || '').trim();
-  const otpGroup = document.getElementById('otpFieldGroup');
+function setPasswordResetStep(step) {
+  passwordResetStep = step;
+  const onOtp = step === 'otp';
+  const onPassword = step === 'password';
+  const emailInput = document.getElementById('forgotEmail');
+  if (emailInput) emailInput.readOnly = step !== 'email';
+  safeToggle('otpStep', !(onOtp || onPassword));
+  safeToggle('passwordStep', !onPassword);
+  const otpInput = document.getElementById('forgotOtp');
+  if (otpInput) otpInput.readOnly = onPassword;
   const submit = document.getElementById('forgotPasswordSubmit');
+  if (submit) {
+    submit.disabled = false;
+    submit.textContent = onPassword ? 'Update Password & Sign In' : onOtp ? 'Verify OTP' : 'Send OTP';
+  }
+  if (onOtp) otpInput?.focus();
+  if (onPassword) document.getElementById('resetNewPassword')?.focus();
+}
+
+function showPasswordResetMessage(kind, message) {
   const errorEl = document.getElementById('forgotPasswordError');
   const successEl = document.getElementById('forgotPasswordSuccess');
   if (errorEl) errorEl.classList.add('hidden');
   if (successEl) successEl.classList.add('hidden');
-  if (!email) { showError(errorEl, 'Please enter your email address'); return; }
-  if (!pendingPasswordOtp) {
-    pendingPasswordOtp = 'sent';
+  if (!message) return;
+  if (kind === 'error') { showError(errorEl, message); return; }
+  if (successEl) { successEl.textContent = message; successEl.classList.remove('hidden'); }
+}
+
+async function sendPasswordOtp(email) {
+  const submit = document.getElementById('forgotPasswordSubmit');
+  if (submit) { submit.disabled = true; submit.textContent = 'Sending OTP…'; }
+  showPasswordResetMessage('success', 'Sending OTP to ' + email + '. This can take up to a minute…');
+  try {
+    await notifyAccountEmail({ action: 'sendOtp', email });
     pendingPasswordEmail = email;
-    try {
-      await notifyAccountEmail({ action: 'sendOtp', email });
-      otpGroup?.classList.remove('hidden');
-      if (submit) submit.textContent = 'Update Password & Sign In';
-      if (successEl) { successEl.textContent = 'OTP sent. Check your email, then enter the OTP and your new password.'; successEl.classList.remove('hidden'); }
-    } catch (error) {
-      pendingPasswordOtp = null;
-      showError(errorEl, 'Could not send OTP: ' + (error.message || 'please try again.'));
+    setPasswordResetStep('otp');
+    showPasswordResetMessage('success', 'OTP sent to ' + email + '. Enter it below.');
+  } catch (error) {
+    if (error.message === 'Mail service timed out') {
+      // The mail service is slow on cold starts; the email may still arrive.
+      pendingPasswordEmail = email;
+      setPasswordResetStep('otp');
+      showPasswordResetMessage('success', 'OTP is taking longer than usual. If it arrives, enter it below, or click Resend OTP.');
+      return;
+    }
+    setPasswordResetStep(pendingPasswordEmail ? 'otp' : 'email');
+    showPasswordResetMessage('error', 'Could not send OTP: ' + (error.message || 'please try again.'));
+  }
+}
+
+async function handleForgotPassword(e) {
+  e.preventDefault();
+  const email = (document.getElementById('forgotEmail')?.value || '').trim().toLowerCase();
+  const otp = (document.getElementById('forgotOtp')?.value || '').trim();
+  const submit = document.getElementById('forgotPasswordSubmit');
+  showPasswordResetMessage();
+
+  if (passwordResetStep === 'email') {
+    if (!email) { showPasswordResetMessage('error', 'Please enter your email address'); return; }
+    await sendPasswordOtp(email);
+    return;
+  }
+
+  if (passwordResetStep === 'otp') {
+    if (!/^\d{6}$/.test(otp)) { showPasswordResetMessage('error', 'Enter the 6-digit OTP from your email'); return; }
+    setPasswordResetStep('password');
+    showPasswordResetMessage('success', 'Now set your new password.');
+    return;
+  }
+
+  const newPassword = document.getElementById('resetNewPassword')?.value || '';
+  const confirmPassword = document.getElementById('resetConfirmPassword')?.value || '';
+  if (newPassword.length < 8) { showPasswordResetMessage('error', 'New password must be at least 8 characters'); return; }
+  if (newPassword !== confirmPassword) { showPasswordResetMessage('error', 'Passwords do not match'); return; }
+  if (submit) { submit.disabled = true; submit.textContent = 'Updating password…'; }
+  try {
+    await notifyAccountEmail({ action: 'resetPassword', email: pendingPasswordEmail, otp, newPassword });
+  } catch (error) {
+    if (/otp/i.test(error.message || '')) {
+      // Wrong or expired OTP: send the user back to fix it.
+      const otpInput = document.getElementById('forgotOtp');
+      if (otpInput) otpInput.value = '';
+      setPasswordResetStep('otp');
+      showPasswordResetMessage('error', 'Invalid or expired OTP. Enter the correct OTP or click Resend OTP.');
+    } else {
+      setPasswordResetStep('password');
+      showPasswordResetMessage('error', error.message || 'Could not update password');
     }
     return;
   }
-  if (email !== pendingPasswordEmail) { showError(errorEl, 'Please use the same email address that requested the OTP'); return; }
-  const newPassword = document.getElementById('resetNewPassword')?.value || '';
-  const confirmPassword = document.getElementById('resetConfirmPassword')?.value || '';
-  if (!/^\d{6}$/.test(otp)) { showError(errorEl, 'Enter the 6-digit OTP from your email'); return; }
-  if (newPassword.length < 8) { showError(errorEl, 'New password must be at least 8 characters'); return; }
-  if (newPassword !== confirmPassword) { showError(errorEl, 'Passwords do not match'); return; }
-  if (submit) { submit.disabled = true; submit.textContent = 'Updating…'; }
-  try {
-    await notifyAccountEmail({ action: 'resetPassword', email, otp, newPassword });
-  } catch (error) {
-    if (submit) { submit.disabled = false; submit.textContent = 'Update Password & Sign In'; }
-    showError(errorEl, error.message || 'Could not update password');
-    return;
-  }
-  pendingPasswordOtp = null;
+  const signInEmail = pendingPasswordEmail;
   pendingPasswordEmail = null;
-  if (successEl) { successEl.textContent = 'Password updated. Signing you in…'; successEl.classList.remove('hidden'); }
+  showPasswordResetMessage('success', 'Password updated. Signing you in…');
   try {
-    await auth.signInWithEmailAndPassword(email, newPassword);
+    await auth.signInWithEmailAndPassword(signInEmail, newPassword);
   } catch (error) {
     showLoginPage();
     const loginEmail = document.getElementById('loginEmail');
-    if (loginEmail) loginEmail.value = email;
+    if (loginEmail) loginEmail.value = signInEmail;
     showToast('✓ Password updated. Please sign in with your new password.');
   }
 }

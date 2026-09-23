@@ -135,11 +135,15 @@
             <label for="forgotEmail">Email Address <span class="req">*</span></label>
             <input type="email" id="forgotEmail" placeholder="your@email.com" required autocomplete="email">
           </div>
-          <div class="hidden auth-form" id="otpFieldGroup">
-            <div class="field-group">
-              <label for="forgotOtp">One-Time Password <span class="req">*</span></label>
-              <input type="text" id="forgotOtp" placeholder="Enter 6-digit OTP" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+          <div class="field-group hidden" id="otpStep">
+            <label for="forgotOtp">Enter OTP sent to your email <span class="req">*</span></label>
+            <input type="text" id="forgotOtp" placeholder="6-digit OTP" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+            <div class="auth-step-links">
+              <a href="#" id="resendOtpLink" class="auth-link">Resend OTP</a>
+              <a href="#" id="changeEmailLink" class="auth-link">Change email</a>
             </div>
+          </div>
+          <div class="hidden auth-form" id="passwordStep">
             <div class="field-group">
               <label for="resetNewPassword">New Password <span class="req">*</span></label>
               <div class="password-wrapper">
