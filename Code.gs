@@ -20,6 +20,12 @@ function testGmail() {
 // Run once from the Apps Script editor to grant the Firebase (UrlFetchApp) permission,
 // then redeploy the web app as a new version.
 function testFirebaseAccess() {
+  if (!getServiceAccount_()) {
+    const info = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + ScriptApp.getOAuthToken(), { muteHttpExceptions: true });
+    Logger.log('No FIREBASE_SERVICE_ACCOUNT script property; using the owner token. Granted scopes: ' + (JSON.parse(info.getContentText()).scope || info.getContentText()));
+  } else {
+    Logger.log('Using FIREBASE_SERVICE_ACCOUNT script property.');
+  }
   const user = findFirebaseUser_(SENDER_EMAIL);
   Logger.log('Firebase access OK. ' + SENDER_EMAIL + (user ? ' exists in Firebase.' : ' is not a Firebase user (that is fine).'));
 }
@@ -165,16 +171,51 @@ function findFirebaseUser_(email) {
   return lookup.users && lookup.users[0] ? lookup.users[0] : null;
 }
 
-// Calls the Firebase Auth admin REST API as the Apps Script owner, who must
-// have Owner/Editor (or Firebase Authentication Admin) on the Firebase project.
+// Firebase service account key JSON (Firebase Console > Project settings > Service accounts
+// > Generate new private key), pasted into Script Properties as FIREBASE_SERVICE_ACCOUNT.
+function getServiceAccount_() {
+  const raw = PropertiesService.getScriptProperties().getProperty('FIREBASE_SERVICE_ACCOUNT');
+  return raw ? JSON.parse(raw) : null;
+}
+
+// Exchanges a signed JWT for a short-lived access token, cached for 50 minutes.
+function getServiceAccountToken_(account) {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('firebase-sa-token');
+  if (cached) return cached;
+  const now = Math.floor(Date.now() / 1000);
+  const encode = function(obj) { return Utilities.base64EncodeWebSafe(JSON.stringify(obj)).replace(/=+$/, ''); };
+  const unsigned = encode({ alg: 'RS256', typ: 'JWT' }) + '.' + encode({
+    iss: account.client_email,
+    scope: 'https://www.googleapis.com/auth/identitytoolkit https://www.googleapis.com/auth/cloud-platform',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600
+  });
+  const signature = Utilities.base64EncodeWebSafe(Utilities.computeRsaSha256Signature(unsigned, account.private_key)).replace(/=+$/, '');
+  const res = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'post',
+    payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: unsigned + '.' + signature },
+    muteHttpExceptions: true
+  });
+  const body = JSON.parse(res.getContentText() || '{}');
+  if (!body.access_token) throw new Error('Service account sign-in failed (' + (body.error_description || body.error || res.getResponseCode()) + ')');
+  cache.put('firebase-sa-token', body.access_token, 50 * 60);
+  return body.access_token;
+}
+
+// Calls the Firebase Auth admin REST API, preferring the service account key and
+// otherwise acting as the Apps Script owner (needs the cloud-platform scope and
+// Owner/Editor on the Firebase project).
 function identityToolkit_(method, payload) {
+  const account = getServiceAccount_();
+  const headers = account
+    ? { Authorization: 'Bearer ' + getServiceAccountToken_(account) }
+    : { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': FIREBASE_PROJECT_ID };
   const res = UrlFetchApp.fetch(IDENTITY_TOOLKIT_URL + '/' + method, {
     method: 'post',
     contentType: 'application/json',
-    headers: {
-      Authorization: 'Bearer ' + ScriptApp.getOAuthToken(),
-      'X-Goog-User-Project': FIREBASE_PROJECT_ID
-    },
+    headers: headers,
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
