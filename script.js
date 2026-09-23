@@ -1588,7 +1588,7 @@ async function handleForgotPassword(e) {
       if (successEl) { successEl.textContent = 'OTP sent. Check your email, then enter the OTP and your new password.'; successEl.classList.remove('hidden'); }
     } catch (error) {
       pendingPasswordOtp = null;
-      showError(errorEl, 'Could not send OTP. Please try again.');
+      showError(errorEl, 'Could not send OTP: ' + (error.message || 'please try again.'));
     }
     return;
   }

@@ -57,7 +57,6 @@ function diagnostic_(callback) {
       configuredSender: SENDER_EMAIL,
       aliases: aliases,
       senderAvailable: senderAvailable,
-      remainingDailyQuota: GmailApp.getRemainingDailyQuota(),
       message: senderAvailable ? 'Sender is configured' : 'Configured sender is not the Apps Script owner or a verified Gmail alias'
     }, callback);
   } catch (error) {
@@ -114,8 +113,9 @@ function sendOtp_(params, callback) {
   const email = clean_(params.email).toLowerCase();
   if (!email) return response_({ success: false, message: 'Email is required' }, callback);
 
+  // Firebase Auth is the source of truth for logins; the Sheet only has self-signup accounts.
   const sheet = getUsersSheet_();
-  if (!sheet || !emailExists_(sheet, email)) {
+  if (!(sheet && emailExists_(sheet, email)) && !findFirebaseUser_(email)) {
     return response_({ success: false, message: 'No account with this email' }, callback);
   }
 
@@ -147,11 +147,15 @@ function resetPassword_(params, callback) {
   if (newPassword.length < 8) return response_({ success: false, message: 'New password must be at least 8 characters' }, callback);
   if (!verifyOtp_(email, otp)) return response_({ success: false, message: 'Invalid or expired OTP' }, callback);
 
-  const lookup = identityToolkit_('accounts:lookup', { email: [email] });
-  const user = lookup.users && lookup.users[0];
+  const user = findFirebaseUser_(email);
   if (!user) return response_({ success: false, message: 'No account with this email' }, callback);
   identityToolkit_('accounts:update', { localId: user.localId, password: newPassword });
   return response_({ success: true, message: 'Password updated successfully' }, callback);
+}
+
+function findFirebaseUser_(email) {
+  const lookup = identityToolkit_('accounts:lookup', { email: [email] });
+  return lookup.users && lookup.users[0] ? lookup.users[0] : null;
 }
 
 // Calls the Firebase Auth admin REST API as the Apps Script owner, who must
@@ -171,7 +175,7 @@ function identityToolkit_(method, payload) {
   if (res.getResponseCode() !== 200) {
     const reason = body.error && body.error.message ? body.error.message : ('HTTP ' + res.getResponseCode());
     console.error('Identity Toolkit ' + method + ' failed: ' + reason);
-    throw new Error('Could not update password (' + reason + ')');
+    throw new Error('Firebase account service error (' + reason + ')');
   }
   return body;
 }
