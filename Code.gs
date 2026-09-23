@@ -17,6 +17,13 @@ function testGmail() {
   Logger.log('Test email sent from ' + SENDER_EMAIL + ' to ' + recipient);
 }
 
+// Run once from the Apps Script editor to grant the Firebase (UrlFetchApp) permission,
+// then redeploy the web app as a new version.
+function testFirebaseAccess() {
+  const user = findFirebaseUser_(SENDER_EMAIL);
+  Logger.log('Firebase access OK. ' + SENDER_EMAIL + (user ? ' exists in Firebase.' : ' is not a Firebase user (that is fine).'));
+}
+
 function doGet(e) {
   return handleRequest_(e && e.parameter ? e.parameter : {});
 }
