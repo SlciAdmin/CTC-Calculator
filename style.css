@@ -2703,3 +2703,31 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     font-size: 13px;
   }
 }
+/* =================== COMPACT AUTH LAYOUT =================== */
+/* Keeps every sign-in screen within one viewport at 100% zoom. */
+.auth-page { align-items: safe center; padding: 16px; }
+.auth-container { max-width: 420px; }
+.auth-card { padding: 22px 26px; border-radius: 16px; }
+.auth-header { margin-bottom: 16px; padding-bottom: 14px; }
+.auth-logo { width: 52px; height: 52px; margin-bottom: 10px; border-radius: 12px; }
+.auth-logo img { padding: 5px; }
+.auth-header h1 { font-size: 22px; margin-bottom: 4px; }
+.auth-subtitle { font-size: 12px; }
+.auth-form { gap: 12px; }
+.auth-form .field-group { margin-bottom: 0; }
+.auth-form .field-group label { margin-bottom: 5px; font-size: 11px; }
+.auth-form input[type="email"],
+.auth-form input[type="password"],
+.auth-form input[type="text"],
+.auth-form input[type="tel"] { padding-top: 10px; padding-bottom: 10px; }
+.auth-options { padding: 0 2px; }
+.btn-auth-primary { padding: 12px 18px; margin-top: 2px; font-size: 14px; }
+.auth-error, .auth-success { padding: 10px 12px; }
+.auth-footer { margin-top: 16px; padding-top: 12px; }
+.auth-footer p + p { margin-top: 6px; }
+.auth-footnote { font-size: 11px; opacity: 0.8; }
+
+@media (max-height: 700px) {
+  .auth-logo { display: none; }
+  .auth-header { margin-bottom: 12px; padding-bottom: 10px; }
+}

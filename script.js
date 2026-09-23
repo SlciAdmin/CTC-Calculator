@@ -1388,12 +1388,8 @@ function setupEventListeners() {
   if (createAccountForm) createAccountForm.addEventListener('submit', handleCreateAccount);
   const forgotPasswordForm = document.getElementById('forgotPasswordForm');
   if (forgotPasswordForm) forgotPasswordForm.addEventListener('submit', handleForgotPassword);
-  const adminRegisterForm = document.getElementById('adminRegisterForm');
-  if (adminRegisterForm) adminRegisterForm.addEventListener('submit', handleAdminRegister);
   const createUserForm = document.getElementById('createUserForm');
   if (createUserForm) createUserForm.addEventListener('submit', handleCreateUser);
-  const showAdminRegisterLink = document.getElementById('showAdminRegister');
-  if (showAdminRegisterLink) showAdminRegisterLink.addEventListener('click', function(e) { e.preventDefault(); showAdminRegister(); });
   const showCreateAccountLink = document.getElementById('showCreateAccount');
   if (showCreateAccountLink) showCreateAccountLink.addEventListener('click', function(e) { e.preventDefault(); showCreateAccount(); });
   const showForgotPasswordLink = document.getElementById('showForgotPassword');
@@ -1402,8 +1398,6 @@ function setupEventListeners() {
   if (createAccountBackToLogin) createAccountBackToLogin.addEventListener('click', function(e) { e.preventDefault(); showLoginPage(); });
   const forgotPasswordBackToLogin = document.getElementById('forgotPasswordBackToLogin');
   if (forgotPasswordBackToLogin) forgotPasswordBackToLogin.addEventListener('click', function(e) { e.preventDefault(); showLoginPage(); });
-  const backToLoginLink = document.getElementById('backToLogin');
-  if (backToLoginLink) backToLoginLink.addEventListener('click', function(e) { e.preventDefault(); showLoginPage(); });
   const adminPanelBtn = document.getElementById('adminPanelBtn');
   if (adminPanelBtn) adminPanelBtn.addEventListener('click', function() {
     if (isAdmin) { switchTab('admin'); loadUsersTable(); updateAdminInfo(); }
@@ -1431,7 +1425,6 @@ function setupEventListeners() {
 // ============== PAGE NAVIGATION ==============
 function showLoginPage() {
   safeToggle('loginPage', false);
-  safeToggle('adminRegisterPage', true);
   safeToggle('createAccountPage', true);
   safeToggle('forgotPasswordPage', true);
   safeToggle('mainApp', true);
@@ -1441,7 +1434,6 @@ function showLoginPage() {
 }
 function showCreateAccount() {
   safeToggle('loginPage', true);
-  safeToggle('adminRegisterPage', true);
   safeToggle('createAccountPage', false);
   safeToggle('forgotPasswordPage', true);
   safeToggle('mainApp', true);
@@ -1451,7 +1443,6 @@ function showCreateAccount() {
 }
 function showForgotPassword() {
   safeToggle('loginPage', true);
-  safeToggle('adminRegisterPage', true);
   safeToggle('createAccountPage', true);
   safeToggle('forgotPasswordPage', false);
   safeToggle('mainApp', true);
@@ -1464,20 +1455,8 @@ function showForgotPassword() {
   safeToggle('forgotPasswordError', true);
   safeToggle('forgotPasswordSuccess', true);
 }
-function showAdminRegister() {
-  safeToggle('loginPage', true);
-  safeToggle('adminRegisterPage', false);
-  safeToggle('createAccountPage', true);
-  safeToggle('forgotPasswordPage', true);
-  safeToggle('mainApp', true);
-  safeToggle('adminError', true);
-  safeToggle('adminSuccess', true);
-  const form = document.getElementById('adminRegisterForm');
-  if (form) form.reset();
-}
 function showMainApp() {
   safeToggle('loginPage', true);
-  safeToggle('adminRegisterPage', true);
   safeToggle('createAccountPage', true);
   safeToggle('forgotPasswordPage', true);
   safeToggle('mainApp', false);
@@ -1605,8 +1584,8 @@ async function handleForgotPassword(e) {
     try {
       await notifyAccountEmail({ action: 'sendOtp', email });
       otpGroup?.classList.remove('hidden');
-      if (submit) submit.textContent = 'Verify OTP';
-      if (successEl) { successEl.textContent = 'OTP sent. Check your email.'; successEl.classList.remove('hidden'); }
+      if (submit) submit.textContent = 'Update Password & Sign In';
+      if (successEl) { successEl.textContent = 'OTP sent. Check your email, then enter the OTP and your new password.'; successEl.classList.remove('hidden'); }
     } catch (error) {
       pendingPasswordOtp = null;
       showError(errorEl, 'Could not send OTP. Please try again.');
@@ -1614,15 +1593,29 @@ async function handleForgotPassword(e) {
     return;
   }
   if (email !== pendingPasswordEmail) { showError(errorEl, 'Please use the same email address that requested the OTP'); return; }
+  const newPassword = document.getElementById('resetNewPassword')?.value || '';
+  const confirmPassword = document.getElementById('resetConfirmPassword')?.value || '';
+  if (!/^\d{6}$/.test(otp)) { showError(errorEl, 'Enter the 6-digit OTP from your email'); return; }
+  if (newPassword.length < 8) { showError(errorEl, 'New password must be at least 8 characters'); return; }
+  if (newPassword !== confirmPassword) { showError(errorEl, 'Passwords do not match'); return; }
+  if (submit) { submit.disabled = true; submit.textContent = 'Updating…'; }
   try {
-    await notifyAccountEmail({ action: 'verifyOtp', email, otp });
-    await auth.sendPasswordResetEmail(email);
-    pendingPasswordOtp = null;
-    pendingPasswordEmail = null;
-    if (successEl) { successEl.textContent = 'Email verified. Firebase sent a secure link to create your new password.'; successEl.classList.remove('hidden'); }
-    if (submit) submit.disabled = true;
+    await notifyAccountEmail({ action: 'resetPassword', email, otp, newPassword });
   } catch (error) {
-    showError(errorEl, error.code === 'auth/user-not-found' ? 'No account with this email' : 'Could not start password reset');
+    if (submit) { submit.disabled = false; submit.textContent = 'Update Password & Sign In'; }
+    showError(errorEl, error.message || 'Could not update password');
+    return;
+  }
+  pendingPasswordOtp = null;
+  pendingPasswordEmail = null;
+  if (successEl) { successEl.textContent = 'Password updated. Signing you in…'; successEl.classList.remove('hidden'); }
+  try {
+    await auth.signInWithEmailAndPassword(email, newPassword);
+  } catch (error) {
+    showLoginPage();
+    const loginEmail = document.getElementById('loginEmail');
+    if (loginEmail) loginEmail.value = email;
+    showToast('✓ Password updated. Please sign in with your new password.');
   }
 }
 
@@ -1641,42 +1634,6 @@ async function handleLogin(e) {
     else if (error.code === 'auth/invalid-email')     msg = 'Invalid email format';
     else if (error.code === 'auth/too-many-requests') msg = 'Too many attempts. Try later.';
     showError(errorEl, msg);
-  }
-}
-
-async function handleAdminRegister(e) {
-  e.preventDefault();
-  const name            = (document.getElementById('adminName')?.value || '').trim();
-  const companyName     = (document.getElementById('adminCompanyName')?.value || '').trim();
-  const email           = (document.getElementById('adminEmail')?.value || '').trim().toLowerCase();
-  const password        = document.getElementById('adminPassword')?.value || '';
-  const confirmPassword = document.getElementById('confirmPassword')?.value || '';
-  const errorEl   = document.getElementById('adminError');
-  const successEl = document.getElementById('adminSuccess');
-  if (errorEl)   errorEl.classList.add('hidden');
-  if (successEl) successEl.classList.add('hidden');
-  if (!name || !companyName || !email || !password) { showError(errorEl, 'All fields are required'); return; }
-  if (password.length < 8)   { showError(errorEl, 'Password must be at least 8 characters'); return; }
-  if (password !== confirmPassword) { showError(errorEl, 'Passwords do not match'); return; }
-  try {
-    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-    const uid = userCredential.user.uid;
-    await db.collection('users').doc(uid).set({
-      uid, name, companyName, email, role: 'admin',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      lastLogin: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    if (successEl) { successEl.classList.remove('hidden'); successEl.textContent = '✓ Admin account created! Redirecting to login...'; }
-    await auth.signOut();
-    setTimeout(function() { showLoginPage(); showToast('✓ Admin registered! Please login now.'); }, 2000);
-  } catch (error) {
-    let msg = 'Registration failed';
-    if (error.code === 'auth/email-already-in-use') msg = 'Email already registered';
-    else if (error.code === 'auth/weak-password')   msg = 'Password too weak (min 6 chars)';
-    else if (error.code === 'auth/invalid-email')   msg = 'Invalid email format';
-    else msg = 'Error: ' + (error.message || error.code);
-    showError(errorEl, msg);
-    showToast('⚠️ ' + msg);
   }
 }
 

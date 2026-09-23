@@ -2,6 +2,8 @@ const SHEET_NAME = 'Users';
 const OTP_EXPIRY_SECONDS = 10 * 60;
 const SENDER_EMAIL = 'aiexecutive@slci.in';
 const REPLY_TO_EMAIL = SENDER_EMAIL;
+const FIREBASE_PROJECT_ID = 'ctc-calculator-51f6d';
+const IDENTITY_TOOLKIT_URL = 'https://identitytoolkit.googleapis.com/v1/projects/' + FIREBASE_PROJECT_ID;
 
 function testGmail() {
   const recipient = Session.getEffectiveUser().getEmail();
@@ -35,6 +37,7 @@ function handleRequest_(params) {
     if (action === 'diagnostic') return diagnostic_(callback);
     if (action === 'sendOtp') return sendOtp_(params, callback);
     if (action === 'verifyOtp') return verifyOtpRequest_(params, callback);
+    if (action === 'resetPassword') return resetPassword_(params, callback);
     if (action === 'createAccount') return createAccount_(params, callback);
     return response_({ success: false, message: 'Unsupported action' }, callback);
   } catch (error) {
@@ -134,6 +137,43 @@ function verifyOtpRequest_(params, callback) {
   if (!email || !otp) return response_({ success: false, message: 'Email and OTP are required' }, callback);
   if (!verifyOtp_(email, otp)) return response_({ success: false, message: 'Invalid or expired OTP' }, callback);
   return response_({ success: true, message: 'OTP verified successfully' }, callback);
+}
+
+function resetPassword_(params, callback) {
+  const email = clean_(params.email).toLowerCase();
+  const otp = clean_(params.otp);
+  const newPassword = String(params.newPassword || '');
+  if (!email || !otp || !newPassword) return response_({ success: false, message: 'Email, OTP and new password are required' }, callback);
+  if (newPassword.length < 8) return response_({ success: false, message: 'New password must be at least 8 characters' }, callback);
+  if (!verifyOtp_(email, otp)) return response_({ success: false, message: 'Invalid or expired OTP' }, callback);
+
+  const lookup = identityToolkit_('accounts:lookup', { email: [email] });
+  const user = lookup.users && lookup.users[0];
+  if (!user) return response_({ success: false, message: 'No account with this email' }, callback);
+  identityToolkit_('accounts:update', { localId: user.localId, password: newPassword });
+  return response_({ success: true, message: 'Password updated successfully' }, callback);
+}
+
+// Calls the Firebase Auth admin REST API as the Apps Script owner, who must
+// have Owner/Editor (or Firebase Authentication Admin) on the Firebase project.
+function identityToolkit_(method, payload) {
+  const res = UrlFetchApp.fetch(IDENTITY_TOOLKIT_URL + '/' + method, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      Authorization: 'Bearer ' + ScriptApp.getOAuthToken(),
+      'X-Goog-User-Project': FIREBASE_PROJECT_ID
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  const body = JSON.parse(res.getContentText() || '{}');
+  if (res.getResponseCode() !== 200) {
+    const reason = body.error && body.error.message ? body.error.message : ('HTTP ' + res.getResponseCode());
+    console.error('Identity Toolkit ' + method + ' failed: ' + reason);
+    throw new Error('Could not update password (' + reason + ')');
+  }
+  return body;
 }
 
 function verifyOtp_(email, otp) {
