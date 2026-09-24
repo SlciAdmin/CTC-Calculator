@@ -478,7 +478,8 @@ body {
 input[type="text"],
 input[type="number"],
 input[type="email"],
-input[type="password"] {
+input[type="password"],
+input[type="tel"] {
   width: 100%;
   padding: 11px 14px;
   background: var(--input-bg);
@@ -494,7 +495,8 @@ input[type="password"] {
 [data-theme="light"] input[type="text"],
 [data-theme="light"] input[type="number"],
 [data-theme="light"] input[type="email"],
-[data-theme="light"] input[type="password"] {
+[data-theme="light"] input[type="password"],
+[data-theme="light"] input[type="tel"] {
   background: #ffffff;
   border-color: #d1d5db;
   color: #111827;

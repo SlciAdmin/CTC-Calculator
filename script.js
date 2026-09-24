@@ -1523,6 +1523,7 @@ async function handleCreateAccount(e) {
   if (errorEl) errorEl.classList.add('hidden');
   if (successEl) successEl.classList.add('hidden');
   if (!name || !companyName || !email || !contactNumber) { showError(errorEl, 'All fields are required'); return; }
+  if (!/^\d{10}$/.test(contactNumber)) { showError(errorEl, 'Enter a valid 10-digit contact number'); return; }
 
   const password = createInitialPassword();
   let createdCredential = null;
