@@ -26,7 +26,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db   = firebase.firestore();
-const ACCOUNT_MAIL_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwIrjBxw5lH5jFIgeI5Z1H6NYnbTw2tKW0r99bqbxLS2BBXAxNnqwAYRDwDXk4w8fuxOw/exec';
+const ACCOUNT_MAIL_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxB3yLN4X4F1_MrzMRNnEJ3tgTsUTQxt1xvWUWdiBe7VAU47qjCpVlCC-2nI0c5faWRhQ/exec';
 let passwordResetStep = 'email';
 let pendingPasswordEmail = null;
 let isCreatingAccount = false;
