@@ -329,6 +329,9 @@
                 <span>₹</span>
                 <input type="number" id="inputFinalCTC" placeholder="e.g. 38000" min="0" oninput="liveCalc()" />
               </div>
+              <div id="finalCTCWarning" class="min-wage-warning hidden" role="alert">
+                ⚠️ This Final CTC is not achievable with the entered Minimum Wage / Previous Basic. Minimum Final CTC should be ₹<span id="finalCTCWarningAmt"></span>.
+              </div>
               <div class="field-hint">Final CTC = Gross + Employer PF + EDLI + Bonus + ESI Emp + Health Ins + Leave + LWF (Emp)</div>
             </div>
 
@@ -339,6 +342,9 @@
                 <span>₹</span>
                 <input type="number" id="inputInitialCTC" placeholder="e.g. 34000" min="0" oninput="liveCalc()" />
               </div>
+              <div id="initialCTCWarning" class="min-wage-warning hidden" role="alert">
+                ⚠️ This Initial CTC is not achievable with the entered Minimum Wage / Previous Basic. Minimum Initial CTC should be ₹<span id="initialCTCWarningAmt"></span>.
+              </div>
               <div class="field-hint">Initial CTC = Gross + Employer EPF + EDLI + Bonus</div>
             </div>
 
@@ -348,6 +354,9 @@
               <div class="input-prefix">
                 <span>₹</span>
                 <input type="number" id="inputCash" placeholder="e.g. 24000" min="0" oninput="liveCalc()" />
+              </div>
+              <div id="cashWarning" class="min-wage-warning hidden" role="alert">
+                ⚠️ This Cash in Hand is not achievable with the entered Minimum Wage / Previous Basic. Minimum Cash in Hand should be ₹<span id="cashWarningAmt"></span>.
               </div>
               <div class="field-hint">Cash in Hand = Gross − EPF Employee − ESI Employee − PT − LWF (Employee)</div>
             </div>
@@ -978,6 +987,6 @@
   <!-- TOAST NOTIFICATIONS -->
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="script.js?v=20261031" defer></script>
+  <script src="script.js?v=20261031b" defer></script>
 </body>
 </html>

@@ -2343,6 +2343,39 @@ function updateLeavePlaceholder() {
 }
 
 // ============================================================
+//  ✅ REVERSE CALC — block a target that cannot be reached
+//  Gross cannot drop below Basic, so a target below the minimum
+//  these inputs allow is an error: nothing is calculated and the
+//  minimum is shown. Returns true when the target is reachable.
+// ============================================================
+const REVERSE_TARGET_WARNINGS = ['finalCTCWarning', 'initialCTCWarning', 'cashWarning'];
+
+function hideReverseTargetWarnings() {
+  REVERSE_TARGET_WARNINGS.forEach(function(id) { safeToggle(id, true); });
+}
+
+function checkReverseTarget(warnId, label, target, achieved, gross, silent) {
+  if (achieved > target + 1) {
+    const minText = 'Rs.' + achieved.toLocaleString('en-IN');
+    const warnAmtEl = document.getElementById(warnId + 'Amt');
+    if (warnAmtEl) warnAmtEl.textContent = achieved.toLocaleString('en-IN');
+    safeToggle(warnId, false);
+    safeToggle('summaryEmpty', false);
+    safeToggle('summaryResults', true);
+    safeToggle('breakdownEmpty', false);
+    safeToggle('breakdownContent', true);
+    const exportPreview = document.getElementById('exportPreview');
+    if (exportPreview) exportPreview.innerHTML = '<div class="preview-empty">' + label + ' kam se kam ' + minText + ' honi chahiye</div>';
+    calcResult = null;
+    if (!silent) showToast('❌ ' + label + ' Rs.' + target.toLocaleString('en-IN') + ' is not achievable — minimum ' + label + ' should be ' + minText);
+    return false;
+  }
+  safeToggle(warnId, true);
+  if (!silent) showToast('✓ Reverse calc: Gross Rs.' + gross.toLocaleString('en-IN') + ' → ' + label + ' Rs.' + achieved.toLocaleString('en-IN'));
+  return true;
+}
+
+// ============================================================
 //  ✅ LIVE CALC — supports all 4 input modes
 // ============================================================
 function liveCalc() {
@@ -2352,6 +2385,7 @@ function liveCalc() {
 
   // Non-gross modes: reverse calculation
   if (inputMode !== 'gross') {
+    hideReverseTargetWarnings(); // calculate() shows it again if the target is still unreachable
     if (minWage > 0) {
       var hasInput = false;
       if (inputMode === 'finalCTC')   hasInput = (parseFloat(document.getElementById('inputFinalCTC')?.value)   || 0) > 0;
@@ -2430,33 +2464,27 @@ function calculate(silent) {
     if (targetFinalCTC <= 0) { if (!silent) showToast('⚠️ Please enter Final CTC'); return; }
     if (targetFinalCTC < minWage) { if (!silent) showToast('⚠️ Final CTC cannot be less than Minimum Wage'); return; }
     r = reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt);
+    if (!checkReverseTarget('finalCTCWarning', 'Final CTC', targetFinalCTC, r.finalCTC, r.gross, silent)) return;
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
-    if (!silent) showToast(r.finalCTC > targetFinalCTC + 1
-      ? '⚠️ Final CTC Rs.' + targetFinalCTC.toLocaleString('en-IN') + ' is too low — minimum possible is Rs.' + r.finalCTC.toLocaleString('en-IN') + ' (Gross Rs.' + r.gross.toLocaleString('en-IN') + ')'
-      : '✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Final CTC Rs.' + r.finalCTC.toLocaleString('en-IN'));
   }
   else if (inputMode === 'initialCTC') {
     const targetInitialCTC = parseFloat(document.getElementById('inputInitialCTC')?.value) || 0;
     if (targetInitialCTC <= 0) { if (!silent) showToast('⚠️ Please enter Initial CTC'); return; }
     if (targetInitialCTC < minWage) { if (!silent) showToast('⚠️ Initial CTC cannot be less than Minimum Wage'); return; }
     r = reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt);
+    if (!checkReverseTarget('initialCTCWarning', 'Initial CTC', targetInitialCTC, r.initialCTC, r.gross, silent)) return;
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
-    if (!silent) showToast(r.initialCTC > targetInitialCTC + 1
-      ? '⚠️ Initial CTC Rs.' + targetInitialCTC.toLocaleString('en-IN') + ' is too low — minimum possible is Rs.' + r.initialCTC.toLocaleString('en-IN') + ' (Gross Rs.' + r.gross.toLocaleString('en-IN') + ')'
-      : '✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Initial CTC Rs.' + r.initialCTC.toLocaleString('en-IN'));
   }
   else if (inputMode === 'cash') {
     const targetCash = parseFloat(document.getElementById('inputCash')?.value) || 0;
     if (targetCash <= 0) { if (!silent) showToast('⚠️ Please enter Cash in Hand'); return; }
     if (targetCash < minWage * 0.5) { if (!silent) showToast('⚠️ Cash in Hand seems too low for this Minimum Wage'); return; }
     r = reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt);
+    if (!checkReverseTarget('cashWarning', 'Cash in Hand', targetCash, r.cashInHand, r.gross, silent)) return;
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
-    if (!silent) showToast(r.cashInHand > targetCash + 1
-      ? '⚠️ Cash in Hand Rs.' + targetCash.toLocaleString('en-IN') + ' is too low — minimum possible is Rs.' + r.cashInHand.toLocaleString('en-IN') + ' (Gross Rs.' + r.gross.toLocaleString('en-IN') + ')'
-      : '✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Cash Rs.' + r.cashInHand.toLocaleString('en-IN'));
   }
   else {
     // Normal gross mode
