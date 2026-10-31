@@ -1945,7 +1945,8 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
     const esiEmployer = basic <= 21000 ? Math.round(basic * 0.0325) : 0;
 
     // Initial CTC = Gross + EPF Emp + EDLI + Bonus + ESI Emp
-    const initialCTC = gross + epfEmployer + edliEmployer + bonus + esiEmployer;
+    // (Gross can never be less than Basic — see the floor applied after the loop)
+    const initialCTC = Math.max(gross, basic) + epfEmployer + edliEmployer + bonus + esiEmployer;
 
     // New Basic = MAX(50% of Initial CTC, Minimum Wage, Previous Basic)
     // (no Gross cap — Basic is purely the highest of these three)
@@ -1979,6 +1980,11 @@ function computeCTC(gross, minWage, pf, pt, lwf, healthInsuranceAmt, leaveOverri
   // ============================================================
   // FINAL CALCULATION with converged basic
   // ============================================================
+
+  // Gross cannot be less than the total of its heads (Basic + HRA + Conveyance
+  // + Defray). If Min Wage / Previous Basic pushes Basic above Gross, raise
+  // Gross to Basic so the heads still add up to Gross.
+  if (basic > gross) gross = basic;
 
   let pfFinal = pf;
   if (basic <= PF_CONFIG.EPFO_OLD_CEILING && pfFinal !== 'Y') pfFinal = 'Y';
@@ -2426,7 +2432,9 @@ function calculate(silent) {
     r = reverseCalcFromFinalCTC(targetFinalCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt);
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
-    if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Final CTC Rs.' + r.finalCTC.toLocaleString('en-IN'));
+    if (!silent) showToast(r.finalCTC > targetFinalCTC + 1
+      ? '⚠️ Final CTC Rs.' + targetFinalCTC.toLocaleString('en-IN') + ' is too low — minimum possible is Rs.' + r.finalCTC.toLocaleString('en-IN') + ' (Gross Rs.' + r.gross.toLocaleString('en-IN') + ')'
+      : '✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Final CTC Rs.' + r.finalCTC.toLocaleString('en-IN'));
   }
   else if (inputMode === 'initialCTC') {
     const targetInitialCTC = parseFloat(document.getElementById('inputInitialCTC')?.value) || 0;
@@ -2435,7 +2443,9 @@ function calculate(silent) {
     r = reverseCalcFromInitialCTC(targetInitialCTC, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt);
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
-    if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Initial CTC Rs.' + r.initialCTC.toLocaleString('en-IN'));
+    if (!silent) showToast(r.initialCTC > targetInitialCTC + 1
+      ? '⚠️ Initial CTC Rs.' + targetInitialCTC.toLocaleString('en-IN') + ' is too low — minimum possible is Rs.' + r.initialCTC.toLocaleString('en-IN') + ' (Gross Rs.' + r.gross.toLocaleString('en-IN') + ')'
+      : '✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Initial CTC Rs.' + r.initialCTC.toLocaleString('en-IN'));
   }
   else if (inputMode === 'cash') {
     const targetCash = parseFloat(document.getElementById('inputCash')?.value) || 0;
@@ -2444,7 +2454,9 @@ function calculate(silent) {
     r = reverseCalcFromCash(targetCash, minWage, pt, lwf, healthInsAmt, leavesPerYear, prevBasic, exGratiaAmt, pliAmt);
     const grossEl = document.getElementById('grossSalary');
     if (grossEl) grossEl.value = r.gross;
-    if (!silent) showToast('✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Cash Rs.' + r.cashInHand.toLocaleString('en-IN'));
+    if (!silent) showToast(r.cashInHand > targetCash + 1
+      ? '⚠️ Cash in Hand Rs.' + targetCash.toLocaleString('en-IN') + ' is too low — minimum possible is Rs.' + r.cashInHand.toLocaleString('en-IN') + ' (Gross Rs.' + r.gross.toLocaleString('en-IN') + ')'
+      : '✓ Reverse calc: Gross Rs.' + r.gross.toLocaleString('en-IN') + ' → Cash Rs.' + r.cashInHand.toLocaleString('en-IN'));
   }
   else {
     // Normal gross mode
