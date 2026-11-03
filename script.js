@@ -2703,50 +2703,73 @@ function renderBreakdown(r) {
 }
 function setTextContent(elementId, html) { const el = document.getElementById(elementId); if (el) el.innerHTML = html; }
 
-function renderExportPreview(r) {
+// Component rows shared by the PDF, CSV, clipboard and on-screen export preview.
+// Optional components are listed only when they carry a value; EPF and Bonus always
+// appear (Rs.0 when not applicable). Each row: { label, monthly, annual, highlight, decimals }
+// where annual === null means the component is state/month based and has no annual figure.
+function buildExportSections(r) {
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
   const bonusPercentLabel = (r.bonusPercent !== undefined && r.bonusPercent !== null) ? r.bonusPercent : 8.33;
- 
-  const rows = [
-    ['SALARY STRUCTURE', null, false, true],
-    ['Basic', r.basic, true, false],
-    ['HRA (50% of Basic)', r.hra, true, false],
-  ];
- 
-  if (r.isHighGross) {
-    rows.push(['Defray Expenses (10%)', r.deferAllowance, true, false]);
-    rows.push([r.convLabel + ' (Residual)', r.conv, true, false]);
-  } else {
-    rows.push([r.convLabel, r.conv, true, false]);
+  function stateSuffix(name) {
+    return name && name !== 'Manual' && name !== 'Not Selected' && name !== 'N/A' ? ' (' + name + ')' : '';
   }
- 
-  rows.push(
-    ['Gross Salary', r.gross, true, false],
-    ['EMPLOYER CONTRIBUTIONS', null, false, true],
-    ['EPF – Employer (' + r.pfEmployerRate + '%)', r.epfEmployer, true, false],
-    ['EDLI – Employer' + (r.pfEmployerRate === '12' ? ' (N/A)' : ''), r.edliEmployer, true, false],
-    ['Bonus ' + bonusPercentLabel + '% of ' + bonusBaseLabel + (r.bonusApplicable === 'N' ? ' (Disabled)' : ''), r.bonus, true, false],
-    ['ESI – Employer (3.25%)', r.esiEmployer, true, false],
-    ['Initial CTC', r.initialCTC, true, false],
-    ['Health Insurance (Monthly)', r.healthInsurance, false, false],
-    ['Leave Encashment' + (leaveApplicable === 'N' ? ' (Disabled)' : ' (' + r.leavesPerYear + ' leaves/yr)'), r.leaveComponent, leaveApplicable !== 'N', false],
-    ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - Disabled' : ''), r.gratuityComponent || 0, gratuityApplicable === 'Y', false],
-    ['Ex-Gratia', r.exGratiaMonthly, true, false],
-    ['PLI', r.pliMonthly, true, false],
-    ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer, false, false],
-    ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
-    ['EMPLOYEE DEDUCTIONS', null, false, true],
-    ['EPF – Employee', r.epfEmployee, true, false],
-    ['ESI – Employee (0.75%)', r.esiEmployee, true, false],
-    ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction, false, false],
-    ['LWF – Employee (' + (r.lwfStateName || 'N/A') + ')', r.lwf, false, false],
-    ['FINAL TOTALS', null, false, true],
-    // FIX: Single row for Final CTC with Annual shown in Annual column
-    ['Final CTC ', r.finalCTC, true, false],
-    ['Cash in Hand (Monthly)', r.cashInHand, true, false],
-  );
- 
+  function row(label, monthly, annual, extra) {
+    return Object.assign({ label: label, monthly: monthly || 0, annual: annual, highlight: false, decimals: false }, extra || {});
+  }
+  function yearly(n) { return (n || 0) * 12; }
+
+  const salary = [row('Basic Salary', r.basic, yearly(r.basic)), row('HRA', r.hra, yearly(r.hra))];
+  if (r.isHighGross) {
+    salary.push(row('Defray Expenses (10%)', r.deferAllowance, yearly(r.deferAllowance)));
+    salary.push(row((r.convLabel || 'Conveyance') + ' (Residual)', r.conv, yearly(r.conv)));
+  } else {
+    salary.push(row(r.convLabel || 'Conveyance', r.conv, yearly(r.conv)));
+  }
+  salary.push(row('Gross Salary', r.gross, yearly(r.gross), { highlight: true }));
+
+  const pfOn           = r.pfApplicable === 'Y';
+  const epfEmployerAmt = pfOn ? (r.epfEmployer || 0) : 0;
+  const epfEmployeeAmt = pfOn ? (r.epfEmployee || 0) : 0;
+  const bonusAmt       = r.bonusApplicable === 'N' ? 0 : (r.bonus || 0);
+
+  const employer = [row('EPF – Employer' + (pfOn ? ' (' + r.pfEmployerRate + '%)' : ''), epfEmployerAmt, yearly(epfEmployerAmt))];
+  if (r.edliEmployer > 0) employer.push(row('EDLI – Employer', r.edliEmployer, yearly(r.edliEmployer)));
+  employer.push(row('Bonus ' + bonusPercentLabel + '% of ' + bonusBaseLabel, bonusAmt, yearly(bonusAmt)));
+  if (r.esiEmployer > 0) employer.push(row('ESI – Employer (3.25%)', r.esiEmployer, yearly(r.esiEmployer)));
+  employer.push(row('Initial CTC', r.initialCTC, yearly(r.initialCTC), { highlight: true }));
+  if (r.healthInsurance > 0)   employer.push(row('Health Insurance', r.healthInsurance, yearly(r.healthInsurance)));
+  if (r.leaveComponent > 0)    employer.push(row('Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)', r.leaveComponent, yearly(r.leaveComponent)));
+  if (r.gratuityComponent > 0) employer.push(row('Gratuity (4.81% of Basic)', r.gratuityComponent, yearly(r.gratuityComponent)));
+  if (r.exGratiaMonthly > 0 || r.exGratiaAnnual > 0) employer.push(row('Ex-Gratia', r.exGratiaMonthly, r.exGratiaAnnual || 0));
+  if (r.pliMonthly > 0 || r.pliAnnual > 0)           employer.push(row('PLI', r.pliMonthly, r.pliAnnual || 0));
+  if (r.lwfEmployer > 0) employer.push(row('LWF – Employer' + stateSuffix(r.lwfStateName), r.lwfEmployer, null));
+
+  const deductions = [row('EPF – Employee' + (pfOn ? ' (12%)' : ''), epfEmployeeAmt, yearly(epfEmployeeAmt), { decimals: true })];
+  if (r.esiEmployee > 0) deductions.push(row('ESI – Employee (0.75%)', r.esiEmployee, yearly(r.esiEmployee)));
+  if (r.ptDeduction > 0) deductions.push(row('Professional Tax' + stateSuffix(r.ptStateName), r.ptDeduction, null));
+  if (r.lwf > 0)         deductions.push(row('LWF – Employee' + stateSuffix(r.lwfStateName), r.lwf, null));
+
+  const summary = [
+    row('Final CTC', r.finalCTC, r.finalCTCAnnual, { highlight: true }),
+    row('Net Cash in Hand', r.cashInHand, yearly(r.cashInHand), { highlight: true }),
+  ];
+
+  return [
+    { title: 'SALARY STRUCTURE',       rows: salary },
+    { title: 'EMPLOYER CONTRIBUTIONS', rows: employer },
+    { title: 'EMPLOYEE DEDUCTIONS',    rows: deductions },
+    { title: 'FINAL SUMMARY',          rows: summary },
+  ].filter(function(section) { return section.rows.length > 0; });
+}
+
+function renderExportPreview(r) {
+  const rows = [];
+  buildExportSections(r).forEach(function(section) {
+    rows.push(['header', section.title]);
+    section.rows.forEach(function(item) { rows.push(['row', item]); });
+  });
+
   let html = '<table class="preview-table">';
   html += '<tr class="section-head"><td colspan="3" style="text-align:left;padding-bottom:4px;">CTC BREAKDOWN — MONTHLY &amp; ANNUAL</td></tr>';
   html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1)">'
@@ -2755,34 +2778,23 @@ function renderExportPreview(r) {
         + '<td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);padding-bottom:6px;text-align:right;">Annual (×12)</td>'
         + '</tr>';
  
-  rows.forEach(function(item) {
-    const label      = item[0];
-    const monthly    = item[1];
-    const showAnnual = item[2];
-    const isHeader   = item[3];
- 
-    if (isHeader) {
-      html += '<tr class="section-head"><td colspan="3">' + label + '</td></tr>';
+  rows.forEach(function(entry) {
+    if (entry[0] === 'header') {
+      html += '<tr class="section-head"><td colspan="3">' + entry[1] + '</td></tr>';
       return;
     }
- 
-    const isEmployeePF = label.indexOf('EPF – Employee') >= 0;
-    let monthlyCell = (monthly !== null && monthly !== undefined) ? (isEmployeePF ? fmtPF(monthly) : fmt(monthly)) : '—';
- 
-    let annualCell = '';
-    if (showAnnual && monthly !== null && monthly !== undefined && monthly > 0) {
-      annualCell = '<span style="color:var(--accent3);">' + (isEmployeePF ? fmtPF(monthly * 12) : fmt(monthly * 12)) + '</span>';
-    } else if (!showAnnual && monthly !== null && monthly !== undefined && monthly > 0) {
-      annualCell = '<span style="color:var(--text-muted);font-size:11px;">state-based</span>';
-    } else {
-      annualCell = '<span style="color:var(--text-muted);">—</span>';
-    }
- 
-    const isHighlight = label.includes('Final CTC') || label.includes('Cash in Hand') || label === 'Gross Salary' || label === 'Initial CTC';
-    const rowStyle = isHighlight ? ' style="background:rgba(99,179,237,0.04);"' : '';
- 
+
+    const item   = entry[1];
+    const format = item.decimals ? fmtPF : fmt;
+    const monthlyCell = format(item.monthly);
+    const annualCell  = item.annual === null
+      ? '<span style="color:var(--text-muted);">—</span>'
+      : '<span style="color:var(--accent3);">' + format(item.annual) + '</span>';
+
+    const rowStyle = item.highlight ? ' style="background:rgba(99,179,237,0.04);"' : '';
+
     html += '<tr' + rowStyle + '>'
-          + '<td>' + label + '</td>'
+          + '<td>' + item.label + '</td>'
           + '<td style="text-align:right;">' + monthlyCell + '</td>'
           + '<td style="text-align:right;">' + annualCell + '</td>'
           + '</tr>';
@@ -2897,17 +2909,13 @@ function exportPDF() {
   const empDOJ = fmtDate(empDOJRaw);
   const empLocation = (document.getElementById('empLocation')?.value || '').trim() || '-';
   const now     = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
-  const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
-  const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
-  const bonusPercentLabel = (r.bonusPercent !== undefined && r.bonusPercent !== null) ? r.bonusPercent : 8.33;
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   const PW = 210, PH = 297, M = 12, CW = PW - (M * 2), HH = 25, FH = 15;
   let Y = HH + 10;
- 
+
   function fmtP(n) { return 'Rs.' + Math.round(n).toLocaleString('en-IN'); }
-  function fmtA(n) { return 'Rs.' + Math.round(n * 12).toLocaleString('en-IN'); }
  
   function needPage(need) {
     if (Y + need > PH - FH - 10) { doc.addPage(); Y = 18; addMiniHeader(); return true; }
@@ -3115,85 +3123,15 @@ function exportPDF() {
     Y += boxH + 8;
   }
  
-  // Build all rows for the combined table: [label, monthly, annual, isSectionHeader, isHighlight].
-  // Optional components are listed only when they carry a value, so the annexure
-  // shows just what applies to this employee.
+  // Rows for the combined table: [label, monthly, annual, isSectionHeader, isHighlight].
   const allRows = [];
-  function stateSuffix(name) {
-    return name && name !== 'Manual' && name !== 'Not Selected' && name !== 'N/A' ? ' (' + name + ')' : '';
-  }
-  function addSection(title, rows) {
-    if (rows.length === 0) return;
-    allRows.push([title, null, null, true, false]);
-    rows.forEach(function(row) { allRows.push(row); });
-  }
-
-  const salaryRows = [
-    ['Basic Salary', fmtP(r.basic), fmtA(r.basic), false, false],
-    ['HRA',          fmtP(r.hra),   fmtA(r.hra),   false, false],
-  ];
-  if (r.isHighGross) {
-    salaryRows.push(['Defray Expenses (10%)', fmtP(r.deferAllowance), fmtA(r.deferAllowance), false, false]);
-    salaryRows.push([(r.convLabel || 'Conveyance') + ' (Residual)', fmtP(r.conv), fmtA(r.conv), false, false]);
-  } else {
-    salaryRows.push([(r.convLabel || 'Conveyance'), fmtP(r.conv), fmtA(r.conv), false, false]);
-  }
-  salaryRows.push(['Gross Salary', fmtP(r.gross), fmtA(r.gross), false, true]);
-  addSection('SALARY STRUCTURE', salaryRows);
-
-  const employerRows = [];
-  // EPF always appears: its value when PF is applicable, Rs.0 when it is not.
-  const pfOn = r.pfApplicable === 'Y';
-  const epfEmployerAmt = pfOn ? (r.epfEmployer || 0) : 0;
-  const epfEmployeeAmt = pfOn ? (r.epfEmployee || 0) : 0;
-  employerRows.push(['EPF – Employer' + (pfOn ? ' (' + r.pfEmployerRate + '%)' : ''), fmtP(epfEmployerAmt), fmtA(epfEmployerAmt), false, false]);
-  if (r.edliEmployer > 0) {
-    employerRows.push(['EDLI – Employer', fmtP(r.edliEmployer), fmtA(r.edliEmployer), false, false]);
-  }
-  // Bonus always appears: its value when enabled, Rs.0 when disabled.
-  const bonusAmt = r.bonusApplicable === 'N' ? 0 : (r.bonus || 0);
-  employerRows.push(['Bonus ' + bonusPercentLabel + '% of ' + bonusBaseLabel, fmtP(bonusAmt), fmtA(bonusAmt), false, false]);
-  if (r.esiEmployer > 0) {
-    employerRows.push(['ESI – Employer (3.25%)', fmtP(r.esiEmployer), fmtA(r.esiEmployer), false, false]);
-  }
-  employerRows.push(['Initial CTC', fmtP(r.initialCTC), fmtA(r.initialCTC), false, true]);
-  if (r.healthInsurance > 0) {
-    employerRows.push(['Health Insurance', fmtP(r.healthInsurance), fmtA(r.healthInsurance), false, false]);
-  }
-  if (r.leaveComponent > 0) {
-    employerRows.push(['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)', fmtP(r.leaveComponent), fmtA(r.leaveComponent), false, false]);
-  }
-  if (r.gratuityComponent > 0) {
-    employerRows.push(['Gratuity (4.81% of Basic)', fmtP(r.gratuityComponent), fmtA(r.gratuityComponent), false, false]);
-  }
-  if (r.exGratiaMonthly > 0 || r.exGratiaAnnual > 0) {
-    employerRows.push(['Ex-Gratia', fmtP(r.exGratiaMonthly), fmtP(r.exGratiaAnnual), false, false]);
-  }
-  if (r.pliMonthly > 0 || r.pliAnnual > 0) {
-    employerRows.push(['PLI', fmtP(r.pliMonthly), fmtP(r.pliAnnual), false, false]);
-  }
-  if (r.lwfEmployer > 0) {
-    employerRows.push(['LWF – Employer' + stateSuffix(r.lwfStateName), fmtP(r.lwfEmployer), '—', false, false]);
-  }
-  addSection('EMPLOYER CONTRIBUTIONS', employerRows);
-
-  const deductionRows = [];
-  deductionRows.push(['EPF – Employee' + (pfOn ? ' (12%)' : ''), fmtPF(epfEmployeeAmt), fmtPF(epfEmployeeAmt * 12), false, false]);
-  if (r.esiEmployee > 0) {
-    deductionRows.push(['ESI – Employee (0.75%)', fmtP(r.esiEmployee), fmtA(r.esiEmployee), false, false]);
-  }
-  if (r.ptDeduction > 0) {
-    deductionRows.push(['Professional Tax' + stateSuffix(r.ptStateName), fmtP(r.ptDeduction), '—', false, false]);
-  }
-  if (r.lwf > 0) {
-    deductionRows.push(['LWF – Employee' + stateSuffix(r.lwfStateName), fmtP(r.lwf), '—', false, false]);
-  }
-  addSection('EMPLOYEE DEDUCTIONS', deductionRows);
-
-  addSection('FINAL SUMMARY', [
-    ['Final CTC',        fmtP(r.finalCTC),   fmtP(r.finalCTCAnnual), false, true],
-    ['Net Cash in Hand', fmtP(r.cashInHand), fmtA(r.cashInHand),     false, true],
-  ]);
+  buildExportSections(r).forEach(function(section) {
+    allRows.push([section.title, null, null, true, false]);
+    section.rows.forEach(function(item) {
+      const format = item.decimals ? fmtPF : fmtP;
+      allRows.push([item.label, format(item.monthly), item.annual === null ? '—' : format(item.annual), false, item.highlight]);
+    });
+  });
 
   addMainHeader();
   addInfo();
@@ -3214,22 +3152,22 @@ function exportCSV() {
   if (!calcResult) { showToast('⚠️ Please calculate first'); return; }
   const r       = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
-  const empFatherName  = (document.getElementById('empFatherName')?.value || '').trim() || 'N/A';
-  const empDesignation = (document.getElementById('empDesignation')?.value || '').trim() || 'N/A';
-  const empDepartment  = (document.getElementById('empDepartment')?.value || '').trim() || 'N/A';
-  const empDOB = document.getElementById('empDOB')?.value || 'N/A';
-  const empDOJ = document.getElementById('empDOJ')?.value || 'N/A';
-  const empLocation = (document.getElementById('empLocation')?.value || '').trim() || 'N/A';
+  const empFatherName  = (document.getElementById('empFatherName')?.value || '').trim() || '-';
+  const empDesignation = (document.getElementById('empDesignation')?.value || '').trim() || '-';
+  const empDepartment  = (document.getElementById('empDepartment')?.value || '').trim() || '-';
+  const empDOB = document.getElementById('empDOB')?.value || '-';
+  const empDOJ = document.getElementById('empDOJ')?.value || '-';
+  const empLocation = (document.getElementById('empLocation')?.value || '').trim() || '-';
   const now     = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
   const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
   const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
   const bonusPercentLabel = (r.bonusPercent !== undefined && r.bonusPercent !== null) ? r.bonusPercent : 8.33;
- 
+  const pfOn = r.pfApplicable === 'Y';
+  function stateOrDash(name) { return name && name !== 'Not Selected' && name !== 'N/A' ? name : '-'; }
+
   function cell(v) { return '"' + String(v !== null && v !== undefined ? v : '').replace(/"/g, '""') + '"'; }
-  function amt(n)  { return n > 0 ? Math.round(n) : 0; }
-  function amtAnn(n) { return n > 0 ? Math.round(n * 12) : 0; }
-  function naStr(n, label) { return n > 0 ? Math.round(n) : (label || 'N/A'); }
- 
+  function amt(n, decimals) { return decimals ? roundCurrency(n || 0).toFixed(2) : Math.round(n || 0); }
+
   const rows = [
     ['CTC SALARY REPORT — MONTHLY & ANNUAL', '', ''],
     ['Employee Name', empName, ''],
@@ -3240,56 +3178,33 @@ function exportCSV() {
     ['Date of Joining', empDOJ, ''],
     ['Location/Branch', empLocation, ''],
     ['Date', now, ''],
-    ['PF Status', r.pfApplicable === 'Y' ? 'Applicable' : 'Not Applicable', ''],
-    ['PF Mode', r.pfApplicable === 'Y' ? r.pfModeLabel : 'N/A', ''],
-    ['Employer PF Rate', r.pfApplicable === 'Y' ? r.pfEmployerRate + '%' : 'N/A', ''],
+    ['PF Status', pfOn ? 'Applicable' : 'Not Applicable', ''],
+    ['PF Mode', pfOn ? r.pfModeLabel : '-', ''],
+    ['Employer PF Rate', pfOn ? r.pfEmployerRate + '%' : '-', ''],
     ['Bonus', r.bonusApplicable === 'N' ? 'Disabled' : 'Applicable (' + bonusPercentLabel + '% of ' + bonusBaseLabel + ')', ''],
     ['Gratuity', gratuityApplicable === 'Y' ? 'Applicable (4.81% of Basic)' : 'Disabled', ''],
     ['State Minimum Wage', amt(r.minWage), ''],
-    ['LWF State', r.lwfStateName || 'N/A', ''],
-    ['Professional Tax State', r.ptStateName || 'N/A', ''],
+    ['LWF State', stateOrDash(r.lwfStateName), ''],
+    ['Professional Tax State', stateOrDash(r.ptStateName), ''],
     ['Leaves per Year', r.leavesPerYear || 15, ''],
     ['', '', ''],
     ['COMPONENT', 'MONTHLY (Rs.)', 'ANNUAL (Rs.)'],
-    ['--- SALARY STRUCTURE ---', '', ''],
-    ['Basic Salary', amt(r.basic), amtAnn(r.basic)],
-    ['HRA (50% of Basic)', amt(r.hra), amtAnn(r.hra)],
-    ...(r.isHighGross
-      ? [
-          ['Defray Expenses (10%)', amt(r.deferAllowance), amtAnn(r.deferAllowance)],
-          [(r.convLabel || 'Conveyance') + ' (Residual)', amt(r.conv), amtAnn(r.conv)],
-        ]
-      : [[(r.convLabel || 'Conveyance'), amt(r.conv), amtAnn(r.conv)]]),
-    ['Gross Salary', amt(r.gross), amtAnn(r.gross)],
-    ['', '', ''],
-    ['--- EMPLOYER CONTRIBUTIONS ---', '', ''],
-    ['EPF – Employer (' + r.pfEmployerRate + '%)', r.pfApplicable === 'Y' ? amt(r.epfEmployer) : 'N/A', r.pfApplicable === 'Y' ? amtAnn(r.epfEmployer) : 'N/A'],
-    ['EDLI – Employer', r.edliEmployer > 0 ? amt(r.edliEmployer) : 0, r.edliEmployer > 0 ? amtAnn(r.edliEmployer) : 0],
-    ['Bonus (' + bonusPercentLabel + '% of ' + bonusBaseLabel + ')', r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? amt(r.bonus) : 'N/A'), r.bonusApplicable === 'N' ? 'Disabled' : (r.bonus > 0 ? amtAnn(r.bonus) : 'N/A')],
-    ['ESI – Employer (3.25%)', r.esiEmployer > 0 ? amt(r.esiEmployer) : 0, r.esiEmployer > 0 ? amtAnn(r.esiEmployer) : 0],
-    ['Initial CTC', amt(r.initialCTC), amtAnn(r.initialCTC)],
-    ['Health Insurance (Monthly)', amt(r.healthInsurance), '—'],
-    ['Leave Encashment (' + (r.leavesPerYear || 15) + ' leaves/yr)' + (leaveApplicable === 'N' ? ' - DISABLED' : ''), amt(r.leaveComponent), leaveApplicable !== 'N' ? amtAnn(r.leaveComponent) : '—'],
-    ['Gratuity (4.81% of Basic)' + (gratuityApplicable === 'N' ? ' - DISABLED' : ''), amt(r.gratuityComponent || 0), gratuityApplicable === 'Y' ? amtAnn(r.gratuityComponent || 0) : '—'],
-    ['Ex-Gratia', amt(r.exGratiaMonthly), amt(r.exGratiaAnnual)],
-    ['PLI', amt(r.pliMonthly), amt(r.pliAnnual)],
-    ['LWF – Employer (' + (r.lwfStateName || 'N/A') + ')', r.lwfEmployer > 0 ? amt(r.lwfEmployer) : 0, '—'],
-    ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? amt(r.ptDeduction) : 0, '—'],
-    ['', '', ''],
-    ['--- EMPLOYEE DEDUCTIONS ---', '', ''],
-    ['EPF – Employee (12%)', r.pfApplicable === 'Y' ? amt(r.epfEmployee) : 'N/A', r.pfApplicable === 'Y' ? amtAnn(r.epfEmployee) : 'N/A'],
-    ['ESI – Employee (0.75%)', r.esiEmployee > 0 ? amt(r.esiEmployee) : 0, r.esiEmployee > 0 ? amtAnn(r.esiEmployee) : 0],
-    ['PT – ' + (r.ptStateName || 'N/A'), r.ptDeduction > 0 ? amt(r.ptDeduction) : 0, '—'],
-    ['LWF – Employee (' + (r.lwfStateName || 'N/A') + ')', r.lwf > 0 ? amt(r.lwf) : 0, '—'],
-    ['', '', ''],
-    ['--- FINAL TOTALS ---', '', ''],
-    ['Final CTC', amt(r.finalCTC), amt(r.finalCTCAnnual)],
-    ['Net Cash in Hand', amt(r.cashInHand), amtAnn(r.cashInHand)],
-    ['', '', ''],
+  ];
+
+  buildExportSections(r).forEach(function(section) {
+    rows.push(['--- ' + section.title + ' ---', '', '']);
+    section.rows.forEach(function(item) {
+      rows.push([item.label, amt(item.monthly, item.decimals), item.annual === null ? '—' : amt(item.annual, item.decimals)]);
+    });
+    rows.push(['', '', '']);
+  });
+
+  rows.push(
     ['--- DISCLAIMER ---', '', ''],
     ['1. TDS will be deducted as per the provisions of the Income Tax Act, based on the employee\'s tax regime, declarations, and applicable tax rules.', '', ''],
     ['2. Variable pay, incentives, bonuses, and other performance-linked components are subject to eligibility and company policy.', '', ''],
-  ];
+    ['3. PF exemption is subject to verification that you are previously covered under PF or Not. If found covered than the Liability of PF is on Employees end.', '', ''],
+  );
  
   const csv = rows.map(function(row) { return row.map(function(c) { return cell(c); }).join(','); }).join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -3304,33 +3219,14 @@ function copyToClipboard() {
   if (!calcResult) { showToast('⚠️ Please calculate first'); return; }
   const r       = calcResult;
   const empName = (document.getElementById('empName')?.value || '').trim() || 'Employee';
-  const bonusBaseLabelMap = { minwage: 'Min Wage', basic: 'Basic', gross: 'Gross' };
-  const bonusBaseLabel    = bonusBaseLabelMap[r.bonusBase] || 'Min Wage';
-  const bonusPercentLabel = (r.bonusPercent !== undefined && r.bonusPercent !== null) ? r.bonusPercent : 8.33;
-  const allowanceLines = r.isHighGross
-    ? ['Defray Expenses (10%)\t' + r.deferAllowance, 'Conveyance\t' + r.conv]
-    : ['Conveyance\t' + r.conv];
-  const lines = ['CTC Report — ' + empName, 'Basic\t' + r.basic, 'HRA\t' + r.hra]
-    .concat(allowanceLines)
-    .concat([
-      'Gross\t' + r.gross,
-      'EPF Employer (' + r.pfEmployerRate + '%)\t' + r.epfEmployer,
-      'EDLI Employer\t' + r.edliEmployer,
-      'Bonus (' + bonusPercentLabel + '% of ' + bonusBaseLabel + ')\t' + r.bonus,
-      'ESI Employer\t' + r.esiEmployer,
-      'Health Insurance (Monthly)\t' + r.healthInsurance,
-      'Leave Encashment (' + r.leavesPerYear + ' leaves)\t' + r.leaveComponent,
-      'Ex-Gratia\t' + r.exGratiaMonthly + '\tAnnual\t' + r.exGratiaAnnual,
-      'PLI\t' + r.pliMonthly + '\tAnnual\t' + r.pliAnnual,
-      'LWF Employer – ' + (r.lwfStateName||'N/A') + '\t' + r.lwfEmployer,
-      'PT – ' + (r.ptStateName||'N/A') + '\t' + r.ptDeduction,
-      'LWF Employee – ' + (r.lwfStateName||'N/A') + '\t' + r.lwf,
-      'EPF Employee\t' + r.epfEmployee,
-      'ESI Employee\t' + r.esiEmployee,
-      'Final CTC (Monthly)\t' + r.finalCTC,
-      'Final CTC (Annual)\t' + r.finalCTCAnnual,
-      'Cash in Hand\t' + r.cashInHand,
-    ]);
+  const lines = ['CTC Report — ' + empName, 'Component\tMonthly\tAnnual'];
+  buildExportSections(r).forEach(function(section) {
+    lines.push('', section.title);
+    section.rows.forEach(function(item) {
+      const format = item.decimals ? function(n) { return roundCurrency(n).toFixed(2); } : Math.round;
+      lines.push(item.label + '\t' + format(item.monthly) + '\t' + (item.annual === null ? '—' : format(item.annual)));
+    });
+  });
   navigator.clipboard.writeText(lines.join('\n'))
     .then(function() { showToast('⎘ Copied to clipboard'); })
     .catch(function() { showToast('⚠️ Copy failed'); });
