@@ -3142,9 +3142,11 @@ function exportPDF() {
   addSection('SALARY STRUCTURE', salaryRows);
 
   const employerRows = [];
-  if (r.pfApplicable === 'Y' && r.epfEmployer > 0) {
-    employerRows.push(['EPF – Employer (' + r.pfEmployerRate + '%)', fmtP(r.epfEmployer), fmtA(r.epfEmployer), false, false]);
-  }
+  // EPF always appears: its value when PF is applicable, Rs.0 when it is not.
+  const pfOn = r.pfApplicable === 'Y';
+  const epfEmployerAmt = pfOn ? (r.epfEmployer || 0) : 0;
+  const epfEmployeeAmt = pfOn ? (r.epfEmployee || 0) : 0;
+  employerRows.push(['EPF – Employer' + (pfOn ? ' (' + r.pfEmployerRate + '%)' : ''), fmtP(epfEmployerAmt), fmtA(epfEmployerAmt), false, false]);
   if (r.edliEmployer > 0) {
     employerRows.push(['EDLI – Employer', fmtP(r.edliEmployer), fmtA(r.edliEmployer), false, false]);
   }
@@ -3176,9 +3178,7 @@ function exportPDF() {
   addSection('EMPLOYER CONTRIBUTIONS', employerRows);
 
   const deductionRows = [];
-  if (r.pfApplicable === 'Y' && r.epfEmployee > 0) {
-    deductionRows.push(['EPF – Employee (12%)', fmtPF(r.epfEmployee), fmtPF(r.epfEmployee * 12), false, false]);
-  }
+  deductionRows.push(['EPF – Employee' + (pfOn ? ' (12%)' : ''), fmtPF(epfEmployeeAmt), fmtPF(epfEmployeeAmt * 12), false, false]);
   if (r.esiEmployee > 0) {
     deductionRows.push(['ESI – Employee (0.75%)', fmtP(r.esiEmployee), fmtA(r.esiEmployee), false, false]);
   }
