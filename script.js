@@ -3148,9 +3148,9 @@ function exportPDF() {
   if (r.edliEmployer > 0) {
     employerRows.push(['EDLI – Employer', fmtP(r.edliEmployer), fmtA(r.edliEmployer), false, false]);
   }
-  if (r.bonus > 0) {
-    employerRows.push(['Bonus ' + bonusPercentLabel + '% of ' + bonusBaseLabel, fmtP(r.bonus), fmtA(r.bonus), false, false]);
-  }
+  // Bonus always appears: its value when enabled, Rs.0 when disabled.
+  const bonusAmt = r.bonusApplicable === 'N' ? 0 : (r.bonus || 0);
+  employerRows.push(['Bonus ' + bonusPercentLabel + '% of ' + bonusBaseLabel, fmtP(bonusAmt), fmtA(bonusAmt), false, false]);
   if (r.esiEmployer > 0) {
     employerRows.push(['ESI – Employer (3.25%)', fmtP(r.esiEmployer), fmtA(r.esiEmployer), false, false]);
   }
